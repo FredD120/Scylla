@@ -1,7 +1,6 @@
 module Scylla
 
 using StaticArrays
-using InteractiveUtils
 using JLD2
 using Random
 using ArgParse
