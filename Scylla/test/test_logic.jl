@@ -1,24 +1,24 @@
 using Test
 using Scylla
 
-const expensive = true
-const verbose = true
+const expensive = false
+const verbose = false
 
 const FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 function test_setters()
     num = UInt64(1)
 
-    num = logic.setone(num,1)
+    num = Scylla.setone(num,1)
     @assert num == UInt64(3)
 
-    num = logic.setzero(num,0)
+    num = Scylla.setzero(num,0)
     @assert num == UInt64(2)
-    num = logic.setzero(num,1)
+    num = Scylla.setzero(num,1)
     @assert num == UInt64(0)
 
     num2 = UInt64(2)
-    @assert logic.setzero(num2,8) == UInt64(2)
+    @assert Scylla.setzero(num2,8) == UInt64(2)
 end
 test_setters()
 
@@ -26,10 +26,10 @@ function test_boardinit()
     board = Boardstate(FEN)
     @assert Whitesmove(board.Colour) == true
     @assert board.Data.EnPassant[end] == UInt64(0)
-    @assert logic.ally_pieces(board)[3] != UInt64(0)
-    @assert logic.enemy_pieces(board)[3] != UInt64(0)
-    @assert logic.enemy_pieces(board)[1] == UInt64(1) << 4
-    @assert logic.ally_pieces(board)[1] == UInt64(1) << 60
+    @assert Scylla.ally_pieces(board)[3] != UInt64(0)
+    @assert Scylla.enemy_pieces(board)[3] != UInt64(0)
+    @assert Scylla.enemy_pieces(board)[1] == UInt64(1) << 4
+    @assert Scylla.ally_pieces(board)[1] == UInt64(1) << 60
     @assert board.Data.Halfmoves[end] == 0
 end
 test_boardinit()
@@ -45,9 +45,9 @@ test_GUIboard()
 
 function test_BitboardUnion()
     board = Boardstate(FEN)
-    white = logic.BBunion(logic.ally_pieces(board))
-    black = logic.BBunion(logic.enemy_pieces(board))
-    all = logic.BBunion(board.pieces)
+    white = Scylla.BBunion(Scylla.ally_pieces(board))
+    black = Scylla.BBunion(Scylla.enemy_pieces(board))
+    all = Scylla.BBunion(board.pieces)
     compareW = UInt64(0)
     compareB = UInt64(0)
 
@@ -80,7 +80,7 @@ function test_Move()
     flag = UInt8(1)
     mv = Move(pc,from,to,cap,flag)
 
-    P,F,T,C,Fl = logic.unpack_move(mv)
+    P,F,T,C,Fl = Scylla.unpack_move(mv)
     @assert P == pc
     @assert F == from
     @assert T == to
@@ -90,7 +90,7 @@ end
 test_Move()
 
 function test_moveBB()
-    movestruct = logic.Move_BB()
+    movestruct = Scylla.Move_BB()
     @assert length(movestruct.knight) == 64
     @assert movestruct.king[1] == UInt64(770)
 end
@@ -101,9 +101,9 @@ function test_iterators()
     pieces = board.pieces
     @assert length(pieces) == 12
     pieces::Vector{UInt64}
-    wpieces = logic.ally_pieces(board)
+    wpieces = Scylla.ally_pieces(board)
     @assert length(wpieces) == 6
-    bpieces = logic.enemy_pieces(board)
+    bpieces = Scylla.enemy_pieces(board)
     @assert length(bpieces) == 6
 end
 test_iterators()
@@ -120,7 +120,7 @@ function test_movfromloc()
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Boardstate(simpleFEN)
     moves = Vector{UInt32}()
-    logic.moves_from_location!(logic.King,moves,logic.enemy_pieces(board),UInt64(3),UInt8(2),false)
+    Scylla.moves_from_location!(Scylla.King,moves,Scylla.enemy_pieces(board),UInt64(3),UInt8(2),false)
     @assert length(moves) == 2
     @assert cap_type(moves[1]) == 0
     @assert from(moves[2]) == 2
@@ -131,7 +131,7 @@ test_movfromloc()
 function test_legalinfo()
     simpleFEN = "K7/R7/8/8/8/8/8/r6q w - - 0 1"
     board = Boardstate(simpleFEN)    
-    info = logic.attack_info(board)
+    info = Scylla.attack_info(board)
 
     @assert info.checks == (UInt64(1)<<63) "only bishop attacks king"
     @assert info.attack_num == 1
@@ -143,21 +143,21 @@ function test_legalinfo()
 
     simpleFEN = "4k3/8/8/8/4q3/8/4B3/1Q2K3 w - 0 1"
     board = Boardstate(simpleFEN)  
-    info = logic.attack_info(board)
+    info = Scylla.attack_info(board)
 
     @assert info.blocks == typemax(UInt64)
     @assert info.checks == typemax(UInt64)
 
     simpleFEN = "K7/R7/8/8/8/8/8/r6b w - - 0 1"
     board = Boardstate(simpleFEN)    
-    pinfo = logic.attack_info(board)
+    pinfo = Scylla.attack_info(board)
 
     @assert length(pinfo.rookpins) == 7
     @assert pinfo.bishoppins == 0
 
     simpleFEN = "4k3/8/8/8/4b3/8/4B3/1Q2K3 w - 0 1"
     board = Boardstate(simpleFEN)    
-    pinfo = logic.attack_info(board)
+    pinfo = Scylla.attack_info(board)
 
     @assert pinfo.rookpins == 0
     @assert pinfo.bishoppins == 0
@@ -290,10 +290,10 @@ testEP()
 function test_attckpcs()
     simpleFEN = "8/p2n4/1K5r/8/8/8/8/6b1 w - - 0 1"
     board = Boardstate(simpleFEN)    
-    all_pcs = logic.BBunion(board.pieces)
+    all_pcs = Scylla.BBunion(board.pieces)
     kingpos = LSB(board.pieces[King])
 
-    checkers = logic.attack_pcs(logic.enemy_pieces(board),all_pcs,kingpos,true)
+    checkers = Scylla.attack_pcs(Scylla.enemy_pieces(board),all_pcs,kingpos,true)
     @assert checkers == (UInt64(1)<<8)|(UInt64(1)<<11)|(UInt64(1)<<23)|(UInt64(1)<<62) "2 sliding piece attacks, a knight and a pawn"
 end
 test_attckpcs()
@@ -301,8 +301,8 @@ test_attckpcs()
 function test_allposs()
     simpleFEN = "R1R1R1R1/8/8/8/8/8/8/1R1R1R1R b - - 0 1"
     board = Boardstate(simpleFEN) 
-    all_pcs = logic.BBunion(board.pieces)  
-    attkBB = logic.all_poss_moves(logic.enemy_pieces(board),all_pcs,Whitesmove(board.Colour))
+    all_pcs = Scylla.BBunion(board.pieces)  
+    attkBB = Scylla.all_poss_moves(Scylla.enemy_pieces(board),all_pcs,Whitesmove(board.Colour))
 
     @assert attkBB == typemax(UInt64) "rooks are covering all squares"
 end
@@ -360,7 +360,7 @@ function test_makemove()
     board = Boardstate(basicFEN)
     moves = generate_moves(board)
 
-    @assert logic.ally_pieces(board)[1] == UInt64(1)
+    @assert Scylla.ally_pieces(board)[1] == UInt64(1)
 
     for m in moves
         if to(m) == 1
@@ -370,7 +370,7 @@ function test_makemove()
 
     @assert Whitesmove(board.Colour) == false
     @assert board.Data.Halfmoves[end] == UInt8(1)
-    @assert logic.enemy_pieces(board)[1] == UInt64(2)
+    @assert Scylla.enemy_pieces(board)[1] == UInt64(2)
 
     #Test making a non-capture with three pieces on the board
     basicFEN = "Kn6/8/8/8/8/8/8/7k w - 0 1"
@@ -382,8 +382,8 @@ function test_makemove()
             make_move!(m,board)
         end
     end
-    @assert sum(logic.ally_pieces(board)[2:end])  == UInt64(1) << 1
-    @assert logic.enemy_pieces(board)[1] == UInt64(1) << 8
+    @assert sum(Scylla.ally_pieces(board)[2:end])  == UInt64(1) << 1
+    @assert Scylla.enemy_pieces(board)[1] == UInt64(1) << 8
     @assert length(generate_moves(board)) == 6
 
     #Test a black move
@@ -398,7 +398,7 @@ function test_makemove()
             make_move!(m,board)
         end
     end
-    @assert sum(logic.enemy_pieces(board)[2:end]) == 1<<11
+    @assert sum(Scylla.enemy_pieces(board)[2:end]) == 1<<11
     GUI = GUIposition(board)
     @assert GUI[12] == 11
 
@@ -414,7 +414,7 @@ function test_makemove()
         end
     end
     @assert Whitesmove(board.Colour) == false
-    @assert sum(logic.ally_pieces(board)[2:end]) == 0
+    @assert sum(Scylla.ally_pieces(board)[2:end]) == 0
 
     GUI = GUIposition(board)
     @assert GUI[42] == 5
@@ -427,7 +427,7 @@ function test_capture()
     board = Boardstate(basicFEN)
     moves = generate_moves(board)
 
-    @assert sum(logic.enemy_pieces(board)) > 0
+    @assert sum(Scylla.enemy_pieces(board)) > 0
 
     for m in moves
         if cap_type(m) > 0
@@ -435,8 +435,8 @@ function test_capture()
         end
     end
 
-    @assert sum(logic.ally_pieces(board)[2:end]) == 0
-    @assert logic.enemy_pieces(board)[1] == UInt64(2)
+    @assert sum(Scylla.ally_pieces(board)[2:end]) == 0
+    @assert Scylla.enemy_pieces(board)[1] == UInt64(2)
 
     @assert length(generate_moves(board)) == 3
 
@@ -485,10 +485,10 @@ test_legal()
 function test_identifyID()
     basicFEN = "1N7/8/8/8/8/8/8/8 w - - 0 1"
     board = Boardstate(basicFEN)
-    ID = logic.identify_piecetype(logic.ally_pieces(board),1)
+    ID = Scylla.identify_piecetype(Scylla.ally_pieces(board),1)
     @assert ID == 5
 
-    ID = logic.identify_piecetype(logic.ally_pieces(board),2)
+    ID = Scylla.identify_piecetype(Scylla.ally_pieces(board),2)
     @assert ID == 0
 end
 test_identifyID()
@@ -507,8 +507,8 @@ function test_unmake()
     unmake_move!(board)
 
     @assert Whitesmove(board.Colour) == true
-    @assert logic.ally_pieces(board)[1] == UInt64(1)
-    @assert logic.enemy_pieces(board)[5] == UInt64(2)
+    @assert Scylla.ally_pieces(board)[1] == UInt64(1)
+    @assert Scylla.enemy_pieces(board)[5] == UInt64(2)
 
     moves = generate_moves(board)
     for m in moves
@@ -516,29 +516,29 @@ function test_unmake()
             make_move!(m,board)
         end
     end
-    @assert logic.enemy_pieces(board)[1] == UInt(1) << 8
+    @assert Scylla.enemy_pieces(board)[1] == UInt(1) << 8
     moves = generate_moves(board)
     for m in moves
         if to(m) == 16
             make_move!(m,board)
         end
     end
-    @assert logic.enemy_pieces(board)[5] == UInt(1) << 16
+    @assert Scylla.enemy_pieces(board)[5] == UInt(1) << 16
     moves = generate_moves(board)
     for m in moves
         if cap_type(m) == 5
             make_move!(m,board)
         end
     end
-    @assert logic.ally_pieces(board)[5] == 0
+    @assert Scylla.ally_pieces(board)[5] == 0
     @assert length(board.Data.Halfmoves) == 2
     unmake_move!(board)
     unmake_move!(board)
     unmake_move!(board)
 
     @assert Whitesmove(board.Colour) == true
-    @assert logic.ally_pieces(board)[1] == UInt64(1)
-    @assert logic.enemy_pieces(board)[5] == UInt64(2)
+    @assert Scylla.ally_pieces(board)[1] == UInt64(1)
+    @assert Scylla.enemy_pieces(board)[5] == UInt64(2)
     @assert length(board.Data.Halfmoves) == 1
 end
 test_unmake()
@@ -568,8 +568,8 @@ end
 test_repetition()
 
 function test_UCI()
-    str1 = logic.UCIpos(0)
-    str2 = logic.UCIpos(63)
+    str1 = Scylla.UCIpos(0)
+    str2 = Scylla.UCIpos(63)
     @assert (str1 == "a8") & (str2 == "h1")
 
     move = Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
@@ -665,7 +665,7 @@ function Testing_perft(board::Boardstate,depth)
         for move in moves
             make_move!(move,board)
             static_eval = zeros(Int32,2)
-            logic.set_PST!(static_eval,board.pieces)
+            Scylla.set_PST!(static_eval,board.pieces)
             @assert board.PSTscore == static_eval "Score doesn't match. Dynamic = $(board.PSTscore), static = $(static_eval). Found on move $(show(move))"
             Testing_perft(board,depth-1)
             unmake_move!(board)
