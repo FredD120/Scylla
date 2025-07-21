@@ -4,6 +4,13 @@ using Profile
 using ArgParse
 using InteractiveUtils
 
+#=
+To check generated code:
+@code_llvm
+@code_native
+@code_warntype
+=#
+
 const FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 function run_tests()

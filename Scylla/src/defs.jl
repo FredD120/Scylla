@@ -1,0 +1,98 @@
+#Define constants used by the Engine
+#Utility functions for general use
+
+const rng = Xoshiro(2955)
+
+const NULL_PIECE = UInt8(0)
+"Index associated with piecetype"
+const King = UInt8(1)
+const Queen = UInt8(2)
+const Rook = UInt8(3)
+const Bishop = UInt8(4)
+const Knight = UInt8(5)
+const Pawn = UInt8(6)
+
+const FENdict = Dict('K'=>King,'Q'=>Queen,'R'=>Rook,'B'=>Bishop,'N'=>Knight,'P'=>Pawn)
+
+"return letter associated with piecetype index"
+function piece_letter(p::UInt8)
+    for (k,v) in FENdict
+        if p==v
+            return k
+        end
+    end
+    return ""
+end
+
+"Iterating through singleton piecetypes. Can cause type instability"
+const piecetypes = [King,Queen,Rook,Bishop,Knight,Pawn]
+
+"Colour ID used in movegen/boardstate"
+const white = UInt8(0)
+const black = UInt8(6)
+
+"instruction to move generator"
+const ATTACKONLY = UInt64(0)
+const ALLMOVES = UInt64(1)
+
+const ZobristKeys = rand(rng,UInt64,12*64+9)
+
+const NOFLAG = UInt8(0)
+const KCASTLE = UInt8(1)
+const QCASTLE = UInt8(2)
+const EPFLAG = UInt8(3)
+const DPUSH = UInt8(4)
+const PROMQUEEN = UInt8(5)
+const PROMROOK = UInt8(6)
+const PROMBISHOP = UInt8(7)
+const PROMKNIGHT = UInt8(8)
+
+"Decide which piecetype to promote to"
+function promote_type(flag)
+    if flag == PROMQUEEN
+        return Queen
+    elseif flag == PROMROOK
+        return Rook
+    elseif flag == PROMBISHOP
+        return Bishop
+    elseif flag == PROMKNIGHT
+        return Knight
+    end
+    return NULL_PIECE
+end
+
+struct Promote end
+
+struct Neutral end
+struct Loss end
+struct Draw end
+
+const GameState = Union{Neutral,Loss,Draw}
+
+"types of nodes based on position in search tree"
+const NONE = UInt8(0)
+const ALPHA = UInt8(1)
+const BETA = UInt8(2)
+const EXACT = UInt8(3)
+
+setone(num::UInt64,index::Integer) = num | (UInt64(1) << index)
+
+setzero(num::UInt64,index::Integer) = num & ~(UInt64(1) << index)
+
+"Least significant bit of a bitboard, returned as a UInt8"
+LSB(BB::Integer) = UInt8(trailing_zeros(BB))
+
+"Get a rank from a 0-63 index"
+rank(ind) = 7 - (ind >> 3)
+"Get a file from a 0-63 index"
+file(ind) = ind % 8
+
+"take in all possible moves as a bitboard for a given piece from a txt file"
+function read_txt(filename)
+    data = Vector{UInt64}()
+    data_str = readlines("$(dirname(@__DIR__))/src/move_BBs/$(filename).txt")
+    for d in data_str
+        push!(data, parse(UInt64,d))
+    end   
+    return data
+end

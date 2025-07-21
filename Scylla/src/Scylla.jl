@@ -5,8 +5,16 @@ using JLD2
 using Random
 using ArgParse
 
+include("defs.jl")
+include("pst.jl")
+include("board.jl")
+include("magics.jl")
 include("logic.jl")
+include("move.jl")
+include("transposition.jl")
+include("moveordering.jl")
 include("engine.jl")
+include("perft.jl")
 include("cli.jl")
 
 export Boardstate,
