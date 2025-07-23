@@ -30,37 +30,6 @@ end
     @test Scylla.MGweighting(num_pcs) < Scylla.EGweighting(num_pcs)
 end
 
-@testset "Triangular Table" begin
-    PVtable = zeros(Scylla.triangle_number(Scylla.MAXDEPTH))
-    PV_len = Scylla.MAXDEPTH
-    new_move = 1
-    tri_count = 0
-
-    for ply in Scylla.MAXDEPTH-1:-1:0
-        tri_count += 1
-        Scylla.copy_PV!(PVtable,ply,PV_len,Scylla.MAXDEPTH,new_move)
-        @test sum(PVtable) == Scylla.triangle_number(tri_count)
-    end
-end
-
-@testset "MVV-LVA Scoring" begin
-    eFEN = "8/8/8/8/8/8/q1r5/1K6 w - - 0 1"
-    board = Scylla.Boardstate(eFEN)
-    moves = Scylla.generate_moves(board)
-
-    Scylla.score_moves!(moves)
-    
-    for move in moves
-        if Scylla.cap_type(move) == Scylla.Queen
-            @test Scylla.score(move) == maximum(scores)
-            @test Scylla.score(move) > Scylla.MINCAPSCORE
-        elseif Scylla.cap_type(move) == Scylla.NULL_PIECE
-            @test Scylla.score(move) == minimum(scores)
-            @test Scylla.score(move) < Scylla.MINCAPSCORE
-        end
-    end
-end
-
 @testset "Positional Evaluation" begin
     @testset "Central Knights" begin
         eFEN = "1n2k1n1/8/8/8/8/8/8/4K3 b KQkq - 0 1"
@@ -99,66 +68,27 @@ end
     end
 end
 
-@testset "Incremental Ordering" begin
-    moves = [Scylla.NULLMOVE for _ in 1:3]
-
-    for i in eachindex(moves)
-        moves[i] = Scylla.set_score(moves[i],UInt8(i))
-    end
-
-    for i in eachindex(moves)
-        Scylla.next_best!(moves,i)
-        @test Scylla.score(moves[i]) == 4-i
-    end
-end
-
-@testset "Score Killers" begin
-    killer_vec = [Scylla.Killer() for _ in 1:3]
-    ply = 2
-
-    killer_vec[ply+1] = Scylla.Killer(UInt32(1),UInt32(2))
-    moves = [UInt32(3),UInt32(5),UInt32(2)]
-
-    Scylla.score_moves!(moves,killer_vec[ply+1])
-    @test Scylla.score(moves[3]) > Scylla.score(moves[2]) 
-    @test Scylla.score(moves[3]) > Scylla.score(moves[1]) 
-end
-
-@testset "Update Killers" begin 
-    killer_vec = [Scylla.Killer() for _ in 1:3]
-    ply = 1
-
-    for move in UInt32(1):UInt32(10)
-        Scylla.new_killer!(killer_vec,ply,move)
-    end
-    @test killer_vec[ply+1].First == UInt32(10) 
-    @test killer_vec[ply+1].Second == UInt32(9) 
-
-    Scylla.new_killer!(killer_vec,ply,UInt32(10))
-    @test killer_vec[ply+1].First != killer_vec[ply+1].Second
-end
-
 @testset "Easy Best Move" begin
     @testset "Bxq" begin
         eFEN = "K6Q/8/8/8/8/8/8/b6k b - - 0 1"
-        board = Scylla.Boardstate(eFEN)
-        best,log = Scylla.best_move(board,MAXTIME)
+        engine = Scylla.EngineState(eFEN)
+        best,log = Scylla.best_move(engine,max_T=MAXTIME)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
 
     @testset "bxQ" begin
         eFEN = "k6q/8/8/8/8/8/8/B6K w - - 0 1"
-        board = Scylla.Boardstate(eFEN)
-        best,log = Scylla.best_move(board,MAXTIME)
+        engine = Scylla.EngineState(eFEN)
+        best,log = Scylla.best_move(engine,max_T=MAXTIME)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
 
     @testset "Queen Evade Capture" begin
         eFEN = "k7/8/8/8/8/8/5K2/7q b - - 0 1"
-        board = Boardstate(eFEN)
-        best,log = best_move(board,MAXTIME)
+        engine = Scylla.EngineState(eFEN)
+        best,log = Scylla.best_move(engine,max_T=MAXTIME)
 
         @test Scylla.LONGmove(best) == "Qh1-e4"
     end
@@ -167,14 +97,14 @@ end
 @testset "Mate in 2" begin
     #mate in 2
     for eFEN in ["K7/R7/R7/8/8/8/8/7k w - - 0 1","k7/r7/r7/8/8/8/8/7K b - - 0 1"]
-        board = Boardstate(eFEN)
-        best,log = best_move(board,MAXTIME)
+        engine = Scylla.EngineState(eFEN)
+        best,log = Scylla.best_move(engine,max_T=MAXTIME)
         #rook moves to cut off king
         make_move!(best,board)
         moves = generate_moves(board)
         #king response doesn't matter
         make_move!(moves[1],board)
-        best,log = best_move(board,MAXTIME)
+        best,log = Scylla.best_move(engine,max_T=MAXTIME)
         make_move!(best,board)
         gameover!(board)
         
@@ -187,11 +117,10 @@ function profile()
 
     #slow position
     eFEN = split(split(positions[12],";")[1],"- bm")[1]*"0"
-    board = Boardstate(eFEN)
+    engine = Scylla.EngineState(eFEN)
+    best,log = Scylla.best_move(engine,max_T=MAXTIME)
 
-    best,log = best_move(board,MAXTIME)
-
-    @profile best_move(board,MAXTIME*10)
+    @profile Scylla.best_move(engine,max_T=MAXTIME*10)
     Profile.print()
 end
 if profile_engine::Bool

@@ -24,6 +24,7 @@ export Boardstate,
        generate_moves,
        gameover!,
        best_move,
-       run_cli
+       run_cli,
+       EngineState
 
 end #module

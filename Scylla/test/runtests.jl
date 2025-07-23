@@ -15,6 +15,18 @@ const FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 function run_tests()
     @testset "Chess Engine Tests" begin
+        @testset "Moves" begin
+            include("test_move.jl")
+        end
+
+        @testset "Transposition Table" begin
+            include("test_transposition.jl")
+        end
+
+        @testset "Move Ordering" begin
+            include("test_moveordering.jl")
+        end
+        
         @testset "Logic Tests" begin
             include("test_logic.jl")
         end

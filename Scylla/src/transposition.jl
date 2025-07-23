@@ -20,13 +20,21 @@ end
 "shift for 64 bit integers"
 bitshift(num) = UInt64(64-num)
 
-"construct TT using its size in bits and type of data stored. return nothing if length = 0"
-function TranspositionTable(size::Integer,type,verbose=false)::Union{TranspositionTable,Nothing}
+"construct TT using its size in Mb and type of data stored. return nothing if length = 0"
+function TranspositionTable(type,verbose=false;sizeMb=nothing,size=18)::Union{TranspositionTable,Nothing}
+    Mb = 1048576 #size of a Mb in bytes
     if size > 0
+        entry_size = Base.summarysize(type())
+        #calculate size from Mb requirements if given
+        #otherwise use size provided or default
+        if !isnothing(sizeMb)
+            num_entries = fld(sizeMb*Mb,entry_size)
+            size = floor(Int16,log2(num_entries))
+        end
+
         hash_table = [type() for _ in 1:2^size]
         if verbose
-            entry_size = sizeof(type())
-            println("TT size = $(round(entry_size*2^size/(1024^2),sigdigits=4)) Mb")
+            println("TT size = $(round(entry_size*(2^size)/Mb,sigdigits=4)) Mb")
         end
         return TranspositionTable(bitmask(size),hash_table)
     end
@@ -75,13 +83,6 @@ end
 "construct bucket with two entries"
 Bucket() = Bucket(SearchData(),SearchData())
 
-const TTSIZE::UInt8 = UInt8(18)
-"create transposition table in global state so it persists between moves"
-const TT = TranspositionTable(TTSIZE,Bucket,true)
-const TT_ENTRIES = 2*2^TTSIZE
-
-global cur_TT_entries::Int32 = 0
-
 "add depth to score when storing and remove when retrieving"
 function correct_score(score,depth,sgn)::Int16
     if score > MATE
@@ -92,8 +93,8 @@ function correct_score(score,depth,sgn)::Int16
     return score
 end
 
-"update entry in TT. currently always replace"
-function TT_store!(ZHash,depth,score,node_type,best_move,logger)
+"update entry in TT. either greater depth or always replace"
+function TT_store!(TT,ZHash,depth,score,node_type,best_move,logger)
     if !isnothing(TT)
         TT_view = view_entry(TT,ZHash)
         #correct mate scores in TT
@@ -114,7 +115,7 @@ function TT_store!(ZHash,depth,score,node_type,best_move,logger)
 end
 
 "retrieve TT entry, returning nothing if there is no entry"
-function TT_retrieve!(ZHash,cur_depth)
+function TT_retrieve!(TT,ZHash,cur_depth)
     if !isnothing(TT)
         bucket = get_entry(TT,ZHash)
         #no point using TT if hash collision

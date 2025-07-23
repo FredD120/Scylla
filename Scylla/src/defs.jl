@@ -14,6 +14,8 @@ const Pawn = UInt8(6)
 
 const FENdict = Dict('K'=>King,'Q'=>Queen,'R'=>Rook,'B'=>Bishop,'N'=>Knight,'P'=>Pawn)
 
+const startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
 "return letter associated with piecetype index"
 function piece_letter(p::UInt8)
     for (k,v) in FENdict

@@ -31,7 +31,33 @@ const MATE::Int16 = INF - Int16(100)
 
 #maximum search depth
 const MAXDEPTH::UInt8 = UInt8(24)
+const T_MAX::Float64 = Float64(30)
 const MINDEPTH::UInt8 = UInt8(0)
+
+#holds all information the engine needs to calculate
+mutable struct EngineState
+    board::Boardstate
+    TT::TranspositionTable
+    TT_total::Int32
+    TT_entries::Int32
+end
+
+"Constructor for enginestate given TT size and boardstate"
+function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false) 
+    board = Boardstate(FEN)
+    TT = TranspositionTable(Bucket,verbose,sizeMb=TT_size)
+    return EngineState(board,TT,length(TT.HashTable),0)
+end
+
+"construct enginestate only from FEN"
+function EngineState(FEN,verbose=false)
+    board = Boardstate(FEN)
+    TT = TranspositionTable(Bucket,verbose)
+    return EngineState(board,TT,length(TT.HashTable),0)
+end
+
+"Default constructor for enginestate"
+EngineState() = EngineState(startFEN)
 
 mutable struct SearchInfo
     #Break out early with current best score if OOT
@@ -46,7 +72,7 @@ mutable struct SearchInfo
 end
 
 "Constructor for search info struct"
-function SearchInfo(t_max,maxdepth=MAXDEPTH)
+function SearchInfo(t_max,maxdepth)
     triangular_PV = NULLMOVE*ones(UInt32,triangle_number(maxdepth))
     killers = [Killer() for _ in 1:maxdepth]
     SearchInfo(time(),t_max,maxdepth,triangular_PV,0,0,killers)
@@ -85,7 +111,7 @@ function evaluate(board::Boardstate)::Int16
 end
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
-function quiescence(board::Boardstate,player::Int8,α,β,ply,info::SearchInfo,logger::Logger)
+function quiescence(engine::EngineState,player::Int8,α,β,ply,info::SearchInfo,logger::Logger)
     info.nodes_since_time += 1
     if info.nodes_since_time > 500 
         #If we run out of time, return lower bound on score
@@ -101,29 +127,29 @@ function quiescence(board::Boardstate,player::Int8,α,β,ply,info::SearchInfo,lo
     logger.seldepth = max(logger.seldepth,ply)
 
     #still need to check for terminal nodes in qsearch
-    legal_info = gameover!(board)
-    if board.State != Neutral()
-        return eval(board.State,ply)
+    legal_info = gameover!(engine.board)
+    if engine.board.State != Neutral()
+        return eval(engine.board.State,ply)
     end
 
     if legal_info.attack_num == 0
-        best_score = player*evaluate(board)
+        best_score = player*evaluate(engine.board)
         if best_score > α
             if best_score >= β
                 return β
             end
             α = best_score
         end
-        moves = generate_attacks(board,legal_info)
+        moves = generate_attacks(engine.board,legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
             next_best!(moves,i)
             move = moves[i]
 
-            make_move!(move,board)
-            score = -quiescence(board,-player,-β,-α,ply+1,info,logger)
-            unmake_move!(board)
+            make_move!(move,engine.board)
+            score = -quiescence(engine,-player,-β,-α,ply+1,info,logger)
+            unmake_move!(engine.board)
 
             if score > α
                 if score >= β
@@ -138,16 +164,16 @@ function quiescence(board::Boardstate,player::Int8,α,β,ply,info::SearchInfo,lo
         return best_score
 
     else
-        moves = generate_moves(board,legal_info)
+        moves = generate_moves(engine.board,legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
             next_best!(moves,i)
             move = moves[i]
 
-            make_move!(move,board)
-            score = -quiescence(board,-player,-β,-α,ply+1,info,logger)
-            unmake_move!(board)
+            make_move!(move,engine.board)
+            score = -quiescence(engine,-player,-β,-α,ply+1,info,logger)
+            unmake_move!(engine.board)
 
             if score > α
                 if score >= β
@@ -161,7 +187,7 @@ function quiescence(board::Boardstate,player::Int8,α,β,ply,info::SearchInfo,lo
 end
 
 "minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info::SearchInfo,logger::Logger)
+function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,info::SearchInfo,logger::Logger)
     #reduce number of sys calls
     info.nodes_since_time += 1
     if info.nodes_since_time > 500
@@ -175,17 +201,17 @@ function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info:
     logger.nodes += 1
 
     #Evaluate whether we are in a terminal node
-    legal_info = gameover!(board)
-    if board.State != Neutral()
+    legal_info = gameover!(engine.board)
+    if engine.board.State != Neutral()
         logger.pos_eval += 1
-        value = eval(board.State,ply)
+        value = eval(engine.board.State,ply)
         return value
     end
 
     #enter quiescence search if at leaf node
     if depth <= MINDEPTH
         logger.pos_eval += 1
-        return quiescence(board,player,α,β,ply,info,logger)
+        return quiescence(engine.board,player,α,β,ply,info,logger)
     end
 
     best_move = NULLMOVE
@@ -193,7 +219,7 @@ function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info:
     if onPV
         best_move = info.PV[ply+1]
     else
-        TT_data,TT_score = TT_retrieve!(board.ZHash,depth)
+        TT_data,TT_score = TT_retrieve!(engine.TT,engine.board.ZHash,depth)
         if !isnothing(TT_data)
             #don't try to cutoff if depth of TT entry is too low
             if TT_data.depth >= depth 
@@ -218,16 +244,16 @@ function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info:
     node_type = ALPHA
     cur_best_move = NULLMOVE   
 
-    moves = generate_moves(board,legal_info)
+    moves = generate_moves(engine.board,legal_info)
     score_moves!(moves,info.Killers[ply+1],best_move)
 
     for i in eachindex(moves)
         next_best!(moves,i)
         move = moves[i]
 
-        make_move!(move,board)
-        score = -minimax(board,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
-        unmake_move!(board)
+        make_move!(move,engine.board)
+        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
+        unmake_move!(engine.board)
 
         #only first search is on PV
         onPV = false
@@ -245,7 +271,7 @@ function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info:
                     logger.TT_cut += 1
                 end
 
-                TT_store!(board.ZHash,depth,score,BETA,move,logger)
+                TT_store!(engine.TT,engine.board.ZHash,depth,score,BETA,move,logger)
                 return β
             end
             node_type = EXACT
@@ -256,17 +282,17 @@ function minimax(board::Boardstate,player::Int8,α,β,depth,ply,onPV::Bool,info:
         end
     end
 
-    TT_store!(board.ZHash,depth,α,node_type,cur_best_move,logger)
+    TT_store!(engine.TT,engine.board.ZHash,depth,α,node_type,cur_best_move,logger)
     return α
 end
 
 "Root of minimax search. Deals in moves not scores"
-function root(board,moves,depth,info::SearchInfo,logger::Logger)
+function root(engine,moves,depth,info::SearchInfo,logger::Logger)
     #whites current best score
     α = -INF 
     #whites current worst score (blacks best score)
     β = INF
-    player::Int8 = sgn(board.Colour)
+    player::Int8 = sgn(engine.board.Colour)
     ply = 0
     #search PV first, only if it exists
     onPV = true 
@@ -278,9 +304,9 @@ function root(board,moves,depth,info::SearchInfo,logger::Logger)
         next_best!(moves,i)
         move = moves[i]
 
-        make_move!(move,board)
-        score = -minimax(board,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
-        unmake_move!(board)
+        make_move!(move,engine.board)
+        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
+        unmake_move!(engine.board)
 
         if logger.stopmidsearch
             break
@@ -296,25 +322,24 @@ function root(board,moves,depth,info::SearchInfo,logger::Logger)
 end
 
 "Run minimax search to fixed depth then increase depth until time runs out"
-function iterative_deepening(board::Boardstate,T_MAX,verbose::Bool)
-    moves = generate_moves(board)
+function iterative_deepening(engine::EngineState,info::SearchInfo,verbose::Bool)
+    moves = generate_moves(engine.board)
     depth = 0
     logger = Logger()
-    info = SearchInfo(T_MAX)
     bestscore = 0
 
     #Quit early if we or opponent have M1
     while (depth < info.maxdepth) &&  
         !(abs(logger.best_score)==INF-1 || abs(logger.best_score)==INF-2)
         #If we run out of time, cancel next iteration
-        if (time() - info.starttime) > 0.2*T_MAX
+        if (time() - info.starttime) > 0.2*info.maxtime
             break
         end
 
         depth += 1
         logger.cur_depth = depth
         info.PV_len = depth
-        bestscore = root(board,moves,depth,info,logger)
+        bestscore = root(engine,moves,depth,info,logger)
 
         logger.PV = PV_string(info)
         if verbose
@@ -332,9 +357,10 @@ function iterative_deepening(board::Boardstate,T_MAX,verbose::Bool)
 end
 
 "Evaluates the position to return the best move"
-function best_move(board::Boardstate,T_MAX,logging=false)
+function best_move(engine::EngineState,logging=false;max_T=T_MAX,max_depth=MAXDEPTH)
     t = time()
-    best_move,logger = iterative_deepening(board,T_MAX,logging)
+    info = SearchInfo(max_T,max_depth)
+    best_move,logger = iterative_deepening(engine,info,logging)
     δt = time() - t
 
     best_move != NULLMOVE || error("Failed to find move better than null move")
@@ -345,7 +371,7 @@ function best_move(board::Boardstate,T_MAX,logging=false)
             dist = Int((INF - abs(logger.best_score))÷2)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
         end
-        global cur_TT_entries += logger.hashfull
+        engine.TT_entries += logger.hashfull
 
         #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
 
@@ -356,7 +382,7 @@ function best_move(board::Boardstate,T_MAX,logging=false)
         Depth = $((logger.cur_depth)). \
         Max ply = $(logger.seldepth). \
         TT cuts = $(logger.TT_cut). \
-        Hash full = $(round(cur_TT_entries*100/TT_ENTRIES,sigdigits=3))%. \
+        Hash full = $(round(engine.TT_entries*100/engine.TT_total,sigdigits=3))%. \
         Time = $(round(δt,sigdigits=6))s.")
 
         if logger.stopmidsearch
