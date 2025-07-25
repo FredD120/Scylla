@@ -2,41 +2,42 @@
 #Initialise TT, define objects that go into TT
 #Retrieve and store entries
 
+const DEFAULT_TT_SIZE = 18
+const Mb = 1048576 #size of a Mb in bytes
+
 "hold hash table and bitshift to get index from zobrist hash"
 struct TranspositionTable{T}
     Key::UInt64
     HashTable::Vector{T}
 end
 
-"bitmask for first num binary digits of 64 bit int"
-function bitmask(num)
-    mask = UInt64(0)
-    for i in 0:num-1
-        mask |= UInt(1) << i
-    end
-    return mask
-end
+"bitmask for first num binary digits of 64 bit int, takes in actual_size"
+bitmask(TT_size::Integer) = UInt64(TT_size-1)
 
-"shift for 64 bit integers"
-bitshift(num) = UInt64(64-num)
+"shift for 64 bit integers, takes in N as input s.t. actual_size = 2^N"
+bitshift(num::Integer) = UInt64(64-num)
+
+"Return TT size in Mb"
+TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(type,verbose=false;sizeMb=nothing,size=18)::Union{TranspositionTable,Nothing}
-    Mb = 1048576 #size of a Mb in bytes
-    if size > 0
+function TranspositionTable(type,verbose=false;size=DEFAULT_TT_SIZE,sizeMb::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}
+    if !(size < 1 && isnothing(sizeMb))
         entry_size = Base.summarysize(type())
         #calculate size from Mb requirements if given
         #otherwise use size provided or default
-        if !isnothing(sizeMb)
+        if !isnothing(sizeMb) && sizeMb > 0
             num_entries = fld(sizeMb*Mb,entry_size)
             size = floor(Int16,log2(num_entries))
         end
 
-        hash_table = [type() for _ in 1:2^size]
+        actual_size = UInt64(1) << size
+
+        hash_table = [type() for _ in 1:actual_size]
         if verbose
-            println("TT size = $(round(entry_size*(2^size)/Mb,sigdigits=4)) Mb")
+            println("TT size = $(TT_size(entry_size,actual_size)) Mb")
         end
-        return TranspositionTable(bitmask(size),hash_table)
+        return TranspositionTable(bitmask(actual_size),hash_table)
     end
     return nothing
 end

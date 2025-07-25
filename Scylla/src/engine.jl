@@ -42,7 +42,7 @@ mutable struct EngineState
     TT_entries::Int32
 end
 
-"Constructor for enginestate given TT size and boardstate"
+"Constructor for enginestate given TT size in Mb and boardstate"
 function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false) 
     board = Boardstate(FEN)
     TT = TranspositionTable(Bucket,verbose,sizeMb=TT_size)
@@ -50,7 +50,7 @@ function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false)
 end
 
 "construct enginestate only from FEN"
-function EngineState(FEN,verbose=false)
+function EngineState(FEN::AbstractString,verbose=false)
     board = Boardstate(FEN)
     TT = TranspositionTable(Bucket,verbose)
     return EngineState(board,TT,length(TT.HashTable),0)
@@ -211,7 +211,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
     #enter quiescence search if at leaf node
     if depth <= MINDEPTH
         logger.pos_eval += 1
-        return quiescence(engine.board,player,α,β,ply,info,logger)
+        return quiescence(engine,player,α,β,ply,info,logger)
     end
 
     best_move = NULLMOVE

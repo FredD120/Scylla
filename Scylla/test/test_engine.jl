@@ -100,15 +100,15 @@ end
         engine = Scylla.EngineState(eFEN)
         best,log = Scylla.best_move(engine,max_T=MAXTIME)
         #rook moves to cut off king
-        make_move!(best,board)
-        moves = generate_moves(board)
+        make_move!(best,engine.board)
+        moves = generate_moves(engine.board)
         #king response doesn't matter
-        make_move!(moves[1],board)
+        make_move!(moves[1],engine.board)
         best,log = Scylla.best_move(engine,max_T=MAXTIME)
-        make_move!(best,board)
-        gameover!(board)
+        make_move!(best,engine.board)
+        gameover!(engine.board)
         
-        @test board.State == Scylla.Loss()
+        @test engine.board.State == Scylla.Loss()
     end
 end
 
