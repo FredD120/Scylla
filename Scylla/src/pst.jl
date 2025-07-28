@@ -41,7 +41,7 @@ end
 function set_PST!(score::Vector{Int32},pieces::AbstractArray{UInt64})
     for type in piecetypes
         for colour in [white,black]
-            for pos in identify_locations(pieces[ColourPieceID(colour,type)])
+            for pos in pieces[ColourPieceID(colour,type)]
                 update_PST_score!(score,colour,type,pos,+1)
             end
         end

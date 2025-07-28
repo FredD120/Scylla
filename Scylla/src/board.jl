@@ -21,22 +21,21 @@ ColourPieceID(colour::UInt8,piece::Integer) = colour + piece
 "Index into PST based on colour index"
 side_index(colour::UInt8,ind) = ifelse(colour==0,ind,8*rank(ind) + file(ind))
 
-
 mutable struct BoardData
     Halfmoves::Vector{UInt8}
     Castling::Vector{UInt8}
     CastleCount::Vector{UInt16}
-    EnPassant::Vector{UInt64}
+    EnPassant::Vector{BitBoard}
     EPCount::Vector{UInt16}
     ZHashHist::Vector{UInt64}
 end
 
 mutable struct Boardstate
-    pieces::Vector{UInt64}
-    piece_union::Vector{UInt64}
+    pieces::Vector{BitBoard}
+    piece_union::Vector{BitBoard}
     Colour::UInt8
     Castle::UInt8
-    EnPass::UInt64
+    EnPass::BitBoard
     State::GameState
     PSTscore::Vector{Int32}
     ZHash::UInt64
@@ -107,10 +106,10 @@ generate_hash(b::Boardstate) = generate_hash(b.pieces,b.Colour,b.Castle,b.EnPass
 
 "Initialise a boardstate from a FEN string"
 function Boardstate(FEN)
-    pieces = zeros(UInt64,12)
-    Castling = UInt64(0)
-    EnPassant = UInt64(0)
+    pieces = [BitBoard() for _ in 1:12]
+    Castling = UInt8(0)
     Halfmoves = UInt8(0)
+    EnPassant = BitBoard()
     Colour = white
     PSTscore = zeros(Int32,2)
     MoveHistory = Vector{UInt32}()
@@ -175,21 +174,12 @@ function Boardstate(FEN)
     Zobrist = generate_hash(pieces,Colour,Castling,EnPassant)
     data = BoardData(Vector{UInt8}([Halfmoves]),
                      Vector{UInt8}([Castling]),Vector{UInt8}([0]),
-                     Vector{UInt64}([EnPassant]),Vector{UInt8}([0]),
+                     Vector{BitBoard}([EnPassant]),Vector{UInt8}([0]),
                      Vector{UInt64}([Zobrist]))
 
     set_PST!(PSTscore,pieces)
 
     Boardstate(pieces,pc_unions(pieces),Colour,Castling,EnPassant,Neutral(),PSTscore,Zobrist,MoveHistory,data)
-end
-
-"Returns a single bitboard representing the positions of an array of pieces"
-function BBunion(piece_vec::AbstractArray{UInt64})
-    BB = UInt64(0)
-    for piece in piece_vec
-        BB |= piece
-    end
-    return BB
 end
 
 "Helper function to obtain vector of ally bitboards"
@@ -206,7 +196,7 @@ function GUIposition(board::Boardstate)
     position = zeros(UInt8,64)
     for (pieceID,piece) in enumerate(board.pieces)
         for i in UInt64(0):UInt64(63)
-            if piece & UInt64(1) << i > 0
+            if piece.n & UInt64(1) << i > 0
                 position[i+1] = pieceID
             end
         end
@@ -214,61 +204,3 @@ function GUIposition(board::Boardstate)
     return position
 end
 
-
-"Count the total number of pieces in a vector of bitboards"
-function count_pieces(pieces::AbstractArray{UInt64})
-    count = 0
-    for BB in pieces
-        count += length(BB)
-    end
-    return count
-end
-
-"returns a list of numbers between 0 and 63 to indicate positions on a chessboard"
-function identify_locations(pieceBB::Integer)::Vector{UInt8}
-    locations = Vector{UInt8}()
-    temp_BB = pieceBB
-    while temp_BB != 0
-        loc = LSB(temp_BB) #find 0-indexed location of least significant bit in BB
-        push!(locations,loc)
-        temp_BB &= temp_BB - 1        #trick to remove least significant bit
-    end
-    return locations
-end
-
-"Define start of iterator through locations in a bitboard"
-function Base.iterate(BB::UInt64) 
-    if BB == 0
-        return nothing
-    else
-        next_state = BB & (BB-1)
-        first_item = LSB(BB)
-        return first_item,next_state
-    end
-end
-
-"Returns next (item, state) in iterator through locations in a bitboard"
-function Base.iterate(BB::UInt64,state::UInt64) 
-    if state == 0
-        return nothing
-    else
-        next_state = state & (state-1)
-        next_item = LSB(state)
-        return next_item,next_state
-    end
-end
-
-"Define length of occupied positions in BB"
-Base.length(BB::UInt64) = count_ones(BB)
-
-"loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
-function identify_piecetype(one_side_BBs::AbstractArray{UInt64},location::Integer)::UInt8
-    ID = NULL_PIECE
-    for (pieceID,pieceBB) in enumerate(one_side_BBs)
-        if pieceBB & (UInt64(1) << location) != 0
-            ID = pieceID
-            break
-        end
-    end
-    return ID
-end

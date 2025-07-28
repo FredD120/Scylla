@@ -6,6 +6,7 @@ using Random
 using ArgParse
 
 include("defs.jl")
+include("bitboard.jl")
 include("pst.jl")
 include("board.jl")
 include("magics.jl")

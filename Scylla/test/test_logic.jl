@@ -99,7 +99,7 @@ end
 
         @test info.checks == (UInt64(1)<<63)
         @test info.attack_num == 1
-        @test length(info.blocks) == 6
+        @test Scylla.len(info.blocks) == 6
     end
 
     @testset "Block Queen" begin
@@ -107,7 +107,7 @@ end
         board = Scylla.Boardstate(simpleFEN)  
         info = Scylla.attack_info(board)
 
-        @test length(info.blocks) == 6
+        @test Scylla.len(info.blocks) == 6
     end
 
     @testset "Bishop Pinned" begin
@@ -124,7 +124,7 @@ end
         board = Scylla.Boardstate(simpleFEN)    
         pinfo = Scylla.attack_info(board)
     
-        @test length(pinfo.rookpins) == 7
+        @test Scylla.len(pinfo.rookpins) == 7
         @test pinfo.bishoppins == 0
     end
 

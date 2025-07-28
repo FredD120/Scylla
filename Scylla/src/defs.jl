@@ -77,11 +77,11 @@ const ALPHA = UInt8(1)
 const BETA = UInt8(2)
 const EXACT = UInt8(3)
 
-setone(num::UInt64,index::Integer) = num | (UInt64(1) << index)
+setone(num::Integer,index::Integer) = num | (UInt64(1) << index)
 
-setzero(num::UInt64,index::Integer) = num & ~(UInt64(1) << index)
+setzero(num::Integer,index::Integer) = num & ~(UInt64(1) << index)
 
-"Least significant bit of a bitboard, returned as a UInt8"
+"Least significant bit of an integer, returned as a UInt8"
 LSB(BB::Integer) = UInt8(trailing_zeros(BB))
 
 "Get a rank from a 0-63 index"
@@ -97,4 +97,16 @@ function read_txt(filename)
         push!(data, parse(UInt64,d))
     end   
     return data
+end
+
+"returns a list of positions of set bits in an integer"
+function identify_locations(int::Integer)::Vector{UInt8}
+    locations = Vector{UInt8}()
+    temp = int
+    while temp != 0
+        loc = LSB(temp) 
+        push!(locations,loc)
+        temp &= temp - 1      
+    end
+    return locations
 end
