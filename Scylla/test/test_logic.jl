@@ -66,7 +66,7 @@ end
     board = Scylla.Boardstate(FEN)
     pieces = board.pieces
     @test length(pieces) == 12
-    pieces::Vector{UInt64}
+    pieces::Vector{BitBoard}
     wpieces = Scylla.ally_pieces(board)
     @test length(wpieces) == 6
     bpieces = Scylla.enemy_pieces(board)
@@ -84,7 +84,7 @@ end
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Scylla.Boardstate(simpleFEN)
     moves = Vector{UInt32}()
-    Scylla.moves_from_location!(Scylla.King,moves,Scylla.enemy_pieces(board),UInt64(3),UInt8(2),false)
+    Scylla.moves_from_location!(Scylla.King,moves,Scylla.enemy_pieces(board),BitBoard(3),UInt8(2),false)
     @test length(moves) == 2
     @test Scylla.cap_type(moves[1]) == 0
     @test Scylla.from(moves[2]) == 2
@@ -99,7 +99,7 @@ end
 
         @test info.checks == (UInt64(1)<<63)
         @test info.attack_num == 1
-        @test Scylla.len(info.blocks) == 6
+        @test Scylla.length(info.blocks) == 6
     end
 
     @testset "Block Queen" begin
@@ -107,7 +107,7 @@ end
         board = Scylla.Boardstate(simpleFEN)  
         info = Scylla.attack_info(board)
 
-        @test Scylla.len(info.blocks) == 6
+        @test Scylla.length(info.blocks) == 6
     end
 
     @testset "Bishop Pinned" begin
@@ -124,7 +124,7 @@ end
         board = Scylla.Boardstate(simpleFEN)    
         pinfo = Scylla.attack_info(board)
     
-        @test Scylla.len(pinfo.rookpins) == 7
+        @test Scylla.length(pinfo.rookpins) == 7
         @test pinfo.bishoppins == 0
     end
 
@@ -612,7 +612,7 @@ function test_speed()
             println("Testing position: $FEN")
         end
         t = time()
-        TT = Scylla.TranspositionTable(TT_size,Scylla.PerftData)
+        TT = Scylla.TranspositionTable(Scylla.PerftData,size=TT_size)
         cur_leaves = Scylla.perft(board,depth,TT,verbose)
         println()
         Δt += time() - t
@@ -634,9 +634,9 @@ if perft_extra::Bool
 end
 
 function test_TT_perft()
-    #best speed = 180 Mnps
+    #best speed = 220 Mnps
     board = Scylla.Boardstate(FEN)
-    TT = Scylla.TranspositionTable(24,Scylla.PerftData,verbose)
+    TT = Scylla.TranspositionTable(Scylla.PerftData,verbose,size=24)
     t = time()
     @test Scylla.perft(board,7,TT,verbose) == 3195901860
     δt = time()-t

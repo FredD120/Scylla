@@ -5,8 +5,8 @@ using JLD2
 using Random
 using ArgParse
 
-include("defs.jl")
 include("bitboard.jl")
+include("defs.jl")
 include("pst.jl")
 include("board.jl")
 include("magics.jl")
@@ -19,6 +19,7 @@ include("perft.jl")
 include("cli.jl")
 
 export Boardstate,
+       BitBoard,
        make_move!,
        unmake_move!,
        perft,

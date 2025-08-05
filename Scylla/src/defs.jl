@@ -37,7 +37,7 @@ const black = UInt8(6)
 const ATTACKONLY = UInt64(0)
 const ALLMOVES = UInt64(1)
 
-const ZobristKeys = rand(rng,UInt64,12*64+9)
+const ZobristKeys = rand(rng,BitBoard,12*64+9)
 
 const NOFLAG = UInt8(0)
 const KCASTLE = UInt8(1)
@@ -90,11 +90,11 @@ rank(ind) = 7 - (ind >> 3)
 file(ind) = ind % 8
 
 "take in all possible moves as a bitboard for a given piece from a txt file"
-function read_txt(filename)
-    data = Vector{UInt64}()
+function read_txt(type,filename)
+    data = Vector{type}()
     data_str = readlines("$(dirname(@__DIR__))/src/move_BBs/$(filename).txt")
     for d in data_str
-        push!(data, parse(UInt64,d))
+        push!(data, parse(type,d))
     end   
     return data
 end

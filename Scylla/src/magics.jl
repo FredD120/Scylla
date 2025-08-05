@@ -2,18 +2,20 @@
 #Use MagivVec (rook/bishop) to lookup (pseudolegal) sliding moves
 
 struct Magic 
-    MagNum::UInt64
-    Mask::UInt64
+    MagNum::BitBoard
+    Mask::BitBoard
     BitShift::UInt8
-    Attacks::Vector{UInt64}
+    Attacks::Vector{BitBoard}
 end
+
+Magic(magic::BitBoard,mask::BitBoard,bitshift::Integer,attackvec::BitBoard) = Magic(BitBoard(magic),BitBoard(mask),bitshift,BitBoard(attackvec))
     
 function read_magics(piece)
     path = "$(dirname(@__DIR__))/src/move_BBs/Magic$(piece)s.jld2"
-    Masks = UInt64[]
-    Magics = UInt64[]
+    Masks = BitBoard[]
+    Magics = BitBoard[]
     BitShifts = UInt8[]
-    AttackVec = Vector{UInt64}[]
+    AttackVec = Vector{BitBoard}[]
 
     jldopen(path, "r") do file
         Masks = file["Masks"]

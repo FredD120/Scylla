@@ -3,13 +3,13 @@
 
 "hold data required for perft"
 struct PerftData
-    ZHash::UInt64
+    ZHash::BitBoard
     depth::UInt8
     leaves::UInt128
 end
 
 "generic constructor for perft data"
-PerftData() = PerftData(UInt64(0),UInt8(0),UInt128(0))
+PerftData() = PerftData(BitBoard(),UInt8(0),UInt128(0))
 
 "count leaf nodes from a position at a given depth"
 function perft(board::Boardstate,depth,TT::Union{TranspositionTable,Nothing}=nothing,verbose=false)

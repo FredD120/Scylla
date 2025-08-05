@@ -1,16 +1,16 @@
 struct Move_BB
-    king::SVector{64,UInt64}
-    knight::SVector{64,UInt64}
+    king::SVector{64,BitBoard}
+    knight::SVector{64,BitBoard}
     CRightsMask::SVector{6,UInt8}
-    CastleCheck::SVector{6,UInt64}
+    CastleCheck::SVector{6,BitBoard}
 end
 
 "constructor for Move_BB that reads all moves from txt files"
 function Move_BB()
-    king_mvs = read_txt("king")
-    knight_mvs = read_txt("knight")
+    king_mvs = read_txt(BitBoard,"king")
+    knight_mvs = read_txt(BitBoard,"knight")
     Crights = [0b1100,0b1110,0b1101,0b0011,0b1011,0b0111]
-    castle_check = read_txt("CastleCheck")
+    castle_check = read_txt(BitBoard,"CastleCheck")
     return Move_BB(king_mvs,knight_mvs,Crights,castle_check)
 end
 
@@ -65,7 +65,7 @@ function attack_pcs(pc_list::AbstractArray{BitBoard},all_pcs::BitBoard,location:
     bishopattacks = (bishopmoves & (pc_list[Bishop] | pc_list[Queen]))
     attacks |= bishopattacks
 
-    pawnattacks = possible_pawn_moves(UInt64(1)<<location,colour)
+    pawnattacks = possible_pawn_moves(BitBoard(1)<<location,colour)
     attacks |= pawnattacks & pc_list[Pawn]
 
     return attacks
@@ -155,7 +155,7 @@ function attack_info(board::Boardstate)::LegalInfo
     attacked_sqs = all_poss_moves(enemy_list,all_except_king,colour)
 
     #if king not under attack, dont need to find attacking pieces or blockers
-    if KingBB & attacked_sqs == UInt64(0) 
+    if KingBB & attacked_sqs == BitBoard() 
         blocks = BitBoard_full()
     else
         attacks = attack_pcs(enemy_list,all_pcs,position,colour)
@@ -516,7 +516,7 @@ end
 "Check legality of en-passant before adding it to move list"
 function push_EP!(moves,from,to,shift,checks,all_pcs,enemy_vec,kingpos)
     EPcap = to+shift
-    if checks.n & (UInt64(1) << EPcap) > 0
+    if checks & (BitBoard(1) << EPcap) > 0
         if EPedgecase(from,EPcap,kingpos,all_pcs,enemy_vec)
             push!(moves,Move(Pawn,from,to,Pawn,EPFLAG))
         end

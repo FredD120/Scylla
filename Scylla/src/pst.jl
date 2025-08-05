@@ -38,7 +38,7 @@ function update_PST_score!(score::Vector{Int32},colour::UInt8,type_val,pos,add_o
 end
 
 "Returns score of current position from whites perspective. used when initialising boardstate"
-function set_PST!(score::Vector{Int32},pieces::AbstractArray{UInt64})
+function set_PST!(score::Vector{Int32},pieces::AbstractArray{BitBoard})
     for type in piecetypes
         for colour in [white,black]
             for pos in pieces[ColourPieceID(colour,type)]

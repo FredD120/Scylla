@@ -27,7 +27,7 @@ mutable struct BoardData
     CastleCount::Vector{UInt16}
     EnPassant::Vector{BitBoard}
     EPCount::Vector{UInt16}
-    ZHashHist::Vector{UInt64}
+    ZHashHist::Vector{BitBoard}
 end
 
 mutable struct Boardstate
@@ -38,7 +38,7 @@ mutable struct Boardstate
     EnPass::BitBoard
     State::GameState
     PSTscore::Vector{Int32}
-    ZHash::UInt64
+    ZHash::BitBoard
     MoveHist::Vector{UInt32}
     Data::BoardData
 end
@@ -46,7 +46,7 @@ end
 "Find position of king on bitboard"
 king_pos(board::Boardstate,side_index) = LSB(board.pieces[side_index+King])
 
-function pc_unions(pieces)::Vector{UInt64}
+function pc_unions(pieces)::Vector{BitBoard}
     white_pc_BB = BBunion(pieces[1:6]) 
     black_pc_BB = BBunion(pieces[7:12]) 
     all_pc_BB = white_pc_BB | black_pc_BB
@@ -54,7 +54,7 @@ function pc_unions(pieces)::Vector{UInt64}
 end
 
 "Helper function when constructing a boardstate"
-function place_piece!(pieces::AbstractArray{UInt64},pieceID,pos)
+function place_piece!(pieces::AbstractArray{BitBoard},pieceID,pos)
     pieces[pieceID] = setone(pieces[pieceID],pos)
 end
 
@@ -83,7 +83,7 @@ ZKeyColour() = ZobristKeys[end]
 
 "Generate Zobrist hash of a boardstate"
 function generate_hash(pieces,colour::UInt8,castling,enpassant)
-    ZHash = UInt64(0)
+    ZHash = BitBoard()
     for (pieceID,pieceBB) in enumerate(pieces)
         for loc in pieceBB
             ZHash ⊻= ZKey_piece(pieceID,loc)
@@ -175,7 +175,7 @@ function Boardstate(FEN)
     data = BoardData(Vector{UInt8}([Halfmoves]),
                      Vector{UInt8}([Castling]),Vector{UInt8}([0]),
                      Vector{BitBoard}([EnPassant]),Vector{UInt8}([0]),
-                     Vector{UInt64}([Zobrist]))
+                     Vector{BitBoard}([Zobrist]))
 
     set_PST!(PSTscore,pieces)
 
@@ -195,8 +195,8 @@ end
 function GUIposition(board::Boardstate)
     position = zeros(UInt8,64)
     for (pieceID,piece) in enumerate(board.pieces)
-        for i in UInt64(0):UInt64(63)
-            if piece.n & UInt64(1) << i > 0
+        for i in 0:63
+            if piece & BitBoard(1) << i > 0
                 position[i+1] = pieceID
             end
         end

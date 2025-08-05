@@ -7,15 +7,15 @@ const Mb = 1048576 #size of a Mb in bytes
 
 "hold hash table and bitshift to get index from zobrist hash"
 struct TranspositionTable{T}
-    Key::UInt64
+    Key::BitBoard
     HashTable::Vector{T}
 end
 
 "bitmask for first num binary digits of 64 bit int, takes in actual_size"
-bitmask(TT_size::Integer) = UInt64(TT_size-1)
+bitmask(TT_size::Integer) = BitBoard(TT_size-1)
 
 "shift for 64 bit integers, takes in N as input s.t. actual_size = 2^N"
-bitshift(num::Integer) = UInt64(64-num)
+bitshift(num::Integer) = BitBoard(64-num)
 
 "Return TT size in Mb"
 TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
@@ -43,13 +43,13 @@ function TranspositionTable(type,verbose=false;size=DEFAULT_TT_SIZE,sizeMb::Unio
 end
 
 "retrieve transposition from TT using index derived from bitshift"
-get_entry(TT::TranspositionTable,Zhash::UInt64) = TT.HashTable[ZKey_mask(Zhash,TT.Key)+1]
+get_entry(TT::TranspositionTable,Zhash::BitBoard) = TT.HashTable[ZKey_mask(Zhash,TT.Key)+1]
 
 "use zhash and bitshift to make zkey into TT"
-ZKey_shift(ZHash,shift) = ZHash>>shift
+ZKey_shift(ZHash,shift) = ZHash >> shift
 
 "use zhash and bitmask to make zkey into TT"
-ZKey_mask(ZHash,mask) = ZHash&mask
+ZKey_mask(ZHash,mask) = ZHash & mask
 
 "set value of entry in TT"
 function set_entry!(TT::TranspositionTable,data) 
@@ -62,11 +62,11 @@ function set_entry!(TT::TranspositionTable,ZHash,data)
 end
 
 "return a view into the TT that can be used to modify the entry"
-view_entry(TT::TranspositionTable,ZHash) = @view TT.HashTable[ZKey_mask(ZHash,TT.Key)+1]
+view_entry(TT::TranspositionTable,ZHash) = @view TT.HashTable[convert(UInt64,ZKey_mask(ZHash,TT.Key))+1]
 
 "data describing a node, to be stored in TT"
 struct SearchData
-    ZHash::UInt64
+    ZHash::BitBoard
     depth::UInt8
     score::Int16
     type::UInt8
@@ -74,7 +74,7 @@ struct SearchData
 end
 
 "generic constructor for search data"
-SearchData() = SearchData(UInt64(0),UInt8(0),Int16(0),NONE,NULLMOVE)
+SearchData() = SearchData(BitBoard(),UInt8(0),Int16(0),NONE,NULLMOVE)
 
 "store multiple entries at same Zkey, with different replace schemes"
 mutable struct Bucket
