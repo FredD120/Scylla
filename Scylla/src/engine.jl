@@ -46,14 +46,14 @@ end
 function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false) 
     board = Boardstate(FEN)
     TT = TranspositionTable(Bucket,verbose,sizeMb=TT_size)
-    return EngineState(board,TT,length(TT.HashTable),0)
+    return EngineState(board,TT,num_entries(TT),0)
 end
 
 "construct enginestate only from FEN"
 function EngineState(FEN::AbstractString,verbose=false)
     board = Boardstate(FEN)
     TT = TranspositionTable(Bucket,verbose)
-    return EngineState(board,TT,length(TT.HashTable),0)
+    return EngineState(board,TT,num_entries(TT),0)
 end
 
 "Default constructor for enginestate"

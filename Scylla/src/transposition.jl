@@ -2,7 +2,7 @@
 #Initialise TT, define objects that go into TT
 #Retrieve and store entries
 
-const DEFAULT_TT_SIZE = 18
+const DEFAULT_TT_SIZE = 19
 const Mb = 1048576 #size of a Mb in bytes
 
 "hold hash table and bitshift to get index from zobrist hash"
@@ -19,6 +19,8 @@ bitshift(num::Integer) = BitBoard(64-num)
 
 "Return TT size in Mb"
 TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
+
+num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable)*num_entries(T())
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
 function TranspositionTable(type,verbose=false;size=DEFAULT_TT_SIZE,sizeMb::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}
@@ -83,6 +85,8 @@ mutable struct Bucket
 end
 "construct bucket with two entries"
 Bucket() = Bucket(SearchData(),SearchData())
+
+num_entries(::Bucket) = 2
 
 "add depth to score when storing and remove when retrieving"
 function correct_score(score,depth,sgn)::Int16
