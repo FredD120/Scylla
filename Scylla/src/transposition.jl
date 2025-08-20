@@ -2,7 +2,7 @@
 #Initialise TT, define objects that go into TT
 #Retrieve and store entries
 
-const DEFAULT_TT_SIZE = 19
+const DEFAULT_TT_SIZE = 18
 const Mb = 1048576 #size of a Mb in bytes
 
 "hold hash table and bitshift to get index from zobrist hash"
@@ -21,6 +21,18 @@ bitshift(num::Integer) = BitBoard(64-num)
 TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
 
 num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable)*num_entries(T())
+
+num_entries(::Nothing) = 0
+
+"Reset all entries in TT to default contructor value"
+function reset_TT!(TT::TranspositionTable{T}) where {T}
+    for entry in TT.HashTable
+        entry = T()
+    end
+end
+
+"Do nothing if no TT to reset"
+reset_TT!(::Nothing) = nothing
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
 function TranspositionTable(type,verbose=false;size=DEFAULT_TT_SIZE,sizeMb::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}

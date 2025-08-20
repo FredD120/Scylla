@@ -37,7 +37,7 @@ const MINDEPTH::UInt8 = UInt8(0)
 #holds all information the engine needs to calculate
 mutable struct EngineState
     board::Boardstate
-    TT::TranspositionTable
+    TT::Union{TranspositionTable,Nothing}
     TT_total::Int32
     TT_entries::Int32
 end
@@ -46,6 +46,13 @@ end
 function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false) 
     board = Boardstate(FEN)
     TT = TranspositionTable(Bucket,verbose,sizeMb=TT_size)
+    return EngineState(board,TT,num_entries(TT),0)
+end
+
+"Constructor for enginestate with default boardstate and TT size as a power of two"
+function EngineState(TT_size::Integer,verbose=false) 
+    board = Boardstate(startFEN)
+    TT = TranspositionTable(Bucket,verbose,size=TT_size)
     return EngineState(board,TT,num_entries(TT),0)
 end
 
@@ -58,6 +65,13 @@ end
 
 "Default constructor for enginestate"
 EngineState() = EngineState(startFEN)
+
+"Reset engine to default boardstate and empty TT"
+function reset_engine!(E::EngineState)
+    reset_TT!(E.TT)
+    E.TT_entries = 0
+    E.board = Boardstate(startFEN)
+end
 
 mutable struct SearchInfo
     #Break out early with current best score if OOT

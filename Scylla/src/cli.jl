@@ -1,5 +1,28 @@
+const NAME = "Scylla"
+
 function run_cli()
-    println("Scylla")
+    QUIT = false
+    engine = EngineState(0)
+
+    while !QUIT
+        msg_in = readline()
+
+        if uppercase(msg_in) == "QUIT"
+            QUIT = true
+        elseif uppercase(msg_in) == "UCI"
+            println("id name "*NAME*"\n")
+            println("id author FD\n")
+            #needs to be parameterised for different options and Hash sizes in MB
+            println("option name Hash type spin default 16 min 0 max 64\n")
+            println("uciok\n")        
+        elseif uppercase(msg_in) == "ISREADY"
+            println("readyok\n")
+        elseif uppercase(msg_in) == "UCINEWGAME"
+            reset_engine!(engine)
+        else
+            println("command not recognised")
+        end
+    end
 end
 
 function test_args()
