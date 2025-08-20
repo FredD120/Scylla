@@ -16,6 +16,7 @@ include("transposition.jl")
 include("moveordering.jl")
 include("engine.jl")
 include("perft.jl")
+include("precompile.jl")
 include("cli.jl")
 
 export Boardstate,
