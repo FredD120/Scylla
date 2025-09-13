@@ -32,9 +32,11 @@ function perft(board::Boardstate,depth,TT::Union{TranspositionTable,Nothing}=not
     for move in moves
         make_move!(move,board)
         nodecount = perft(board,depth-1,TT)
+        
         if verbose == true
-        println(UCImove(move) * ": " * string(nodecount))
+            println(LONGmove(move) * ": " * string(nodecount))
         end
+        
         leaf_nodes += nodecount
         unmake_move!(board)
     end

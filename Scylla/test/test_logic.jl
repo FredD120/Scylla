@@ -454,22 +454,6 @@ end
     @test board.State == Scylla.Draw()
 end
 
-@testset "UCI Move" begin
-    str1 = Scylla.UCIpos(0)
-    str2 = Scylla.UCIpos(63)
-    @test (str1 == "a8") & (str2 == "h1")
-
-    move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
-    mvstr = Scylla.UCImove(move)
-    @test mvstr == "c8g2"
-end
-
-@testset "Long UCI Move" begin 
-    move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(2),UInt8(0))
-    mvstr = Scylla.LONGmove(move)
-    @test mvstr == "Kc8xg2"
-end
-
 @testset "Pseudo-legal Sliding Piece Generation" begin
     slidingFEN = "Q6r/8/2K5/8/8/8/8/b2k3 w - 0 1"
     board = Scylla.Boardstate(slidingFEN)
@@ -579,7 +563,7 @@ end
 
 function test_with_perft()
     #Test that PST values from incremental upadate are not different from static evaluation
-    #Also that number of attacks from generate_attacks is the same as fromScylla.generate_moves(all)
+    #Also that number of attacks from generate_attacks is the same as from Scylla.generate_moves(all)
     #Also that we can identify terminal nodes without running movegen
 
     FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
@@ -596,9 +580,9 @@ function test_with_perft()
 end
 
 function test_speed()
-    FENs = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - 0 1",
-    "bbbqknbq/8/8/8/8/8/8/QNNNKBBQ w - 0 1",
-    "r3k2r/4q1b1/bn3n2/4N3/8/2N2Q2/3BB3/R3K2R w KQkq -",
+    FENs = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
+    "bbbqknbq/8/8/8/8/8/8/QNNNKBBQ w - - 0 1",
+    "r3k2r/4q1b1/bn3n2/4N3/8/2N2Q2/3BB3/R3K2R w KQkq - 0 1",
     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"]
     Depths = [5,4,4,4]
     Targets = [11813050,7466475,7960855,4085603]

@@ -1,6 +1,51 @@
 using Scylla
 using Test
 
+@testset "Move Representations" begin
+        
+    @testset "UCI Move" begin
+        cFEN = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
+        board = Scylla.Boardstate(cFEN)
+        moves = generate_moves(board)
+
+        move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
+        @test Scylla.UCImove(board,move) == "c8g2"
+
+        kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KCASTLE,moves)]
+        @test Scylla.UCImove(board,kcastle) == "e1g1"
+
+        promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
+        board = Scylla.Boardstate(promFEN)
+        moves = generate_moves(board)
+        move = moves[findfirst(m->Scylla.flag(m)==Scylla.PROMQUEEN,moves)]
+        @test Scylla.UCImove(board,move) == "f7e8q"
+    end
+
+    @testset "Convert Algebraic <--> Numeric" begin
+        @test Scylla.algebraic_to_numeric("a8") == 0
+        @test Scylla.algebraic_to_numeric("h1") == 63
+
+        @test Scylla.UCIpos(0) == "a8"
+        @test Scylla.UCIpos(63) == "h1"
+
+        promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
+        board = Scylla.Boardstate(promFEN)
+        moves = generate_moves(board)
+
+        for move in moves 
+            uci = Scylla.UCImove(board,move)
+            @test Scylla.identify_UCImove(board,uci) == move
+        end
+    end
+
+    @testset "Long UCI Move" begin 
+        move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(2),UInt8(0))
+        mvstr = Scylla.LONGmove(move)
+        @test mvstr == "Kc8xg2"
+    end
+
+end
+
 @testset "Move Struct" begin 
     pc = UInt8(1)
     from = UInt8(10)

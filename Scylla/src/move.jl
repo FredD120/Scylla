@@ -8,7 +8,6 @@
 #Score of move from heuristic - score (8 bits)
 #This can be packed into a UInt32
 
-
 const PIECEMASK = 0x7
 const LOCMASK   = 0x3F
 const FLAGMASK = 0xF
@@ -62,17 +61,64 @@ end
 const NULLMOVE = Move(UInt8(0),UInt8(0),UInt8(0),UInt8(0),UInt8(0))
 
 "convert a position from number 0-63 to rank/file notation"
-function UCIpos(pos)
-    file = pos % 8
-    rank = 8 - (pos - file)/8 
-    return ('a'+file)*string(Int(rank))
+UCIpos(pos) = ('a'+file(pos))*string(Int(rank(pos)+1))
+
+"convert a move to UCI notation"
+function UCImove(B::Boardstate,move::UInt32)
+    flg = flag(move)
+    F = from(move)
+    T = to(move)
+
+    if flg == KCASTLE || flg == QCASTLE
+        F = locate_king(B)
+        T = F + 2
+        if flg == QCASTLE
+            T = F -2
+        end
+    end
+
+    p = ""
+    prom_type = promote_type(flg)
+    if  prom_type != NULL_PIECE
+        p = lowercase(piece_letter(prom_type))
+    end
+    return UCIpos(F)*UCIpos(T)*p
 end
 
-"convert a move to UCI notation - incorrect on castling (should be king moving) and promotions (should indicate piece promote type)"
-function UCImove(move::UInt32)
-    F = UCIpos(from(move))
-    T = UCIpos(to(move))
-    return F*T
+"convert a position in algebraic notation to a number from 0-63"
+function algebraic_to_numeric(pos::AbstractString)
+    rank = parse(Int,pos[2])
+    file = Int(pos[1]) - Int('a') + 1
+    return (-rank+8)*8 + file-1
+end
+
+"try to match given UCI move to a legal move. return null move otherwise"
+function identify_UCImove(B::Boardstate,UCImove::AbstractString)
+    moves = generate_moves(B)
+    num_from = algebraic_to_numeric(UCImove[1:2])
+    num_to = algebraic_to_numeric(UCImove[3:4])
+    num_promote = NOFLAG
+    kingsmove = num_from == locate_king(B)
+
+    if length(UCImove) > 4
+        num_promote = promote_id(Char(UCImove[5]))
+    end
+
+    for move in moves
+        flg = flag(move)
+        if from(move) == num_from && to(move) == num_to
+            if num_promote == NOFLAG || num_promote == flg
+                return move
+            end
+        #check for castling if the king is moving
+        elseif kingsmove
+            if (flg == KCASTLE && num_to == Kcastle_shift(num_from)) ||
+                (flg == QCASTLE && num_to == Qcastle_shift(num_from))
+                return move 
+            end
+        end
+    end
+    return NULLMOVE
 end
 
 "convert a move to long algebraic notation for clarity"
@@ -158,18 +204,21 @@ function swap_player!(board)
     board.ZHash ⊻= ZKeyColour()
 end
 
+"shift king pos right for kingside castle"
+Kcastle_shift(pos::Integer) = pos + 2
+"shift king pos left for queenside castle"
+Qcastle_shift(pos::Integer) = pos - 2
+
 "make a kingside castle"
-function Kcastle!(B::Boardstate,colour::UInt8,pieceID)
-    CpieceID = ColourPieceID(colour, pieceID)
-    kingpos = LSB(B.pieces[CpieceID])
-    move_piece!(B,colour,pieceID,kingpos,kingpos+2)
+function Kcastle!(B::Boardstate)
+    kingpos = locate_king(B)
+    move_piece!(B,B.colour,King,kingpos,Kcastle_shift(kingpos))
 end 
 
 "make a queenside castle"
-function Qcastle!(B::Boardstate,colour::UInt8,pieceID)
-    CpieceID = ColourPieceID(colour, pieceID)
-    kingpos = LSB(B.pieces[CpieceID])
-    move_piece!(B,colour,pieceID,kingpos,kingpos-2)
+function Qcastle!(B::Boardstate)
+    kingpos = locate_king(B)
+    move_piece!(B,B.colour,King,kingpos,Qcastle_shift(kingpos))
 end
 
 "update castling rights and Zhash"
@@ -199,13 +248,13 @@ function make_move!(move::UInt32,board::Boardstate)
     ColId = ColID(board.Colour)
 
     #deal with castling
-    if (mv_flag == KCASTLE) | (mv_flag == QCASTLE)
+    if (mv_flag == KCASTLE) || (mv_flag == QCASTLE)
         move_piece!(board,board.Colour,Rook,mv_from,mv_to)
         updateCrights!(board,ColId,0)
         if mv_flag == KCASTLE
-            Kcastle!(board,board.Colour,King)
+            Kcastle!(board,board.Colour)
         else
-            Qcastle!(board,board.Colour,King)
+            Qcastle!(board,board.Colour)
         end
         #castling does not reset halfmove count
         board.Data.Halfmoves[end] += 1
@@ -298,13 +347,13 @@ function unmake_move!(board::Boardstate)
         mv_pc_type,mv_from,mv_to,mv_cap_type,mv_flag = unpack_move(move::UInt32)
 
 
-        if (mv_flag == KCASTLE)|(mv_flag == QCASTLE)
+        if (mv_flag == KCASTLE) || (mv_flag == QCASTLE)
             move_piece!(board,OppCol,Rook,mv_to,mv_from)
             #unmaking a kingside castle is the same as a queenside castle and vice-versa
             if mv_flag == KCASTLE
-                Qcastle!(board,OppCol,King)
+                Qcastle!(board,OppCol)
             else
-                Kcastle!(board,OppCol,King)
+                Kcastle!(board,OppCol)
             end
         
         #deal with everything other than castling

@@ -49,18 +49,20 @@ const PROMROOK = UInt8(6)
 const PROMBISHOP = UInt8(7)
 const PROMKNIGHT = UInt8(8)
 
-"Decide which piecetype to promote to"
+const PROMSHIFT = PROMQUEEN - Queen
+
+"decide which piecetype to promote to"
 function promote_type(flag)
-    if flag == PROMQUEEN
-        return Queen
-    elseif flag == PROMROOK
-        return Rook
-    elseif flag == PROMBISHOP
-        return Bishop
-    elseif flag == PROMKNIGHT
-        return Knight
+    if flag >= PROMQUEEN
+        return flag - PROMSHIFT
     end
     return NULL_PIECE
+end
+
+"return the promotion flag identifier using the char representing a piece"
+function promote_id(c::Char)
+    piecetype = FENdict[uppercase(c)]
+    return piecetype + PROMSHIFT
 end
 
 struct Promote end

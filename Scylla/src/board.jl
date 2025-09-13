@@ -113,62 +113,52 @@ function Boardstate(FEN)
     Colour = white
     PSTscore = zeros(Int32,2)
     MoveHistory = Vector{UInt32}()
-    rank = nothing
-    file = nothing
 
     #Keep track of where we are on chessboard
-    i = UInt32(0)         
-    #Sections of FEN string are separated by ' '      
-    num_spaces = UInt32(0)      
-    for c in FEN
-        #use spaces to know where we are in FEN
-        if c == ' '
-            num_spaces += 1
-        #Positions of  pieces
-        elseif num_spaces == 0
-            if isletter(c)
-                upperC = uppercase(c)
-                if c == upperC
-                    colour = white
-                else
-                    colour = black
-                end
-                place_piece!(pieces,FENdict[upperC]+colour,i)
-                i+=1
-            elseif isnumeric(c)
-                i+=parse(Int,c)
+    i = UInt32(0)           
+    FENvec = split(FEN)
+
+    #Positions of  pieces
+    for c in FENvec[1]
+        if isletter(c)
+            upperC = uppercase(c)
+            if c == upperC
+                colour = white
+            else
+                colour = black
             end
-        #Determine whose turn it is
-        elseif num_spaces == 1
-            if c == 'w'
-                Colour = white
-            elseif c == 'b'
-                Colour = black
-            end
-        #castling rights
-        elseif num_spaces == 2
-            if c == 'K'
-                Castling = setone(Castling,0)
-            elseif c == 'Q'
-                Castling = setone(Castling,1)
-            elseif c == 'k'
-                Castling = setone(Castling,2)
-            elseif c == 'q'
-                Castling = setone(Castling,3)
-            end
-        #en-passant
-        elseif num_spaces == 3
-            if isnumeric(c)
-                rank = parse(Int,c)
-            elseif c != '-'
-                file = Int(c) - Int('a') + 1
-            end
-            if !isnothing(rank) && !isnothing(file)
-                EnPassant = setone(EnPassant,(-rank+8)*8 + file-1)
-            end
-        elseif num_spaces == 4
-            Halfmoves = parse(UInt8,c)
+            place_piece!(pieces,FENdict[upperC]+colour,i)
+            i+=1
+        elseif isnumeric(c)
+            i+=parse(Int,c)
         end
+    end
+  
+    #Determine whose turn it is
+    if FENvec[2] == "b"
+        Colour = black
+    end
+
+    #castling rights
+    for c in FENvec[3]
+        if c == 'K'
+            Castling = setone(Castling,0)
+        elseif c == 'Q'
+            Castling = setone(Castling,1)
+        elseif c == 'k'
+            Castling = setone(Castling,2)
+        elseif c == 'q'
+            Castling = setone(Castling,3)
+        end
+    end
+
+    #en-passant
+    if length(FENvec[4]) == 2
+        EnPassant = setone(EnPassant,algebraic_to_numeric(FENvec[4]))
+    end
+
+    if length(FENvec) > 4
+        Halfmoves = parse(UInt8,FENvec[5])
     end
 
     Zobrist = generate_hash(pieces,Colour,Castling,EnPassant)
