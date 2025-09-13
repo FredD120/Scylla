@@ -1,3 +1,35 @@
+#=
+CURRENT CAPABILITIES
+-> Evaluate positions based on piece value and piece square tables
+-> Minimax with alpha beta pruning tree search
+-> Iterative deepening
+-> Move ordering: 
+    -PV
+    -MVV-LVA 
+    -Killer moves
+-> Quiescence search
+-> Check extension
+-> Transposition table
+
+TO-DO (engine)
+-> Null move pruning
+-> Delta/futility pruning
+-> PVS
+-> Texel tuned PSTs
+-> LMR + history
+-> NNUE
+
+TO-DO (general)
+
+-> Implement UCI protocol
+-> Unit tests for UCI protocol
+-> Convert all files to JLD2, combine mid and endgame tables in one file for each piece
+
+TO THINK ABOUT
+#When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
+#Need to check for FIDE draws like KNk,KBk as well as unforcable draws like KNkb
+=#
+
 module Scylla
 
 using StaticArrays
@@ -28,6 +60,7 @@ export Boardstate,
        gameover!,
        best_move,
        run_cli,
-       EngineState
+       EngineState,
+       reset_engine!
 
 end #module

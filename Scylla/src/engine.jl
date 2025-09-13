@@ -1,30 +1,3 @@
-#=
-CURRENT
--> Evaluate positions based on piece value and piece square tables
--> Minimax with alpha beta pruning tree search
--> Iterative deepening
--> Move ordering: 
-    -PV
-    -MVV-LVA 
-    -Killer moves
--> Quiescence search
--> Check extension
--> Transposition table
-
-TO-DO
--> Null move pruning
--> Delta/futility pruning
--> PVS
--> Texel tuned PSTs
--> LMR + history
--> NNUE
-
-TO THINK ABOUT
-#When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
-#Need to check for FIDE draws like KNk,KBk as well as unforcable draws like KNkb
-#making score an Int16 would fit better in TT
-=#
-
 #define evaluation constants
 const INF::Int16 = typemax(Int16)
 const MATE::Int16 = INF - Int16(100)
@@ -42,35 +15,34 @@ mutable struct EngineState
     TT_entries::Int32
 end
 
+const TT_ENTRY_TYPE = Bucket
+
 "Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString,TT_size::Integer,verbose=false) 
+function EngineState(FEN::AbstractString=startFEN,verbose=false;sizePO2=nothing,sizeMb=nothing) 
     board = Boardstate(FEN)
-    TT = TranspositionTable(Bucket,verbose,sizeMb=TT_size)
+    TT = set_TT(verbose;sizePO2=sizePO2,sizeMb=sizeMb)
     return EngineState(board,TT,num_entries(TT),0)
 end
 
-"Constructor for enginestate with default boardstate and TT size as a power of two"
-function EngineState(TT_size::Integer,verbose=false) 
-    board = Boardstate(startFEN)
-    TT = TranspositionTable(Bucket,verbose,size=TT_size)
-    return EngineState(board,TT,num_entries(TT),0)
+"set a new TT. by default size in powers of two is unspecified so the default constructor is used"
+function set_TT(verbose=false;sizePO2=nothing,sizeMb=nothing)
+    if !isnothing(sizeMb)
+        return TranspositionTable(TT_ENTRY_TYPE,verbose,sizeMb=sizeMb)
+    else
+        return TranspositionTable(TT_ENTRY_TYPE,verbose,size=sizePO2)
+    end
 end
-
-"construct enginestate only from FEN"
-function EngineState(FEN::AbstractString,verbose=false)
-    board = Boardstate(FEN)
-    TT = TranspositionTable(Bucket,verbose)
-    return EngineState(board,TT,num_entries(TT),0)
-end
-
-"Default constructor for enginestate"
-EngineState() = EngineState(startFEN)
 
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(E::EngineState)
+    reset_TT!(E)
+    E.board = Boardstate(startFEN)
+end
+
+"reset TT and number of TT entries"
+function reset_TT!(E::EngineState)
     reset_TT!(E.TT)
     E.TT_entries = 0
-    E.board = Boardstate(startFEN)
 end
 
 mutable struct SearchInfo
@@ -371,9 +343,8 @@ function iterative_deepening(engine::EngineState,info::SearchInfo,verbose::Bool)
 end
 
 "Evaluates the position to return the best move"
-function best_move(engine::EngineState,logging=false;max_T=T_MAX,max_depth=MAXDEPTH)
+function best_move(engine::EngineState,logging=false;max_T=T_MAX,max_depth=MAXDEPTH,info=SearchInfo(max_T,max_depth))
     t = time()
-    info = SearchInfo(max_T,max_depth)
     best_move,logger = iterative_deepening(engine,info,logging)
     δt = time() - t
 

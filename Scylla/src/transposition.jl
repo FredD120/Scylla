@@ -2,8 +2,10 @@
 #Initialise TT, define objects that go into TT
 #Retrieve and store entries
 
-const DEFAULT_TT_SIZE = 18
 const Mb = 1048576 #size of a Mb in bytes
+const TT_DEFAULT_MB = 16
+const TT_MIN_MB = 0
+const TT_MAX_MB = 64
 
 "hold hash table and bitshift to get index from zobrist hash"
 struct TranspositionTable{T}
@@ -17,41 +19,49 @@ bitmask(TT_size::Integer) = BitBoard(TT_size-1)
 "shift for 64 bit integers, takes in N as input s.t. actual_size = 2^N"
 bitshift(num::Integer) = BitBoard(64-num)
 
-"Return TT size in Mb"
+"interrogate size of object in bytes"
+entry_size(type) = Base.summarysize(type())
+
+"return TT size in Mb"
 TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
+TT_size(TT::TranspositionTable{T}) where T = TT_size(entry_size(T),length(TT.HashTable))
+TT_size(::Nothing) = 0.0
 
+"total number of positions stored in TT"
 num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable)*num_entries(T())
-
 num_entries(::Nothing) = 0
 
 "Reset all entries in TT to default contructor value"
 function reset_TT!(TT::TranspositionTable{T}) where {T}
-    for entry in TT.HashTable
-        entry = T()
+    for i in eachindex(TT.HashTable)
+        TT.HashTable[i] = T()
     end
 end
 
-"Do nothing if no TT to reset"
+"do nothing if no TT to reset"
 reset_TT!(::Nothing) = nothing
 
+"construct TT of a given size (2^N) with entries of a given type"
+function TranspositionTable(type,size::Integer,verbose::Bool)
+    actual_len = UInt64(1) << size
+    hash_table = [type() for _ in 1:actual_len]
+    TT = TranspositionTable(bitmask(actual_len),hash_table)
+    if verbose
+        println("TT size = $(TT_size(TT)) Mb")
+    end
+    return TT
+end
+
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(type,verbose=false;size=DEFAULT_TT_SIZE,sizeMb::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}
-    if !(size < 1 && isnothing(sizeMb))
-        entry_size = Base.summarysize(type())
-        #calculate size from Mb requirements if given
-        #otherwise use size provided or default
-        if !isnothing(sizeMb) && sizeMb > 0
-            num_entries = fld(sizeMb*Mb,entry_size)
-            size = floor(Int16,log2(num_entries))
-        end
+function TranspositionTable(type,verbose=false;sizeMb=TT_DEFAULT_MB,size::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}
+    if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
+        return TranspositionTable(type,size,verbose)
 
-        actual_size = UInt64(1) << size
+    elseif sizeMb > TT_MIN_MB && sizeMb <=  TT_MAX_MB
+        num_entries = fld(sizeMb*Mb,entry_size(type))
+        size = floor(Int16,log2(num_entries))
+        return TranspositionTable(type,size,verbose)
 
-        hash_table = [type() for _ in 1:actual_size]
-        if verbose
-            println("TT size = $(TT_size(entry_size,actual_size)) Mb")
-        end
-        return TranspositionTable(bitmask(actual_size),hash_table)
     end
     return nothing
 end

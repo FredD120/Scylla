@@ -34,10 +34,14 @@ function run_tests()
         @testset "Engine Tests" begin
             include("test_engine.jl")
         end
+
+        @testset "CLI Tests" begin
+            include("test_cli.jl")
+        end
     end
 end
 
-args = test_args()
+args = Scylla.test_args()
 const perft_extra::Bool = args["perft_extra"]
 const verbose::Bool = args["verbose"]
 const TT_perft::Bool = args["TT_perft"]

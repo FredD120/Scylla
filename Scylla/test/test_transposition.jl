@@ -5,13 +5,13 @@ using Test
     
     @testset "Unit" begin
         TT = Scylla.TranspositionTable(Scylla.SearchData,verbose)
-        @test length(TT.HashTable) == 2^Scylla.DEFAULT_TT_SIZE
+        sz = Scylla.TT_size(TT)
+        @test sz <= Scylla.TT_DEFAULT_MB
+        @test sz > Scylla.TT_DEFAULT_MB / 2
 
-        sizemb = 16
-        TT = Scylla.TranspositionTable(Scylla.SearchData,sizeMb=sizemb,verbose)
-        sz = Scylla.TT_size(Base.summarysize(Scylla.SearchData()),length(TT.HashTable))
-        @test sz < sizemb
-        @test sz > sizemb/2
+        size = 16
+        TT = Scylla.TranspositionTable(Scylla.SearchData,size=size,verbose)
+        @test length(TT.HashTable) == 2 ^ size
     end
 
     @testset "Use TT" begin
