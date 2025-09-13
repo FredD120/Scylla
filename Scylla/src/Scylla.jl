@@ -24,6 +24,7 @@ TO-DO (general)
 -> Implement UCI protocol
 -> Unit tests for UCI protocol
 -> Convert all files to JLD2, combine mid and endgame tables in one file for each piece
+-> Check type stability of mutable structs such as EngineState (TT could be nothing)
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply

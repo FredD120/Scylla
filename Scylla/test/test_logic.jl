@@ -588,17 +588,15 @@ function test_speed()
     Targets = [11813050,7466475,7960855,4085603]
     Δt = 0
     leaves = 0
-    TT_size = 0
 
     for (FEN,depth,target) in zip(FENs,Depths,Targets)
         board = Scylla.Boardstate(FEN)
         if verbose
             println("Testing position: $FEN")
         end
+        
         t = time()
-        TT = Scylla.TranspositionTable(Scylla.PerftData,size=TT_size)
-        cur_leaves = Scylla.perft(board,depth,TT,verbose)
-        println()
+        cur_leaves = Scylla.perft(board,depth,nothing,verbose)
         Δt += time() - t
         leaves += cur_leaves
 

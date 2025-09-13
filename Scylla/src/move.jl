@@ -70,7 +70,7 @@ function UCImove(B::Boardstate,move::UInt32)
     T = to(move)
 
     if flg == KCASTLE || flg == QCASTLE
-        F = locate_king(B)
+        F = locate_king(B,B.Colour)
         T = F + 2
         if flg == QCASTLE
             T = F -2
@@ -98,7 +98,7 @@ function identify_UCImove(B::Boardstate,UCImove::AbstractString)
     num_from = algebraic_to_numeric(UCImove[1:2])
     num_to = algebraic_to_numeric(UCImove[3:4])
     num_promote = NOFLAG
-    kingsmove = num_from == locate_king(B)
+    kingsmove = num_from == locate_king(B,B.Colour)
 
     if length(UCImove) > 4
         num_promote = promote_id(Char(UCImove[5]))
@@ -210,15 +210,15 @@ Kcastle_shift(pos::Integer) = pos + 2
 Qcastle_shift(pos::Integer) = pos - 2
 
 "make a kingside castle"
-function Kcastle!(B::Boardstate)
-    kingpos = locate_king(B)
-    move_piece!(B,B.colour,King,kingpos,Kcastle_shift(kingpos))
+function Kcastle!(B::Boardstate,colour)
+    kingpos = locate_king(B,colour)
+    move_piece!(B,colour,King,kingpos,Kcastle_shift(kingpos))
 end 
 
 "make a queenside castle"
-function Qcastle!(B::Boardstate)
-    kingpos = locate_king(B)
-    move_piece!(B,B.colour,King,kingpos,Qcastle_shift(kingpos))
+function Qcastle!(B::Boardstate,colour)
+    kingpos = locate_king(B,colour)
+    move_piece!(B,colour,King,kingpos,Qcastle_shift(kingpos))
 end
 
 "update castling rights and Zhash"
@@ -345,7 +345,6 @@ function unmake_move!(board::Boardstate)
         board.State = Neutral()
         move = board.MoveHist[end]
         mv_pc_type,mv_from,mv_to,mv_cap_type,mv_flag = unpack_move(move::UInt32)
-
 
         if (mv_flag == KCASTLE) || (mv_flag == QCASTLE)
             move_piece!(board,OppCol,Rook,mv_to,mv_from)

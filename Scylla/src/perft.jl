@@ -12,12 +12,11 @@ end
 PerftData() = PerftData(BitBoard(),UInt8(0),UInt128(0))
 
 "count leaf nodes from a position at a given depth"
-function perft(board::Boardstate,depth,TT::Union{TranspositionTable,Nothing}=nothing,verbose=false)
+function perft(board::Boardstate,depth,TT::Union{TranspositionTable,Nothing}=nothing,verbose=false;TT_enabled=!isnothing(TT))
     if depth == 1
         return length(generate_moves(board))
     end
     
-    TT_enabled = !isnothing(TT)
     if TT_enabled
         TT_entry = get_entry(TT,board.ZHash)
         if TT_entry.ZHash == board.ZHash
@@ -31,7 +30,7 @@ function perft(board::Boardstate,depth,TT::Union{TranspositionTable,Nothing}=not
     moves = generate_moves(board)
     for move in moves
         make_move!(move,board)
-        nodecount = perft(board,depth-1,TT)
+        nodecount = perft(board,depth-1,TT,TT_enabled=TT_enabled)
         
         if verbose == true
             println(LONGmove(move) * ": " * string(nodecount))

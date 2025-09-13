@@ -17,7 +17,7 @@ end
 const moveset = Move_BB()
 
 "return location of king for side to move"
-locate_king(B::Boardstate) = LSB(B.pieces[ColourPieceID(B.Colour, King)])
+locate_king(B::Boardstate,colour) = LSB(B.pieces[ColourPieceID(colour, King)])
 
 "Masked 4-bit integer representing king- and queen-side castling rights for one side"
 function get_Crights(castling,ColID,KorQside)
@@ -689,7 +689,7 @@ function gameover!(board::Boardstate)
     else
         all_pcsBB = board.piece_union[end]
         ally_pcsBB = board.piece_union[ColID(board.Colour)+1] 
-        kingpos = locate_king(board)
+        kingpos = locate_king(board,board.Colour)
 
         if any_king_moves(kingpos,ally_pcsBB,info) 
             board.State = Neutral()
