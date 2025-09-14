@@ -21,7 +21,7 @@ function parse_msg!(engine,cli_state,msg)
         println("id name "*NAME*"\n")
         println("id author FD\n")
         #needs to be parameterised for different options and Hash sizes in MB
-        println("option name Hash type spin default 16 min $TT_MIN_MB max $TT_MAX_MB\n")
+        println("option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n")
         println("option name Clear Hash type button\n")
         println("uciok\n")   
 
