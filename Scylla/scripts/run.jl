@@ -96,4 +96,10 @@ function loop()
     reset_state!(st)
 end
 
-loop()
+#loop()
+
+e = EngineState(sizeMb=0)
+e.config.debug = true
+b,l = best_move(e)
+
+

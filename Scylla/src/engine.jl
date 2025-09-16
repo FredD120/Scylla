@@ -7,7 +7,7 @@ const MATE::Int16 = INF - MAXMATEDEPTH
 const MAXDEPTH::UInt8 = UInt8(32)
 const MINDEPTH::UInt8 = UInt8(0)
 const DEFAULTDEPTH::UInt8 = UInt8(20)
-const DEFAULTTIME::Float64 = Float64(30)
+const DEFAULTTIME::Float64 = Float64(1.5)
 const DEFAULTNODES::UInt32 = UInt32(1e8)
 #check for out of time/quit message every x nodes
 const CHECKNODES::UInt32 = UInt32(1000)
@@ -15,13 +15,12 @@ const CHECKNODES::UInt32 = UInt32(1000)
 abstract type Control end
 
 struct Time <: Control
-    starttime::Float64
     maxtime::Float64
     maxdepth::UInt8
 end
 
-Time() = Time(time(),DEFAULTTIME,DEFAULTDEPTH)
-Time(max_t) = Time(time(),max_t,DEFAULTDEPTH)
+Time() = Time(DEFAULTTIME,DEFAULTDEPTH)
+Time(max_t) = Time(max_t,DEFAULTDEPTH)
 
 struct Depth <: Control
     maxdepth::UInt8
@@ -44,28 +43,58 @@ end
 Mate() = Mate(DEFAULTDEPTH)
 
 "different configurations the engine can run in"
-mutable struct Config{T <: Control} 
-    forcequit::Bool
-    control::T
+mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}} 
+    forcequit::Q
+    control::C
+    starttime::Float64
+    nodes_since_time::UInt16
+    quit_now::Bool
     quiescence::Bool 
     usingTT::Bool
     debug::Bool
 end
 
+function Config(quit::Union{Channel,Nothing},control::Control,usingTT,debug)
+    Config(quit,control,time(),UInt16(0),false,true,usingTT,debug)
+end
+
+mutable struct SearchInfo
+    #Record best moves from root to leaves for move ordering
+    PV::Vector{UInt32}
+    PV_len::UInt8
+    Killers::Vector{Killer}
+end
+
+"Constructor for search info struct"
+function SearchInfo(depth)
+    triangular_PV = NULLMOVE*ones(UInt32,triangle_number(depth))
+    killers = [Killer() for _ in 1:depth]
+    SearchInfo(triangular_PV,0,killers)
+end
+
 #holds all information the engine needs to calculate
-mutable struct EngineState
+mutable struct EngineState{C <:Control, Q <:Union{Channel,Nothing}} 
     board::Boardstate
     TT::Union{TranspositionTable,Nothing}
-    config::Config
+    config::Config{C,Q}
+    info::SearchInfo
 end
+
+max_depth(e::EngineState) = e.config.control.maxdepth
 
 const TT_ENTRY_TYPE = Bucket
 
 "Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString=startFEN,verbose=false;sizePO2=nothing,sizeMb=nothing) 
+function EngineState(FEN::AbstractString=startFEN,verbose=false;
+        sizePO2=nothing,sizeMb=nothing,
+        comms::Union{Channel,Nothing}=nothing,control::Control=Time()) 
+
     board = Boardstate(FEN)
     TT = set_TT(verbose;sizePO2=sizePO2,sizeMb=sizeMb)
-    return EngineState(board,TT)
+    config = Config(comms,control,!isnothing(TT),verbose)
+    info = SearchInfo(config.control.maxdepth)
+    config.starttime = time()
+    return EngineState(board,TT,config,info)
 end
 
 "set a new TT. by default size in powers of two is unspecified so the default constructor is used"
@@ -81,31 +110,6 @@ end
 function reset_engine!(E::EngineState)
     reset_TT!(E)
     E.board = Boardstate(startFEN)
-end
-
-"reset TT and number of TT entries"
-function reset_TT!(E::EngineState)
-    reset_TT!(E.TT)
-    E.TT_entries = 0
-end
-
-mutable struct SearchInfo
-    #Break out early with current best score if OOT
-    starttime::Float64
-    maxtime::Float64
-    maxdepth::UInt8
-    #Record best moves from root to leaves for move ordering
-    PV::Vector{UInt32}
-    PV_len::UInt8
-    nodes_since_time::UInt16
-    Killers::Vector{Killer}
-end
-
-"Constructor for search info struct"
-function SearchInfo(t_max,maxdepth)
-    triangular_PV = NULLMOVE*ones(UInt32,triangle_number(maxdepth))
-    killers = [Killer() for _ in 1:maxdepth]
-    SearchInfo(time(),t_max,maxdepth,triangular_PV,0,0,killers)
 end
 
 "return PV as vector of strings"
@@ -143,17 +147,12 @@ function evaluate(board::Boardstate)::Int16
 end
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
-function quiescence(engine::EngineState,player::Int8,α,β,ply,info::SearchInfo,logger::Logger)
-    info.nodes_since_time += 1
-    if info.nodes_since_time > CHECKNODES 
-        #If we run out of time, return lower bound on score
-        if (time() - info.starttime) > info.maxtime*0.95
-            logger.stopmidsearch = true
-            return α     
-        end
-        info.nodes_since_time = 0
-    end
-    
+function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
+    if stop_early(engine.config)
+        logger.stopmidsearch = true
+        return α 
+    end 
+
     logger.nodes += 1
     logger.Qnodes += 1
     logger.seldepth = max(logger.seldepth,ply)
@@ -181,7 +180,7 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,info::SearchInfo,
             move = moves[i]
 
             make_move!(move,engine.board)
-            score = -quiescence(engine,-player,-β,-α,ply+1,info,logger)
+            score = -quiescence(engine,-player,-β,-α,ply+1,logger)
             unmake_move!(engine.board)
 
             if score > α
@@ -206,7 +205,7 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,info::SearchInfo,
             move = moves[i]
 
             make_move!(move,engine.board)
-            score = -quiescence(engine,-player,-β,-α,ply+1,info,logger)
+            score = -quiescence(engine,-player,-β,-α,ply+1,logger)
             unmake_move!(engine.board)
 
             if score > α
@@ -220,18 +219,26 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,info::SearchInfo,
     end
 end
 
-"minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,info::SearchInfo,logger::Logger)
-    #reduce number of sys calls
-    info.nodes_since_time += 1
-    if info.nodes_since_time > CHECKNODES
-        #If we run out of time, return lower bound on score
-        if (time() - info.starttime) > (info.maxtime*0.98) #allow for small overhead
-            logger.stopmidsearch = true
-            return α     
-        end
-        info.nodes_since_time = 0
+function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) where C<:Time
+    if config.quit_now
+        return true
     end
+    #reduce number of sys calls
+    config.nodes_since_time += 1
+    if bypass_check || config.nodes_since_time > CHECKNODES
+        config.nodes_since_time = 0
+        #If we run out of time, return lower bound on score
+        config.quit_now = (time() - config.starttime) > (config.control.maxtime*safety_factor)
+    end
+    return config.quit_now
+end
+
+"minimax algorithm, tries to maximise own eval and minimise opponent eval"
+function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,logger::Logger)
+    if stop_early(engine.config)
+        logger.stopmidsearch = true
+        return α 
+    end 
     logger.nodes += 1
 
     #Evaluate whether we are in a terminal node
@@ -243,15 +250,15 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
     end
 
     #enter quiescence search if at leaf node
-    if depth <= MINDEPTH
+    if engine.config.quiescence && depth <= MINDEPTH 
         logger.pos_eval += 1
-        return quiescence(engine,player,α,β,ply,info,logger)
+        return quiescence(engine,player,α,β,ply,logger)
     end
 
     best_move = NULLMOVE
     #dont use TT if on PV (still save result of PV search in TT)
     if onPV
-        best_move = info.PV[ply+1]
+        best_move = engine.info.PV[ply+1]
     else
         TT_data,TT_score = TT_retrieve!(engine.TT,engine.board.ZHash,depth)
         if !isnothing(TT_data)
@@ -279,14 +286,14 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
     cur_best_move = NULLMOVE   
 
     moves = generate_moves(engine.board,legal_info)
-    score_moves!(moves,info.Killers[ply+1],best_move)
+    score_moves!(moves,engine.info.Killers[ply+1],best_move)
 
     for i in eachindex(moves)
         next_best!(moves,i)
         move = moves[i]
 
         make_move!(move,engine.board)
-        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
+        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,logger)
         unmake_move!(engine.board)
 
         #only first search is on PV
@@ -298,7 +305,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
             if score >= β
                 #update killers if exceed β
                 if !iscapture(move)
-                    new_killer!(info.Killers,ply,move)
+                    new_killer!(engine.info.Killers,ply,move)
                 end
 
                 if move == best_move
@@ -312,7 +319,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
             cur_best_move = move
             α = score
             #exact score found, must copy up PV from further down the tree
-            copy_PV!(info.PV,ply,info.PV_len,info.maxdepth,move)
+            copy_PV!(engine.info.PV,ply,engine.info.PV_len,max_depth(engine),move)
         end
     end
 
@@ -321,7 +328,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,inf
 end
 
 "Root of minimax search. Deals in moves not scores"
-function root(engine::EngineState,moves,depth,info::SearchInfo,logger::Logger)
+function root(engine::EngineState,moves,depth,logger::Logger)
     #whites current best score
     α = -INF 
     #whites current worst score (blacks best score)
@@ -332,14 +339,14 @@ function root(engine::EngineState,moves,depth,info::SearchInfo,logger::Logger)
     onPV = true 
 
     #root node is always on PV
-    score_moves!(moves,info.Killers[ply+1],info.PV[ply+1])
+    score_moves!(moves,engine.info.Killers[ply+1],engine.info.PV[ply+1])
 
     for i in eachindex(moves)
         next_best!(moves,i)
         move = moves[i]
 
         make_move!(move,engine.board)
-        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,info,logger)
+        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,logger)
         unmake_move!(engine.board)
 
         if logger.stopmidsearch
@@ -347,7 +354,7 @@ function root(engine::EngineState,moves,depth,info::SearchInfo,logger::Logger)
         end
 
         if score > α
-            copy_PV!(info.PV,ply,info.PV_len,info.maxdepth,move)
+            copy_PV!(engine.info.PV,ply,engine.info.PV_len,max_depth(engine),move)
             α = score
         end
         onPV = false
@@ -355,27 +362,31 @@ function root(engine::EngineState,moves,depth,info::SearchInfo,logger::Logger)
     return α
 end
 
+function report_progress(engine::EngineState,logger::Logger)
+    if engine.config.debug && (time() - engine.config.starttime > 0.05)
+        println("Searched depth $(logger.cur_depth) in $(round(time()-engine.config.starttime,sigdigits=4))s. Current maxdepth = $(logger.seldepth). PV so far: $(logger.PV)")
+    end
+end
+
 "Run minimax search to fixed depth then increase depth until time runs out"
-function iterative_deepening(engine::EngineState,info::SearchInfo,verbose::Bool)
+function iterative_deepening(engine::EngineState)
     moves = generate_moves(engine.board)
     depth = 0
     logger = Logger(num_entries(engine.TT))
     bestscore = 0
 
     #Quit early if we or opponent have M1 or if we run out of time
-    while (depth < info.maxdepth) &&  
+    while (depth < max_depth(engine)) &&  
         !(abs(logger.best_score)==INF-1 || abs(logger.best_score)==INF-2) &&
-        ((time() - info.starttime) < 0.2*info.maxtime)
+        !(stop_early(engine.config,0.2,bypass_check=true))
 
         depth += 1
         logger.cur_depth = depth
-        info.PV_len = depth
-        bestscore = root(engine,moves,depth,info,logger)
+        engine.info.PV_len = depth
+        bestscore = root(engine,moves,depth,logger)
 
-        logger.PV = PV_string(info)
-        if verbose && (time() - info.starttime > 0.05)
-            println("Searched depth $(logger.cur_depth) in $(round(time()-info.starttime,sigdigits=4))s. Current maxdepth = $(logger.seldepth). PV so far: $(logger.PV)")
-        end
+        logger.PV = PV_string(engine.info)
+        report_progress(engine,logger)
         
         #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
         if !logger.stopmidsearch
@@ -385,7 +396,7 @@ function iterative_deepening(engine::EngineState,info::SearchInfo,verbose::Bool)
         end
     end
 
-    return info.PV[1], logger
+    return engine.info.PV[1], logger
 end
 
 "print all logging info to StdOut"
@@ -413,9 +424,10 @@ function print_log(logger::Logger)
 end
 
 "Evaluates the position to return the best move"
-function best_move(engine::EngineState,logging=false;max_T=DEFAULTTIME,max_depth=DEFAULTDEPTH,info=SearchInfo(max_T,max_depth))
+function best_move(engine::EngineState)
+    println(time()-engine.config.starttime)
     t = time()
-    best_move,logger = iterative_deepening(engine,info,logging)
+    best_move,logger = iterative_deepening(engine)
     logger.δt = time() - t
 
     best_move != NULLMOVE || error("Failed to find move better than null move")
