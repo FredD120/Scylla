@@ -27,7 +27,7 @@ function parse_msg!(engine,cli_state,msg)
 
     elseif "ISREADY" in msg_in
         if !cli_state.TT_SET
-            engine.TT = set_TT()
+            engine.TT = TranspositionTable(engine.config.debug)
             cli_state.TT_SET = true
         end
         println("readyok\n")
@@ -63,7 +63,7 @@ end
 
 function set_hash!(engine::EngineState,msg_vec)
     val = tryparse(Int64,msg_vec[1])
-    engine.TT = set_TT(sizeMb=val)
+    engine.TT = create_TT(sizeMb=val)
 end
 
 function set_option!(engine::EngineState,cli_state,msg_vec)
@@ -73,7 +73,7 @@ function set_option!(engine::EngineState,cli_state,msg_vec)
     elseif msg_vec[1] == "HASH"
         ind = findfirst(x->x=="VALUE",msg_vec)
         if !isnothing(ind) && length(msg_vec) > ind
-            set_hash!(engine,msg_vec[ind+1:end])
+            assign_TT!(engine,sizeMb=tryparse(Int64,msg_vec[ind+1]))
         end
 
     elseif cli_state.DEBUG

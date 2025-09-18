@@ -52,7 +52,7 @@ function reset_state!(st::state)
     st.chnnlOUT = nothing
 end
 
-function parse!(st::state,msg)
+function parse!(st::state,E::EngineState,msg)
     msg_in = split(uppercase(msg))
     if "QUIT" in msg_in
         st.QUIT = true
@@ -61,7 +61,7 @@ function parse!(st::state,msg)
         println("world")
 
     elseif "BEGIN" in msg_in && isnothing(st.worker)
-        st.chnnlCMD = Channel{FORCEQUIT}(1)
+        st.chnnlCMD = E.config.
         st.chnnlOUT = Channel{Tuple{String,String}}(1)
         st.worker = Threads.@spawn expensive(CFG(true,st.chnnlCMD),st.chnnlOUT)
     
@@ -80,10 +80,11 @@ function loop()
     st = state()
     input_channel = Channel{String}(1)
     Threads.@spawn listen(input_channel)
+    engine = EngineState(comms=Channel{FORCEQUIT}(1))
 
     while !st.QUIT
         if isready(input_channel)
-            parse!(st,take!(input_channel))
+            parse!(st,engine,take!(input_channel))
             Threads.@spawn(listen(input_channel))
         end
         if !isnothing(st.worker) && istaskdone(st.worker)
@@ -98,8 +99,5 @@ end
 
 #loop()
 
-e = EngineState(sizeMb=0)
-e.config.debug = true
-b,l = best_move(e)
 
 

@@ -62,6 +62,7 @@ export Boardstate,
        best_move,
        run_cli,
        EngineState,
+       assign_TT!,
        reset_engine!
 
 end #module

@@ -50,12 +50,12 @@ mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}}
     nodes_since_time::UInt16
     quit_now::Bool
     quiescence::Bool 
-    usingTT::Bool
+    TT_enabled::Bool
     debug::Bool
 end
 
-function Config(quit::Union{Channel,Nothing},control::Control,usingTT,debug)
-    Config(quit,control,time(),UInt16(0),false,true,usingTT,debug)
+function Config(quit::Union{Channel,Nothing},control::Control,TT_enabled,debug)
+    Config(quit,control,time(),UInt16(0),false,true,TT_enabled,debug)
 end
 
 mutable struct SearchInfo
@@ -73,10 +73,10 @@ function SearchInfo(depth)
 end
 
 #holds all information the engine needs to calculate
-mutable struct EngineState{C <:Control, Q <:Union{Channel,Nothing}} 
+mutable struct EngineState
     board::Boardstate
     TT::Union{TranspositionTable,Nothing}
-    config::Config{C,Q}
+    config::Config
     info::SearchInfo
 end
 
@@ -86,24 +86,20 @@ const TT_ENTRY_TYPE = Bucket
 
 "Constructor for enginestate given TT size in Mb and boardstate"
 function EngineState(FEN::AbstractString=startFEN,verbose=false;
-        sizePO2=nothing,sizeMb=nothing,
+        sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE,
         comms::Union{Channel,Nothing}=nothing,control::Control=Time()) 
 
     board = Boardstate(FEN)
-    TT = set_TT(verbose;sizePO2=sizePO2,sizeMb=sizeMb)
+    TT = TranspositionTable(verbose;size=sizePO2,sizeMb=sizeMb,type=TT_type)
     config = Config(comms,control,!isnothing(TT),verbose)
     info = SearchInfo(config.control.maxdepth)
-    config.starttime = time()
     return EngineState(board,TT,config,info)
 end
 
-"set a new TT. by default size in powers of two is unspecified so the default constructor is used"
-function set_TT(verbose=false;sizePO2=nothing,sizeMb=nothing)
-    if !isnothing(sizeMb)
-        return TranspositionTable(TT_ENTRY_TYPE,verbose,sizeMb=sizeMb)
-    else
-        return TranspositionTable(TT_ENTRY_TYPE,verbose,size=sizePO2)
-    end
+"assign a TT to an engine and set TT_enabled=true"
+function assign_TT!(engine::EngineState;sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE)
+    engine.TT = TranspositionTable(engine.config.debug,sizeMb=TT_DEFAULT_MB,size=nothing,TT_type=TT_ENTRY_TYPE)
+    engine.config.TT_enabled = !isnothing(engine.TT)
 end
 
 "Reset engine to default boardstate and empty TT"
@@ -425,10 +421,9 @@ end
 
 "Evaluates the position to return the best move"
 function best_move(engine::EngineState)
-    println(time()-engine.config.starttime)
-    t = time()
+    engine.config.starttime = time()
     best_move,logger = iterative_deepening(engine)
-    logger.δt = time() - t
+    logger.δt = time() - engine.config.starttime
 
     best_move != NULLMOVE || error("Failed to find move better than null move")
 

@@ -53,7 +53,7 @@ function TranspositionTable(type,size::Integer,verbose::Bool)
 end
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(type,verbose=false;sizeMb=TT_DEFAULT_MB,size::Union{Integer,Nothing}=nothing)::Union{TranspositionTable,Nothing}
+function TranspositionTable(verbose=false;sizeMb=TT_DEFAULT_MB,size=nothing,type=TT_ENTRY_TYPE)::Union{TranspositionTable,Nothing}
     if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
         return TranspositionTable(type,size,verbose)
 
