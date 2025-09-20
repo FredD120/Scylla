@@ -23,8 +23,10 @@ TO-DO (general)
 
 -> Implement UCI protocol
 -> Unit tests for UCI protocol
+-> Convert Move to its own type
 -> Convert all files to JLD2, combine mid and endgame tables in one file for each piece
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
+-> As far as possible, use constant types and function barriers
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
@@ -52,17 +54,13 @@ include("perft.jl")
 include("precompile.jl")
 include("cli.jl")
 
-export Boardstate,
-       BitBoard,
-       make_move!,
-       unmake_move!,
-       perft,
-       generate_moves,
-       gameover!,
-       best_move,
-       run_cli,
-       EngineState,
-       assign_TT!,
-       reset_engine!
-
+export BitBoard,Boardstate,
+       make_move!,unmake_move!,
+       generate_moves,gameover!,
+       best_move,perft,
+       Logger,print_log,
+       run_cli,assign_TT!,reset_engine!,
+       Control,Time,Depth,Nodes,Mate,
+       FORCEQUIT,
+       EngineState,Config
 end #module

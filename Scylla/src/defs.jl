@@ -112,3 +112,39 @@ function identify_locations(int::Integer)::Vector{UInt8}
     end
     return locations
 end
+
+#maximum search depth
+const MAXDEPTH::UInt8 = UInt8(32)
+const MINDEPTH::UInt8 = UInt8(0)
+const DEFAULTDEPTH::UInt8 = UInt8(20)
+const DEFAULTTIME::Float64 = Float64(1.5)
+const DEFAULTNODES::UInt32 = UInt32(1e8)
+#check for out of time/quit message every x nodes
+const CHECKNODES::UInt32 = UInt32(1000)
+
+abstract type Control end
+struct FORCEQUIT end
+
+struct Time <: Control
+    maxtime::Float64
+    maxdepth::UInt8
+end
+Time() = Time(DEFAULTTIME,DEFAULTDEPTH)
+Time(max_t) = Time(max_t,DEFAULTDEPTH)
+
+struct Depth <: Control
+    maxdepth::UInt8
+end
+Depth() = Depth(MAXDEPTH)
+
+struct Nodes <: Control
+    maxnodes::UInt64
+    maxdepth::UInt8
+end
+Nodes() = Nodes(DEFAULTNODES,DEFAULTDEPTH)
+Nodes(nodes) = Nodes(nodes,DEFAULTDEPTH)
+
+struct Mate <: Control
+    maxdepth::UInt8
+end
+Mate() = Mate(DEFAULTDEPTH)

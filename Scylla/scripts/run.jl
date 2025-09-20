@@ -2,51 +2,23 @@ using Scylla
 
 #Scylla.run_cli()
 
-#=
-moves = [Scylla.NULLMOVE]
-ls = map(m->Scylla.LONGmove(m), moves)
-println(typeof(ls),ls)
-=#
 
-
-#=
-e = EngineState()
-println("Num entries: ",Scylla.num_entries(e.TT))
-println("Size in Mb: ",Scylla.TT_size(e.TT))
-@time mve,logg = best_move(e,max_depth=8)
-
-Threads.@spawn wait mve,logg = best_move(e,max_depth=8)
-=#
-#Scylla.print_log(logg)
-
-struct FORCEQUIT end
-
-mutable struct CFG
-    ischannel::Bool 
-    chnnlCMD::Union{Channel,Nothing}
-end
-
-function expensive(cfg::CFG,ch_out::Channel)
-    for _ in 1:30
-        sleep(0.1)
-        if isready(cfg.chnnlCMD) #&& take!(cfg.chnnlCMD) == FORCEQUIT()
-            put!(ch_out,("stop","expensive task interrupted"))
-            return nothing
-        end
-    end
-    put!(ch_out,("finish","expensive task finished"))
-    return nothing
+"task to run best_move and put outputs in channel"
+function run_engine(E,ch_out::Channel)
+    best, logger = best_move(E)
+    put!(ch_out,(best,logger))
 end
 
 mutable struct state
     QUIT::Bool
+    listen::Channel
     worker::Union{Task,Nothing}
     chnnlCMD::Union{Channel,Nothing}
     chnnlOUT::Union{Channel,Nothing}
 end
-state() = state(false,nothing,nothing,nothing)
+state() = state(false,Channel{String}(1),nothing,nothing,nothing)
 
-function reset_state!(st::state)
+function reset_worker!(st::state)
     st.worker = nothing
     st.chnnlCMD = nothing
     st.chnnlOUT = nothing
@@ -61,43 +33,87 @@ function parse!(st::state,E::EngineState,msg)
         println("world")
 
     elseif "BEGIN" in msg_in && isnothing(st.worker)
-        st.chnnlCMD = E.config.
-        st.chnnlOUT = Channel{Tuple{String,String}}(1)
-        st.worker = Threads.@spawn expensive(CFG(true,st.chnnlCMD),st.chnnlOUT)
+        st.chnnlCMD = E.config.forcequit
+        st.chnnlOUT = Channel{Tuple{UInt32,Logger}}(1)
+        st.worker = Threads.@spawn run_engine(E,st.chnnlOUT)
     
     elseif "STOP" in msg_in && !isnothing(st.worker)
         put!(st.chnnlCMD,FORCEQUIT())
-
     end
 end
 
-function listen(ch::Channel)
-    input = readline()
-    put!(ch, input)
+"task to listen for input and put into listen channel"
+function listen(st::state)
+    for input in eachline()
+        put!(st.listen, input)
+    end
 end
  
 function loop()
-    st = state()
-    input_channel = Channel{String}(1)
-    Threads.@spawn listen(input_channel)
-    engine = EngineState(comms=Channel{FORCEQUIT}(1))
+    st = state() 
+    listener = Threads.@spawn listen(st)
+    engine = EngineState(comms=Channel{FORCEQUIT}(1),control=Time(10))
 
     while !st.QUIT
-        if isready(input_channel)
-            parse!(st,engine,take!(input_channel))
-            Threads.@spawn(listen(input_channel))
+        if isready(st.listen)
+            parse!(st,engine,take!(st.listen))
         end
-        if !isnothing(st.worker) && istaskdone(st.worker)
-            output = fetch(st.chnnlOUT)
-            println(output[2])
-            reset_state!(st)
+        if !isnothing(st.worker) && isready(st.chnnlOUT)
+            output = take!(st.chnnlOUT)
+            print_log(output[2])
+            reset_worker!(st)
         end
         sleep(0.1)
     end
-    reset_state!(st)
+    reset_worker!(st)
+    listener = nothing
 end
 
+function tst()
+    e = EngineState(control=Time(2))
+    e.config.debug = true
+    #e.config.quiescence = false
+    b,l = best_move(e)
+    print_log(l)
+end
+
+abstract type A end
+abstract type B end
+
+struct typeA1 <: A 
+    v::Int64 
+end
+
+struct typeA2 <: A
+    v::Int64
+end
+
+struct typeB1 <: B 
+    v::Int64 
+end
+
+struct typeB2 <: B 
+    v::Int64 
+end
+
+mutable struct Foo{a<:A,b<:B}
+    var_a::a
+    var_b::b
+end
+
+function printfoo(F::Foo{a,b}) where {a<:A,b<:typeB1} 
+    println("Subtype of B")
+end
+
+function printfoo(F::Foo{a}) where {a<:A}
+    println("Subtype of A") 
+end
+
+function printfoo(F::Foo{a}) where a<:typeA1
+    println("Type 1") 
+end
+
+#f = Foo(typeA2(1),typeB1(2))
+#printfoo(f)
+tst()
 #loop()
-
-
-

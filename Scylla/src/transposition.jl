@@ -109,6 +109,7 @@ end
 Bucket() = Bucket(SearchData(),SearchData())
 
 num_entries(::Bucket) = 2
+const TT_ENTRY_TYPE = Bucket
 
 "add depth to score when storing and remove when retrieving"
 function correct_score(score,depth,sgn)::Int16
@@ -118,39 +119,4 @@ function correct_score(score,depth,sgn)::Int16
         score -= Int16(sgn*depth)
     end
     return score
-end
-
-"update entry in TT. either greater depth or always replace"
-function TT_store!(TT,ZHash,depth,score,node_type,best_move,logger)
-    if !isnothing(TT)
-        TT_view = view_entry(TT,ZHash)
-        #correct mate scores in TT
-        score = correct_score(score,depth,-1)
-        new_data = SearchData(ZHash,depth,score,node_type,best_move)
-        if depth >= TT_view[].Depth.depth
-            if TT_view[].Depth.type == NONE
-              logger.hashfull += 1
-            end  
-            TT_view[].Depth = new_data
-        else
-            if TT_view[].Always.type == NONE
-              logger.hashfull += 1
-            end
-            TT_view[].Always = new_data
-        end
-    end
-end
-
-"retrieve TT entry, returning nothing if there is no entry"
-function TT_retrieve!(TT,ZHash,cur_depth)
-    if !isnothing(TT)
-        bucket = get_entry(TT,ZHash)
-        #no point using TT if hash collision
-        if bucket.Depth.ZHash == ZHash
-            return bucket.Depth, correct_score(bucket.Depth.score,cur_depth,+1)
-        elseif bucket.Always.ZHash == ZHash
-            return bucket.Always, correct_score(bucket.Always.score,cur_depth,+1)
-        end
-    end
-    return nothing,nothing
 end

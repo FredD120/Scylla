@@ -3,51 +3,12 @@ const MAXMATEDEPTH::Int16 = Int16(100)
 const INF::Int16 = typemax(Int16)
 const MATE::Int16 = INF - MAXMATEDEPTH
 
-#maximum search depth
-const MAXDEPTH::UInt8 = UInt8(32)
-const MINDEPTH::UInt8 = UInt8(0)
-const DEFAULTDEPTH::UInt8 = UInt8(20)
-const DEFAULTTIME::Float64 = Float64(1.5)
-const DEFAULTNODES::UInt32 = UInt32(1e8)
-#check for out of time/quit message every x nodes
-const CHECKNODES::UInt32 = UInt32(1000)
-
-abstract type Control end
-
-struct Time <: Control
-    maxtime::Float64
-    maxdepth::UInt8
-end
-
-Time() = Time(DEFAULTTIME,DEFAULTDEPTH)
-Time(max_t) = Time(max_t,DEFAULTDEPTH)
-
-struct Depth <: Control
-    maxdepth::UInt8
-end
-
-Depth() = Depth(MAXDEPTH)
-
-struct Nodes <: Control
-    maxnodes::UInt64
-    maxdepth::UInt8
-end
-
-Nodes() = Nodes(DEFAULTNODES,DEFAULTDEPTH)
-Nodes(nodes) = Nodes(nodes,DEFAULTDEPTH)
-
-struct Mate <: Control
-    maxdepth::UInt8
-end
-
-Mate() = Mate(DEFAULTDEPTH)
-
 "different configurations the engine can run in"
 mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}} 
     forcequit::Q
     control::C
     starttime::Float64
-    nodes_since_time::UInt16
+    nodes_since_time::UInt32
     quit_now::Bool
     quiescence::Bool 
     TT_enabled::Bool
@@ -55,7 +16,7 @@ mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}}
 end
 
 function Config(quit::Union{Channel,Nothing},control::Control,TT_enabled,debug)
-    Config(quit,control,time(),UInt16(0),false,true,TT_enabled,debug)
+    Config(quit,control,time(),UInt32(0),false,true,TT_enabled,debug)
 end
 
 mutable struct SearchInfo
@@ -76,13 +37,12 @@ end
 mutable struct EngineState
     board::Boardstate
     TT::Union{TranspositionTable,Nothing}
+    TT_HashFull::UInt32
     config::Config
     info::SearchInfo
 end
 
 max_depth(e::EngineState) = e.config.control.maxdepth
-
-const TT_ENTRY_TYPE = Bucket
 
 "Constructor for enginestate given TT size in Mb and boardstate"
 function EngineState(FEN::AbstractString=startFEN,verbose=false;
@@ -93,19 +53,55 @@ function EngineState(FEN::AbstractString=startFEN,verbose=false;
     TT = TranspositionTable(verbose;size=sizePO2,sizeMb=sizeMb,type=TT_type)
     config = Config(comms,control,!isnothing(TT),verbose)
     info = SearchInfo(config.control.maxdepth)
-    return EngineState(board,TT,config,info)
+    return EngineState(board,TT,UInt32(0),config,info)
 end
 
 "assign a TT to an engine and set TT_enabled=true"
-function assign_TT!(engine::EngineState;sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE)
-    engine.TT = TranspositionTable(engine.config.debug,sizeMb=TT_DEFAULT_MB,size=nothing,TT_type=TT_ENTRY_TYPE)
-    engine.config.TT_enabled = !isnothing(engine.TT)
+function assign_TT!(E::EngineState;sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE)
+    E.TT = TranspositionTable(E.config.debug,sizeMb=TT_DEFAULT_MB,size=nothing,TT_type=TT_ENTRY_TYPE)
+    E.config.TT_enabled = !isnothing(Ee.TT)
+    E.TT_HashFull = UInt32(0)
 end
 
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(E::EngineState)
     reset_TT!(E)
     E.board = Boardstate(startFEN)
+    E.TT_HashFull = UInt32(0)
+end
+
+"update entry in TT. either greater depth or always replace"
+function TT_store!(engine::EngineState,ZHash,depth,score,node_type,best_move)
+    if !isnothing(engine.TT)
+        TT_view = view_entry(engine.TT,ZHash)
+        #correct mate scores in TT
+        score = correct_score(score,depth,-1)
+        new_data = SearchData(ZHash,depth,score,node_type,best_move)
+        if depth >= TT_view[].Depth.depth
+            if TT_view[].Depth.type == NONE
+              engine.TT_HashFull += 1
+            end  
+            TT_view[].Depth = new_data
+        else
+            if TT_view[].Always.type == NONE
+              engine.TT_HashFull += 1
+            end
+            TT_view[].Always = new_data
+        end
+    end
+end
+
+"retrieve TT entry and corrected score, also returning true if retrieval successful"
+function TT_retrieve!(engine::EngineState,ZHash,cur_depth)
+    bucket = get_entry(engine.TT,ZHash)
+    #no point using TT if hash collision
+    if bucket.Depth.ZHash == ZHash
+        return bucket.Depth, correct_score(bucket.Depth.score,cur_depth,+1)
+    elseif bucket.Always.ZHash == ZHash
+        return bucket.Always, correct_score(bucket.Always.score,cur_depth,+1)
+    else
+        return nothing, nothing
+    end
 end
 
 "return PV as vector of strings"
@@ -215,6 +211,13 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
     end
 end
 
+"return true if channel contains FORCEQUIT message"
+check_quit(config::Config{C,Q}) where {C<:Control,Q<:Channel} = 
+    isready(config.forcequit) && take!(config.forcequit) == FORCEQUIT()
+
+"return false if channel doesn't exist"
+check_quit(::Config{C,Q}) where {C<:Control,Q<:Nothing} = false
+
 function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) where C<:Time
     if config.quit_now
         return true
@@ -223,8 +226,8 @@ function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) whe
     config.nodes_since_time += 1
     if bypass_check || config.nodes_since_time > CHECKNODES
         config.nodes_since_time = 0
-        #If we run out of time, return lower bound on score
-        config.quit_now = (time() - config.starttime) > (config.control.maxtime*safety_factor)
+        config.quit_now = check_quit(config) || 
+        ((time() - config.starttime) > (config.control.maxtime*safety_factor))
     end
     return config.quit_now
 end
@@ -246,17 +249,21 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     end
 
     #enter quiescence search if at leaf node
-    if engine.config.quiescence && depth <= MINDEPTH 
+    if depth <= MINDEPTH 
         logger.pos_eval += 1
-        return quiescence(engine,player,α,β,ply,logger)
+        if engine.config.quiescence
+            return quiescence(engine,player,α,β,ply,logger)
+        else 
+            return evaluate(engine.board)
+        end
     end
 
     best_move = NULLMOVE
     #dont use TT if on PV (still save result of PV search in TT)
     if onPV
         best_move = engine.info.PV[ply+1]
-    else
-        TT_data,TT_score = TT_retrieve!(engine.TT,engine.board.ZHash,depth)
+    elseif engine.config.TT_enabled
+        TT_data,TT_score = TT_retrieve!(engine,engine.board.ZHash,depth)
         if !isnothing(TT_data)
             #don't try to cutoff if depth of TT entry is too low
             if TT_data.depth >= depth 
@@ -308,7 +315,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
                     logger.TT_cut += 1
                 end
 
-                TT_store!(engine.TT,engine.board.ZHash,depth,score,BETA,move,logger)
+                TT_store!(engine,engine.board.ZHash,depth,score,BETA,move)
                 return β
             end
             node_type = EXACT
@@ -319,11 +326,11 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
         end
     end
 
-    TT_store!(engine.TT,engine.board.ZHash,depth,α,node_type,cur_best_move,logger)
+    TT_store!(engine,engine.board.ZHash,depth,α,node_type,cur_best_move)
     return α
 end
 
-"Root of minimax search. Deals in moves not scores"
+"root of minimax search"
 function root(engine::EngineState,moves,depth,logger::Logger)
     #whites current best score
     α = -INF 
@@ -391,7 +398,6 @@ function iterative_deepening(engine::EngineState)
             logger.best_score = bestscore 
         end
     end
-
     return engine.info.PV[1], logger
 end
 
@@ -423,9 +429,13 @@ end
 function best_move(engine::EngineState)
     engine.config.starttime = time()
     best_move,logger = iterative_deepening(engine)
+
     logger.δt = time() - engine.config.starttime
+    logger.hashfull = engine.TT_HashFull
+
+    engine.config.quit_now = false
+    engine.config.nodes_since_time = UInt32(0)
 
     best_move != NULLMOVE || error("Failed to find move better than null move")
-
     return best_move,logger
 end
