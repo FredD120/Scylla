@@ -11,12 +11,11 @@ mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}}
     nodes_since_time::UInt32
     quit_now::Bool
     quiescence::Bool 
-    TT_enabled::Bool
     debug::Bool
 end
 
-function Config(quit::Union{Channel,Nothing},control::Control,TT_enabled,debug)
-    Config(quit,control,time(),UInt32(0),false,true,TT_enabled,debug)
+function Config(quit::Union{Channel,Nothing},control::Control,debug)
+    Config(quit,control,time(),UInt32(0),false,true,debug)
 end
 
 mutable struct SearchInfo
@@ -51,15 +50,20 @@ function EngineState(FEN::AbstractString=startFEN,verbose=false;
 
     board = Boardstate(FEN)
     TT = TranspositionTable(verbose;size=sizePO2,sizeMb=sizeMb,type=TT_type)
-    config = Config(comms,control,!isnothing(TT),verbose)
+    config = Config(comms,control,verbose)
     info = SearchInfo(config.control.maxdepth)
     return EngineState(board,TT,UInt32(0),config,info)
 end
 
-"assign a TT to an engine and set TT_enabled=true"
+"assign a TT to an engine"
 function assign_TT!(E::EngineState;sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE)
     E.TT = TranspositionTable(E.config.debug,sizeMb=TT_DEFAULT_MB,size=nothing,TT_type=TT_ENTRY_TYPE)
-    E.config.TT_enabled = !isnothing(Ee.TT)
+    E.TT_HashFull = UInt32(0)
+end
+
+"Reset entries of engine's TT to default value"
+function reset_TT!(E::EngineState)
+    reset_TT!(E.TT)
     E.TT_HashFull = UInt32(0)
 end
 
@@ -67,7 +71,6 @@ end
 function reset_engine!(E::EngineState)
     reset_TT!(E)
     E.board = Boardstate(startFEN)
-    E.TT_HashFull = UInt32(0)
 end
 
 "update entry in TT. either greater depth or always replace"
@@ -211,6 +214,9 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
     end
 end
 
+"returns true if we have run out of time"
+check_time(config,safety_factor) = (time() - config.starttime) > (config.control.maxtime*safety_factor)
+
 "return true if channel contains FORCEQUIT message"
 check_quit(config::Config{C,Q}) where {C<:Control,Q<:Channel} = 
     isready(config.forcequit) && take!(config.forcequit) == FORCEQUIT()
@@ -222,15 +228,22 @@ function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) whe
     if config.quit_now
         return true
     end
+
     #reduce number of sys calls
     config.nodes_since_time += 1
     if bypass_check || config.nodes_since_time > CHECKNODES
         config.nodes_since_time = 0
-        config.quit_now = check_quit(config) || 
-        ((time() - config.starttime) > (config.control.maxtime*safety_factor))
+        config.quit_now = check_quit(config) || check_time(config,safety_factor)
+        
+        if config.quit_now
+            println("Quitting")
+        end
     end
     return config.quit_now
 end
+
+"returns true if score is a mate score"
+mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "minimax algorithm, tries to maximise own eval and minimise opponent eval"
 function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,logger::Logger)
@@ -262,7 +275,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     #dont use TT if on PV (still save result of PV search in TT)
     if onPV
         best_move = engine.info.PV[ply+1]
-    elseif engine.config.TT_enabled
+    elseif !isnothing(engine.TT)
         TT_data,TT_score = TT_retrieve!(engine,engine.board.ZHash,depth)
         if !isnothing(TT_data)
             #don't try to cutoff if depth of TT entry is too low
@@ -352,7 +365,8 @@ function root(engine::EngineState,moves,depth,logger::Logger)
         score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,logger)
         unmake_move!(engine.board)
 
-        if logger.stopmidsearch
+        if stop_early(engine.config)
+            logger.stopmidsearch = true
             break
         end
 
@@ -378,9 +392,9 @@ function iterative_deepening(engine::EngineState)
     logger = Logger(num_entries(engine.TT))
     bestscore = 0
 
-    #Quit early if we or opponent have M1 or if we run out of time
+    #Quit early if we or opponent have mate or if we run out of time
     while (depth < max_depth(engine)) &&  
-        !(abs(logger.best_score)==INF-1 || abs(logger.best_score)==INF-2) &&
+        !(mate_found(bestscore)) &&
         !(stop_early(engine.config,0.2,bypass_check=true))
 
         depth += 1
@@ -394,8 +408,8 @@ function iterative_deepening(engine::EngineState)
         #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
         if !logger.stopmidsearch
             logger.cum_nodes += logger.pos_eval
-            logger.pos_eval = 0
-            logger.best_score = bestscore 
+            logger.pos_eval = 0 
+            logger.best_score = bestscore
         end
     end
     return engine.info.PV[1], logger
@@ -403,26 +417,32 @@ end
 
 "print all logging info to StdOut"
 function print_log(logger::Logger)
-    best ="$(logger.best_score)"
-    if abs(logger.best_score) >= INF - MAXMATEDEPTH
-        dist = Int((INF - abs(logger.best_score))÷2)
-        best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
-    end
+    if length(logger.PV) > 0
+        best ="$(logger.best_score)"
+        if mate_found(logger.best_score)
+            dist = Int((INF - abs(logger.best_score))÷2)
+            best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
+        end
 
-    println("Best = $(logger.PV[1]). \
-    Score = "*best*". \
-    Nodes = $(logger.nodes) ($(round(logger.nodes/logger.δt,sigdigits=4)) nps). \
-    Quiescent nodes = $(logger.Qnodes) ($(round(100*logger.Qnodes/logger.nodes,sigdigits=3))%). \
-    Depth = $((logger.cur_depth)). \
-    Max ply = $(logger.seldepth). \
-    TT cuts = $(logger.TT_cut). \
-    Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%. \
-    Time = $(round(logger.δt,sigdigits=6))s.")
+        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut). \
+        Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
 
-    if logger.stopmidsearch
-        println("Ran out of time mid search.")
+        println("Best = $(logger.PV[1]). \
+        Score = "*best*". \
+        Nodes = $(logger.nodes) ($(round(logger.nodes/logger.δt,sigdigits=4)) nps). \
+        Quiescent nodes = $(logger.Qnodes) ($(round(100*logger.Qnodes/logger.nodes,sigdigits=3))%). \
+        Depth = $((logger.cur_depth)). \
+        Max ply = $(logger.seldepth). "
+        *TT_msg*
+        "Time = $(round(logger.δt,sigdigits=6))s.")
+
+        if logger.stopmidsearch
+            println("Search exited early.")
+        end
+        println("#"^100)
+    else 
+        println("Failed to find move better than null move")
     end
-    println("#"^100)
 end
 
 "Evaluates the position to return the best move"
@@ -436,6 +456,5 @@ function best_move(engine::EngineState)
     engine.config.quit_now = false
     engine.config.nodes_since_time = UInt32(0)
 
-    best_move != NULLMOVE || error("Failed to find move better than null move")
     return best_move,logger
 end

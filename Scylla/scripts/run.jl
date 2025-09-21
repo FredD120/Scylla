@@ -1,8 +1,6 @@
 using Scylla 
 
-#Scylla.run_cli()
-
-
+#=
 "task to run best_move and put outputs in channel"
 function run_engine(E,ch_out::Channel)
     best, logger = best_move(E)
@@ -113,7 +111,9 @@ function printfoo(F::Foo{a}) where a<:typeA1
     println("Type 1") 
 end
 
+=#
 #f = Foo(typeA2(1),typeB1(2))
 #printfoo(f)
-tst()
+#tst()
 #loop()
+Scylla.run_cli()

@@ -3,16 +3,53 @@ const NAME = "Scylla"
 mutable struct CLI_state
     QUIT::Bool
     TT_SET::Bool
-    DEBUG::Bool
+    listen::Channel
+    worker::Union{Task,Nothing}
+    chnnlOUT::Union{Channel,Nothing}
+end
+CLI_state() = CLI_state(false,false,Channel{String}(1),nothing,nothing)
+
+"reset worker thread and associated channels"
+function reset_worker!(st::CLI_state)
+    st.worker = nothing
+    st.chnnlOUT = nothing
 end
 
-CLI_state() = CLI_state(false,false,false)
+"task to run best_move and put outputs in channel"
+function run_engine(E::EngineState,ch_out::Channel)
+    best, logger = best_move(E)
+    put!(ch_out,(best,logger))
+end
 
-"can modify either the engine state or the CLI state"
-function parse_msg!(engine,cli_state,msg)
+"task to continually listen for input and put into listen channel"
+function listen(st::CLI_state)
+    for input in eachline()
+        put!(st.listen, input)
+    end
+end
+
+"parse OPTION command from CLI, dispatch on requests"
+function set_option!(engine::EngineState,cli_state,msg_vec)
+    if msg_vec[1] == "CLEAR" && msg_vec[2] == "HASH"
+        reset_TT!(engine)
+
+    elseif msg_vec[1] == "HASH"
+        ind = findfirst(x->x=="VALUE",msg_vec)
+        if !isnothing(ind) && length(msg_vec) > ind
+            assign_TT!(engine,sizeMb=tryparse(Int64,msg_vec[ind+1]))
+            cli_state.TT_SET = true
+        end
+
+    elseif engine.config.debug
+        println("info option not recognised")
+    end
+end
+
+"can modify either the engine state or the CLI state and launch new worker threads"
+function parse_msg!(engine,cli_st,msg)
     msg_in = split(uppercase(msg))
     if "QUIT" in msg_in
-        cli_state.QUIT = true
+        cli_st.QUIT = true
 
     elseif "UCINEWGAME" in msg_in
         reset_engine!(engine)
@@ -26,59 +63,61 @@ function parse_msg!(engine,cli_state,msg)
         println("uciok\n")   
 
     elseif "ISREADY" in msg_in
-        if !cli_state.TT_SET
+        if !cli_st.TT_SET
+            #assign default TT if not previously set
             engine.TT = TranspositionTable(engine.config.debug)
-            cli_state.TT_SET = true
+            cli_st.TT_SET = true
         end
         println("readyok\n")
     
     elseif "SETOPTION" in msg_in
         ind = findfirst(x->x=="NAME",msg_in)
         if !isnothing(ind) && length(msg_in) > ind
-            set_option!(engine,cli_state,msg_in[ind+1:end])
+            set_option!(engine,cli_st,msg_in[ind+1:end])
         end
 
     elseif "DEBUG" in msg_in
         ind = findfirst(x->x=="DEBUG",msg_in)
         if !isnothing(ind) && length(msg_in) > ind
             if msg_in[ind+1] == "ON"
-                cli_state.DEBUG = true
+                engine.config.debug = true
             elseif msg_in[ind+1] == "OFF"
-                cli_state.DEBUG = false
+                engine.config.debug = false
             end
         end
-    elseif cli_state.DEBUG
+
+    elseif "GO" in msg_in
+        cli_st.chnnlOUT = Channel{Tuple{UInt32,Logger}}(1)
+        cli_st.worker = Threads.@spawn run_engine(engine,cli_st.chnnlOUT)
+
+    elseif "STOP" in msg_in && !isnothing(cli_st.worker)
+        put!(engine.config.forcequit,FORCEQUIT())
+
+    elseif engine.config.debug
         println("info command not recognised")
     end
 end
 
+"entry point for CLI, uses UCI protocol"
 function run_cli()
     cli_state = CLI_state()
-    engine = EngineState(sizeMb=0)
+    listener = Threads.@spawn listen(cli_state)
+    engine = EngineState(
+        comms=Channel{FORCEQUIT}(1),control=Time(10),sizeMb=0)
 
     while !cli_state.QUIT
-        parse_msg!(engine,cli_state,readline())
-    end
-end
-
-function set_hash!(engine::EngineState,msg_vec)
-    val = tryparse(Int64,msg_vec[1])
-    engine.TT = create_TT(sizeMb=val)
-end
-
-function set_option!(engine::EngineState,cli_state,msg_vec)
-    if msg_vec[1] == "CLEAR" && msg_vec[2] == "HASH"
-        reset_TT!(engine)
-
-    elseif msg_vec[1] == "HASH"
-        ind = findfirst(x->x=="VALUE",msg_vec)
-        if !isnothing(ind) && length(msg_vec) > ind
-            assign_TT!(engine,sizeMb=tryparse(Int64,msg_vec[ind+1]))
+        if isready(cli_state.listen)
+            parse_msg!(engine,cli_state,take!(cli_state.listen))
         end
-
-    elseif cli_state.DEBUG
-        println("info option not recognised")
+        if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
+            output = take!(cli_state.chnnlOUT)
+            print_log(output[2])
+            reset_worker!(cli_state)
+        end
+        sleep(0.05)
     end
+    reset_worker!(cli_state)
+    listener = nothing
 end
 
 function test_args()

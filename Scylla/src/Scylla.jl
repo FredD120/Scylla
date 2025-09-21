@@ -16,11 +16,11 @@ TO-DO (engine)
 -> Delta/futility pruning
 -> PVS
 -> Texel tuned PSTs
+-> SEE move ordering
 -> LMR + history
 -> NNUE
 
 TO-DO (general)
-
 -> Implement UCI protocol
 -> Unit tests for UCI protocol
 -> Convert Move to its own type

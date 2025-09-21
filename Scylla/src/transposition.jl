@@ -31,7 +31,7 @@ TT_size(::Nothing) = 0.0
 num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable)*num_entries(T())
 num_entries(::Nothing) = 0
 
-"Reset all entries in TT to default contructor value"
+"Reset all entries in TT to default constructor value"
 function reset_TT!(TT::TranspositionTable{T}) where {T}
     for i in eachindex(TT.HashTable)
         TT.HashTable[i] = T()
