@@ -56,8 +56,10 @@ function EngineState(FEN::AbstractString=startFEN,verbose=false;
 end
 
 "assign a TT to an engine"
-function assign_TT!(E::EngineState;sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE)
-    E.TT = TranspositionTable(E.config.debug,sizeMb=TT_DEFAULT_MB,size=nothing,TT_type=TT_ENTRY_TYPE)
+function assign_TT!(E::EngineState;
+    sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE)
+    E.TT = TranspositionTable(E.config.debug,
+    sizeMb=sizeMb, size=sizePO2, type=TT_type)
     E.TT_HashFull = UInt32(0)
 end
 
@@ -95,20 +97,21 @@ function TT_store!(engine::EngineState,ZHash,depth,score,node_type,best_move)
 end
 
 "retrieve TT entry and corrected score, also returning true if retrieval successful"
-function TT_retrieve!(engine::EngineState,ZHash,cur_depth)
-    bucket = get_entry(engine.TT,ZHash)
+function TT_retrieve!(engine::EngineState, ZHash, cur_depth)
+    bucket = get_entry(engine.TT, ZHash)
     #no point using TT if hash collision
     if bucket.Depth.ZHash == ZHash
-        return bucket.Depth, correct_score(bucket.Depth.score,cur_depth,+1)
+        return bucket.Depth, correct_score(bucket.Depth.score, cur_depth,+1)
     elseif bucket.Always.ZHash == ZHash
-        return bucket.Always, correct_score(bucket.Always.score,cur_depth,+1)
+        return bucket.Always, correct_score(bucket.Always.score, cur_depth,+1)
     else
         return nothing, nothing
     end
 end
 
 "return PV as vector of strings"
-PV_string(info::SearchInfo)::Vector{String} = map(m->LONGmove(m), info.PV[1:info.PV_len])
+PV_string(info::SearchInfo)::Vector{String} = 
+    map(m->LONGmove(m), info.PV[1:info.PV_len])
 
 mutable struct Logger
     best_score::Int16
@@ -142,7 +145,7 @@ function evaluate(board::Boardstate)::Int16
 end
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
-function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
+function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
     if stop_early(engine.config)
         logger.stopmidsearch = true
         return α 
@@ -160,14 +163,14 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
 
     #not in check, continue quiescence
     if legal_info.attack_num == 0
-        best_score = player*evaluate(engine.board)
+        best_score = player * evaluate(engine.board)
         if best_score > α
             if best_score >= β
                 return β
             end
             α = best_score
         end
-        moves = generate_attacks(engine.board,legal_info)
+        moves = generate_attacks(engine.board, legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
@@ -175,7 +178,7 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
             move = moves[i]
 
             make_move!(move,engine.board)
-            score = -quiescence(engine,-player,-β,-α,ply+1,logger)
+            score = -quiescence(engine, -player, -β, -α, ply+1, logger)
             unmake_move!(engine.board)
 
             if score > α
@@ -192,7 +195,7 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
 
     #in check, must search all legal moves (check extension)
     else
-        moves = generate_moves(engine.board,legal_info)
+        moves = generate_moves(engine.board, legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
@@ -200,7 +203,7 @@ function quiescence(engine::EngineState,player::Int8,α,β,ply,logger::Logger)
             move = moves[i]
 
             make_move!(move,engine.board)
-            score = -quiescence(engine,-player,-β,-α,ply+1,logger)
+            score = -quiescence(engine, -player, -β, -α, ply+1, logger)
             unmake_move!(engine.board)
 
             if score > α
@@ -224,7 +227,7 @@ check_quit(config::Config{C,Q}) where {C<:Control,Q<:Channel} =
 "return false if channel doesn't exist"
 check_quit(::Config{C,Q}) where {C<:Control,Q<:Nothing} = false
 
-function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) where C<:Time
+function stop_early(config::Config{C}, safety_factor=0.98; bypass_check=false) where C<:Time
     if config.quit_now
         return true
     end
@@ -235,9 +238,10 @@ function stop_early(config::Config{C},safety_factor=0.98;bypass_check=false) whe
         config.nodes_since_time = 0
         config.quit_now = check_quit(config) || check_time(config,safety_factor)
         
+        #=
         if config.quit_now
             println("Quitting")
-        end
+        end=#
     end
     return config.quit_now
 end
@@ -257,8 +261,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     legal_info = gameover!(engine.board)
     if engine.board.State != Neutral()
         logger.pos_eval += 1
-        value = eval(engine.board.State,ply)
-        return value
+        return eval(engine.board.State,ply)
     end
 
     #enter quiescence search if at leaf node
@@ -276,7 +279,7 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     if onPV
         best_move = engine.info.PV[ply+1]
     elseif !isnothing(engine.TT)
-        TT_data,TT_score = TT_retrieve!(engine,engine.board.ZHash,depth)
+        TT_data, TT_score = TT_retrieve!(engine, engine.board.ZHash, depth)
         if !isnothing(TT_data)
             #don't try to cutoff if depth of TT entry is too low
             if TT_data.depth >= depth 
@@ -301,8 +304,8 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     node_type = ALPHA
     cur_best_move = NULLMOVE   
 
-    moves = generate_moves(engine.board,legal_info)
-    score_moves!(moves,engine.info.Killers[ply+1],best_move)
+    moves = generate_moves(engine.board, legal_info)
+    score_moves!(moves, engine.info.Killers[ply+1], best_move)
 
     for i in eachindex(moves)
         next_best!(moves,i)
@@ -456,5 +459,5 @@ function best_move(engine::EngineState)
     engine.config.quit_now = false
     engine.config.nodes_since_time = UInt32(0)
 
-    return best_move,logger
+    return best_move, logger
 end

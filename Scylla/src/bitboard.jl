@@ -34,31 +34,31 @@ end
 Random.rand(rng::Random.AbstractRNG, ::Random.SamplerType{BitBoard}) = BitBoard(rand(rng, UInt64))
 
 #Extend minus operator on bitboards"
--(a::BitBoard,b::BitBoard) = BitBoard(a.n - b.n)
--(a::BitBoard,b::Integer) = -(promote(a,b)...)
--(a::Integer,b::BitBoard) = -(promote(a,b)...)
+-(a::BitBoard, b::BitBoard) = BitBoard(a.n - b.n)
+-(a::BitBoard, b::Integer) = -(promote(a,b)...)
+-(a::Integer, b::BitBoard) = -(promote(a,b)...)
 #Extend add operator on bitboards"
-+(a::BitBoard,b::BitBoard) = BitBoard(a.n + b.n)
-+(a::BitBoard,b::Integer) = +(promote(a,b)...)
-+(a::Integer,b::BitBoard) = +(promote(a,b)...)
++(a::BitBoard, b::BitBoard) = BitBoard(a.n + b.n)
++(a::BitBoard, b::Integer) = +(promote(a,b)...)
++(a::Integer, b::BitBoard) = +(promote(a,b)...)
 #Extend multiply operator on bitboards"
-*(a::BitBoard,b::BitBoard) = BitBoard(a.n * b.n)
-*(a::BitBoard,b::Integer) = *(promote(a,b)...)
-*(a::Integer,b::BitBoard) = *(promote(a,b)...)
+*(a::BitBoard, b::BitBoard) = BitBoard(a.n * b.n)
+*(a::BitBoard, b::Integer) = *(promote(a,b)...)
+*(a::Integer, b::BitBoard) = *(promote(a,b)...)
 
 #Extend comparison operators to compare bitboards to integers
-==(a::BitBoard,b::BitBoard) = a.n == b.n
-==(a::BitBoard,b::Integer) = ==(promote(a,b)...)
-==(a::Integer,b::BitBoard) = ==(promote(a,b)...)
+==(a::BitBoard, b::BitBoard) = a.n == b.n
+==(a::BitBoard, b::Integer) = ==(promote(a,b)...)
+==(a::Integer, b::BitBoard) = ==(promote(a,b)...)
 
 #Extend comparison operators to compare bitboards
-<(a::BitBoard,b::BitBoard) = a.n < b.n
-<(a::BitBoard,b::Integer) = <(promote(a,b)...)
-<(a::Integer,b::BitBoard) = <(promote(a,b)...)
+<(a::BitBoard, b::BitBoard) = a.n < b.n
+<(a::BitBoard, b::Integer) = <(promote(a,b)...)
+<(a::Integer, b::BitBoard) = <(promote(a,b)...)
 
->(a::BitBoard,b::BitBoard) = a.n > b.n
->(a::BitBoard,b::Integer) = >(promote(a,b)...)
->(a::Integer,b::BitBoard) = >(promote(a,b)...)
+>(a::BitBoard, b::BitBoard) = a.n > b.n
+>(a::BitBoard, b::Integer) = >(promote(a,b)...)
+>(a::Integer, b::BitBoard) = >(promote(a,b)...)
 
 #Extend and operator on bitboards"
 function Base.:&(a::BitBoard,b::BitBoard)
@@ -66,27 +66,27 @@ function Base.:&(a::BitBoard,b::BitBoard)
 end
 
 #Extend or operator on bitboards"
-|(a::BitBoard,b::BitBoard) = BitBoard(a.n | b.n)
+|(a::BitBoard, b::BitBoard) = BitBoard(a.n | b.n)
 #Extend xor operator on bitboards"
-⊻(a::BitBoard,b::BitBoard) = BitBoard(a.n ⊻ b.n)
+⊻(a::BitBoard, b::BitBoard) = BitBoard(a.n ⊻ b.n)
 #Extend not operator on bitboards"
 ~(a::BitBoard) = BitBoard(~a.n)
 
 #Extend bitshift left operator on bitboards"
-<<(a::BitBoard,b::BitBoard) = BitBoard(a.n << b.n)
+<<(a::BitBoard, b::BitBoard) = BitBoard(a.n << b.n)
 #Extend bitshift right operator on bitboards"
->>(a::BitBoard,b::BitBoard) = BitBoard(a.n >> b.n)
+>>(a::BitBoard, b::BitBoard) = BitBoard(a.n >> b.n)
 #Extend bitshift left operator for integers on bitboards"
-<<(a::BitBoard,b::Integer) = BitBoard(a.n << b)
+<<(a::BitBoard, b::Integer) = BitBoard(a.n << b)
 #Extend bitshift right operator for integers on bitboards"
->>(a::BitBoard,b::Integer) = BitBoard(a.n >> b)
+>>(a::BitBoard, b::Integer) = BitBoard(a.n >> b)
 
-Base.getindex(a::AbstractArray,i::BitBoard) = getindex(a,i.n)
-Base.setindex!(a::AbstractArray,v,i::BitBoard) = setindex!(a,v,i.n)
+Base.getindex(a::AbstractArray, i::BitBoard) = getindex(a,i.n)
+Base.setindex!(a::AbstractArray ,v, i::BitBoard) = setindex!(a,v,i.n)
 
 #convert and promote integers to bitboards
-Base.convert(::Type{BitBoard},int::Integer) = BitBoard(int)
-Base.convert(::Type{UInt64},b::BitBoard) = b.n
+Base.convert(::Type{BitBoard}, int::Integer) = BitBoard(int)
+Base.convert(::Type{UInt64}, b::BitBoard) = b.n
 Base.promote_rule(::Type{BitBoard}, ::Type{<:Integer}) = BitBoard
 
 Base.parse(::Type{BitBoard},s::String) = BitBoard(parse(UInt64,s))

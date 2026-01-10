@@ -613,7 +613,7 @@ function any_pawn_moves(pieceBB,all_pcs,ally_pcsBB,colour::Bool,info::LegalInfo)
     return false
 end
 
-"Iterate through zhash list until last halfmove reset to check for repeated positions"
+"Iterate through zhash list until last halfmove reset to check for repeated positions - not working"
 function three_repetition(Zhash,Data::BoardData)::Bool
     count = 1
     for zhist in Data.ZHashHist[end-1:end-Data.Halfmoves[end]-1]
@@ -627,13 +627,16 @@ function three_repetition(Zhash,Data::BoardData)::Bool
     return false
 end
 
+"one-liner to test repetition. function above should be faster but doesn't seem to work currently"
+three_repetition(board::Boardstate) = count(i->(i==board.ZHash),board.Data.ZHashHist) >= 3
+
 "implement 50 move rule and 3 position repetition"
-function draw_state(board)::Bool
-    return (board.Data.Halfmoves[end] >= 100) || (count(i->(i==board.ZHash),board.Data.ZHashHist) >= 3)
+function draw_state(board::Boardstate)::Bool
+    return (board.Data.Halfmoves[end] >= 100) || three_repetition(board) #three_repetition(board.ZHash, board.Data)
 end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
-function generate_moves(board::Boardstate,legal_info::LegalInfo=attack_info(board),MODE::UInt64=ALLMOVES)::Vector{UInt32}
+function generate_moves(board::Boardstate, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)::Vector{UInt32}
     movelist = Vector{UInt32}()
 
     if MODE == ALLMOVES
@@ -676,9 +679,8 @@ function generate_moves(board::Boardstate,legal_info::LegalInfo=attack_info(boar
 end
 
 "helper function that used generate moves create a movelist of all attacking moves (no quiets)"
-function generate_attacks(board::Boardstate,legal_info::LegalInfo=attack_info(board))::Vector{UInt32}
-    MODE = ATTACKONLY
-    return generate_moves(board,legal_info,MODE)
+function generate_attacks(board::Boardstate, legal_info::LegalInfo=attack_info(board))::Vector{UInt32}
+    return generate_moves(board, legal_info, ATTACKONLY)
 end
 
 "evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"

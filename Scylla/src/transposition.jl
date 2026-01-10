@@ -42,7 +42,7 @@ end
 reset_TT!(::Nothing) = nothing
 
 "construct TT of a given size (2^N) with entries of a given type"
-function TranspositionTable(type,size::Integer,verbose::Bool)
+function TranspositionTable(type, size::Integer, verbose::Bool)
     actual_len = UInt64(1) << size
     hash_table = [type() for _ in 1:actual_len]
     TT = TranspositionTable(bitmask(actual_len),hash_table)
@@ -53,7 +53,8 @@ function TranspositionTable(type,size::Integer,verbose::Bool)
 end
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(verbose=false;sizeMb=TT_DEFAULT_MB,size=nothing,type=TT_ENTRY_TYPE)::Union{TranspositionTable,Nothing}
+function TranspositionTable(verbose=false; 
+    sizeMb=TT_DEFAULT_MB, size=nothing, type=TT_ENTRY_TYPE)::Union{TranspositionTable,Nothing}
     if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
         return TranspositionTable(type,size,verbose)
 

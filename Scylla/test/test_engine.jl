@@ -69,10 +69,11 @@ end
 end
 
 @testset "Easy Best Move" begin
+
     @testset "Bxq" begin
         eFEN = "K6Q/8/8/8/8/8/8/b6k b - - 0 1"
         engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine,max_T=MAXTIME)
+        best,log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
@@ -80,7 +81,7 @@ end
     @testset "bxQ" begin
         eFEN = "k6q/8/8/8/8/8/8/B6K w - - 0 1"
         engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine,max_T=MAXTIME)
+        best,log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
@@ -88,7 +89,7 @@ end
     @testset "Queen Evade Capture" begin
         eFEN = "k7/8/8/8/8/8/5K2/7q b - - 0 1"
         engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine,max_T=MAXTIME)
+        best,log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Qh1-e4"
     end
@@ -98,13 +99,13 @@ end
     #mate in 2
     for eFEN in ["K7/R7/R7/8/8/8/8/7k w - - 0 1","k7/r7/r7/8/8/8/8/7K b - - 0 1"]
         engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine,max_T=MAXTIME)
+        best,log = Scylla.best_move(engine)
         #rook moves to cut off king
         make_move!(best,engine.board)
         moves = generate_moves(engine.board)
         #king response doesn't matter
         make_move!(moves[1],engine.board)
-        best,log = Scylla.best_move(engine,max_T=MAXTIME)
+        best,log = Scylla.best_move(engine)
         make_move!(best,engine.board)
         gameover!(engine.board)
         
@@ -118,9 +119,10 @@ function profile()
     #slow position
     eFEN = split(split(positions[12],";")[1],"- bm")[1]*"0"
     engine = Scylla.EngineState(eFEN)
-    best,log = Scylla.best_move(engine,max_T=MAXTIME)
+    best,log = Scylla.best_move(engine)
 
-    @profile Scylla.best_move(engine,max_T=MAXTIME*10)
+    engine.config.control.maxtime = MAXTIME * 10
+    @profile Scylla.best_move(engine)
     Profile.print()
 end
 if profile_engine::Bool

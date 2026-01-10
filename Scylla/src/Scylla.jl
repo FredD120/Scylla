@@ -24,7 +24,7 @@ TO-DO (general)
 -> Implement UCI protocol
 -> Unit tests for UCI protocol
 -> Convert Move to its own type
--> Convert all files to JLD2, combine mid and endgame tables in one file for each piece
+-> Convert all files to HDF5, combine mid and endgame tables in one file for each piece
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
 -> As far as possible, use constant types and function barriers
 

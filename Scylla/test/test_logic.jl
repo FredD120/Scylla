@@ -439,7 +439,7 @@ end
         moves = Scylla.generate_moves(board)
         for m in moves
             pos = -1
-            if i%2==1
+            if i % 2 == 1
                 pos = 0
             else
                 pos = 63

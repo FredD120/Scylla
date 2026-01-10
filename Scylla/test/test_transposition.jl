@@ -4,18 +4,18 @@ using Test
 @testset "Create and Access" begin
     
     @testset "Unit" begin
-        TT = Scylla.TranspositionTable(Scylla.SearchData,verbose)
+        TT = Scylla.TranspositionTable(verbose, type=Scylla.SearchData)
         sz = Scylla.TT_size(TT)
         @test sz <= Scylla.TT_DEFAULT_MB
         @test sz > Scylla.TT_DEFAULT_MB / 2
 
         size = 16
-        TT = Scylla.TranspositionTable(Scylla.SearchData,size=size,verbose)
+        TT = Scylla.TranspositionTable(verbose, type=Scylla.SearchData, size=size)
         @test length(TT.HashTable) == 2 ^ size
     end
 
     @testset "Use TT" begin
-        TT = Scylla.TranspositionTable(size=4,Scylla.PerftData)
+        TT = Scylla.TranspositionTable(verbose, size=4, type=Scylla.PerftData)
         @testset "Initialise" begin
             for Data in TT.HashTable
                 @test Data.ZHash == 0
