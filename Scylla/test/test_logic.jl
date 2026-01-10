@@ -353,7 +353,6 @@ end
     end
 end
 
-
 @testset "Captures" begin
     @testset "King Takes Knight" begin
         basicFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"

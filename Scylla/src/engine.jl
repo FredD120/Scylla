@@ -427,8 +427,8 @@ function print_log(logger::Logger)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
         end
 
-        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut). \
-        Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
+        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut).\
+         Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
 
         println("Best = $(logger.PV[1]). \
         Score = "*best*". \
@@ -437,7 +437,7 @@ function print_log(logger::Logger)
         Depth = $((logger.cur_depth)). \
         Max ply = $(logger.seldepth). "
         *TT_msg*
-        "Time = $(round(logger.δt,sigdigits=6))s.")
+        " Time = $(round(logger.δt,sigdigits=6))s.")
 
         if logger.stopmidsearch
             println("Search exited early.")

@@ -3,7 +3,7 @@
 #define utility functions to fetch data from boardstate
 
 "Positive or negative for White/Black respectively"
-sgn(colour::UInt8) = ifelse(colour==0,+1,-1)
+sgn(colour::UInt8) = ifelse(colour==0, +1, -1)
 
 "Boolean representing whose turn it is, chosen based on value on UInt8"
 Whitesmove(ColourIndex::UInt8) = ifelse(ColourIndex == 0, true, false)
@@ -12,14 +12,14 @@ Whitesmove(ColourIndex::UInt8) = ifelse(ColourIndex == 0, true, false)
 ColID(ColourIndex::UInt8)::UInt8 = ColourIndex % 5
 
 "Helper functions to return opposite colour index"
-Opposite(ColourIndex::UInt8)::UInt8 = (ColourIndex+6)%12
+Opposite(ColourIndex::UInt8)::UInt8 = (ColourIndex+6) % 12
 Opposite(colour::Bool) = !colour
 
 "Helper functions to return index of piece BB in piece list"
-ColourPieceID(colour::UInt8,piece::Integer) = colour + piece
+ColourPieceID(colour::UInt8, piece::Integer) = colour + piece
 
 "Index into PST based on colour index"
-side_index(colour::UInt8,ind) = ifelse(colour==0,ind,8*rank(ind) + file(ind))
+side_index(colour::UInt8, ind) = ifelse(colour==0, ind, 8*rank(ind) + file(ind))
 
 mutable struct BoardData
     Halfmoves::Vector{UInt8}
@@ -128,9 +128,9 @@ function Boardstate(FEN)
                 colour = black
             end
             place_piece!(pieces,FENdict[upperC]+colour,i)
-            i+=1
+            i += 1
         elseif isnumeric(c)
-            i+=parse(Int,c)
+            i += parse(Int,c)
         end
     end
   
@@ -161,15 +161,16 @@ function Boardstate(FEN)
         Halfmoves = parse(UInt8,FENvec[5])
     end
 
-    Zobrist = generate_hash(pieces,Colour,Castling,EnPassant)
+    Zobrist = generate_hash(pieces, Colour, Castling, EnPassant)
     data = BoardData(Vector{UInt8}([Halfmoves]),
                      Vector{UInt8}([Castling]),Vector{UInt8}([0]),
                      Vector{BitBoard}([EnPassant]),Vector{UInt8}([0]),
                      Vector{BitBoard}([Zobrist]))
 
-    set_PST!(PSTscore,pieces)
+    set_PST!(PSTscore, pieces)
 
-    Boardstate(pieces,pc_unions(pieces),Colour,Castling,EnPassant,Neutral(),PSTscore,Zobrist,MoveHistory,data)
+    Boardstate(pieces, pc_unions(pieces), Colour, Castling, EnPassant,
+    Neutral(), PSTscore, Zobrist, MoveHistory, data)
 end
 
 "Helper function to obtain vector of ally bitboards"
@@ -184,7 +185,7 @@ end
 "tells GUI where pieces are on the board"
 function GUIposition(board::Boardstate)
     position = zeros(UInt8,64)
-    for (pieceID,piece) in enumerate(board.pieces)
+    for (pieceID, piece) in enumerate(board.pieces)
         for i in 0:63
             if piece & BitBoard(1) << i > 0
                 position[i+1] = pieceID

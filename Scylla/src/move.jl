@@ -242,7 +242,7 @@ EPlocation(colour::UInt8,moveloc) = ifelse(colour==0,moveloc+8,moveloc-8)
 
 "modify boardstate by making a move. increment halfmove count. add move to MoveHist. update castling rights"
 function make_move!(move::UInt32,board::Boardstate)
-    mv_pc_type,mv_from,mv_to,mv_cap_type,mv_flag = unpack_move(move::UInt32)
+    mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::UInt32)
 
     #0 = white, 1 = black
     ColId = ColID(board.Colour)
