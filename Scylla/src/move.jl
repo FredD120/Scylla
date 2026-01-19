@@ -34,7 +34,7 @@ flag(move::UInt32) = UInt8((move >> FLAGSHIFT) & FLAGMASK)
 score(move::UInt32) = UInt8((move >> SCORESHIFT) & SCOREMASK)
 
 "Return move with score set"
-set_score(move::UInt32,score::UInt8) = move | (UInt32(score) << SCORESHIFT)
+set_score(move::UInt32, score::UInt8) = move | (UInt32(score) << SCORESHIFT)
 
 "return true if move captures a piece"
 iscapture(move::UInt32) = cap_type(move) > 0
@@ -64,7 +64,7 @@ const NULLMOVE = Move(UInt8(0),UInt8(0),UInt8(0),UInt8(0),UInt8(0))
 UCIpos(pos) = ('a'+file(pos))*string(Int(rank(pos)+1))
 
 "convert a move to UCI notation"
-function UCImove(B::Boardstate,move::UInt32)
+function UCImove(B::Boardstate, move::UInt32)
     flg = flag(move)
     F = from(move)
     T = to(move)
@@ -93,7 +93,7 @@ function algebraic_to_numeric(pos::AbstractString)
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"
-function identify_UCImove(B::Boardstate,UCImove::AbstractString)
+function identify_UCImove(B::Boardstate, UCImove::AbstractString)
     moves = generate_moves(B)
     num_from = algebraic_to_numeric(UCImove[1:2])
     num_to = algebraic_to_numeric(UCImove[3:4])

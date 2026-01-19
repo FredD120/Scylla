@@ -59,6 +59,13 @@ function set_position!(engine, position_moves)
         FEN_string = join(position_moves[1:last_ind], " ")
         engine.board = Boardstate(FEN_string)
     end
+    #play moves if provided
+    if !isnothing(ind)
+        for move_str in position_moves[ind + 1:end]
+            move = identify_UCImove(engine.board, move_str)
+            make_move!(move, engine.board)
+        end
+    end
 end
 
 "send quit message to engine if there is a channel to do so"
@@ -158,6 +165,7 @@ function run_cli()
         if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
             output = take!(cli_state.chnnlOUT)
             print_log(output[2])
+            println("bestmove ", UCImove(engine.board, output[1]))
             reset_worker!(cli_state)
             #not required by UCI to make a move, usually a GUI will overwrite with a new FEN
             make_move!(output[1], engine.board)

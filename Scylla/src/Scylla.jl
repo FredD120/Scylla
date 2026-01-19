@@ -22,17 +22,16 @@ TO-DO (engine)
 
 TO-DO (general)
 -> Implement UCI protocol
- - Allow adding a sequence of moves after position
+ - Add time estimate for time controls
  - Fix issue with inconsistant quitting
  - Enable searching to depth/mate/nodes
 -> Convert Move to its own type
 -> Convert all files to HDF5, combine mid and endgame tables in one file for each piece
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
--> As far as possible, use constant types and function barriers
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
-#Need to check for FIDE draws like KNk,KBk as well as unforcable draws like KNkb
+#Need to check for FIDE draws like KNk, KBk as well as unforcable draws like KNkb
 =#
 
 module Scylla

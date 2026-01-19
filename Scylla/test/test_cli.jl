@@ -47,4 +47,13 @@ end
     @test engine.board.ZHash == Boardstate(newFEN).ZHash
     Scylla.parse_msg!(engine, cli_state, "position STARTPOS")
     @test engine.board.ZHash == Boardstate(FEN).ZHash
+
+    Scylla.parse_msg!(engine, cli_state, "position STARTPOS Moves c2c4 a7a6")
+    moveFEN = "rnbqkbnr/1ppppppp/p7/8/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 2"
+    @test engine.board.ZHash == Boardstate(moveFEN).ZHash
+
+    castleFEN = "rnbqk2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 0"
+    Scylla.parse_msg!(engine, cli_state, "position $castleFEN Moves e8g8")
+    afterFEN = "rnbq1rk1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1"
+    @test engine.board.ZHash == Boardstate(afterFEN).ZHash
 end
