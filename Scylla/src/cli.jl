@@ -7,7 +7,7 @@ mutable struct CLI_state
     worker::Union{Task,Nothing}
     chnnlOUT::Union{Channel,Nothing}
 end
-CLI_state() = CLI_state(false,false,Channel{String}(1),nothing,nothing)
+CLI_state() = CLI_state(false, false, Channel{String}(1), nothing, nothing)
 
 "reset worker thread and associated channels"
 function reset_worker!(st::CLI_state)
@@ -68,6 +68,26 @@ function set_position!(engine, position_moves)
     end
 end
 
+"parse time-control info from CLI, return as time + increment in seconds"
+function get_time_control(e::EngineState, msg_array)
+    matchcolour = Whitesmove(e.board.Colour) ? "W" : "B"
+
+    time_ind = get_msg_index(msg_array, matchcolour * "TIME")
+    inc_ind = get_msg_index(msg_array, matchcolour * "INC")
+
+    length(msg_array) > time_ind || error("No move-time given")
+    time = parse(Float64, msg_array[time_ind + 1])
+
+    increment = isnothing(inc_ind) ? 0.0 : parse(Float64, msg_array[inc_ind + 1])
+    return (time, increment) ./ 1000
+end
+
+"estimate the optimal time to spend on the current move given time remaining and increment"
+function estimate_movetime(::EngineState, time, increment)
+    ESTIMATE_MOVES_REMAINING::Int8 = 25
+    return (time / ESTIMATE_MOVES_REMAINING) + increment
+end
+
 "send quit message to engine if there is a channel to do so"
 send_quit_msg!(channel::Channel) = put!(channel, FORCEQUIT())
 send_quit_msg!(::Nothing) = nothing
@@ -123,6 +143,11 @@ function parse_msg!(engine, cli_st, msg)::Union{Nothing, String}
             if msg_in[ind+1] == "MOVETIME" && (engine.config.control isa Time)
                 newtime = parse(Float64, msg_in[ind+2])
                 engine.config.control = Time(newtime, engine.config.control.maxdepth)
+            
+            elseif msg_in[ind+1] == "WTIME"
+                newtime = estimate_movetime(engine, get_time_control(engine, msg_in)...)
+                engine.config.control = Time(newtime, engine.config.control.maxdepth)
+           
             end
         end
         

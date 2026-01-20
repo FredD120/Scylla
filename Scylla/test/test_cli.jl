@@ -57,3 +57,16 @@ end
     afterFEN = "rnbq1rk1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1"
     @test engine.board.ZHash == Boardstate(afterFEN).ZHash
 end
+
+@testset "Time Controls" begin
+    msg_array = ["WTIME", "10000", "BTIME", "20000", "WINC", "1000", "BINC", "1000"]
+    engine = EngineState(sizeMb=0)
+
+    time, increment = Scylla.get_time_control(engine, msg_array)
+    @test time == 10.0
+    @test increment == 1.0
+    
+    searchtime = estimate_movetime(engine, time, increment)
+    @test searchtime > increment
+    @test searchtime < time + increment
+end

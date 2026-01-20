@@ -62,6 +62,6 @@ export BitBoard,Boardstate,
        Logger,print_log,
        run_cli,assign_TT!,reset_engine!,
        Control,Time,Depth,Nodes,Mate,
-       FORCEQUIT,
+       FORCEQUIT, estimate_movetime,
        EngineState,Config
 end #module
