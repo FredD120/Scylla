@@ -52,7 +52,7 @@ function EngineState(FEN::AbstractString=startFEN,verbose=false;
     TT = TranspositionTable(verbose;size=sizePO2,sizeMb=sizeMb,type=TT_type)
     config = Config(comms,control,verbose)
     info = SearchInfo(config.control.maxdepth)
-    return EngineState(board,TT,UInt32(0),config,info)
+    return EngineState(board, TT, UInt32(0), config, info)
 end
 
 "assign a TT to an engine"
@@ -110,8 +110,7 @@ function TT_retrieve!(engine::EngineState, ZHash, cur_depth)
 end
 
 "return PV as vector of strings"
-PV_string(info::SearchInfo)::Vector{String} = 
-    map(m->LONGmove(m), info.PV[1:info.PV_len])
+PV_string(PV::Vector{UInt32})::Vector{String} = map(m->LONGmove(m), PV)
 
 mutable struct Logger
     best_score::Int16
@@ -121,7 +120,7 @@ mutable struct Logger
     Qnodes::Int32
     cur_depth::UInt8
     stopmidsearch::Bool
-    PV::Vector{String}
+    PV::Vector{UInt32}
     seldepth::UInt8
     TT_cut::Int32
     TT_total::Int32
@@ -129,7 +128,9 @@ mutable struct Logger
     δt::Float32
 end
 
-Logger(TT_entries) = Logger(0,0,0,0,0,0,false,String[],0,0,TT_entries,0,0.0)
+Logger(TT_entries) = Logger(0, 0, 0, 0, 0, 0, 
+                     false, UInt32[], 0, 0, 
+                     TT_entries, 0, 0.0)
 
 "Constant evaluation of stalemate"
 eval(::Draw,ply) = Int16(0)
@@ -218,7 +219,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 end
 
 "returns true if we have run out of time"
-check_time(config,safety_factor) = (time() - config.starttime) > (config.control.maxtime*safety_factor)
+check_time(config,safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
 
 "return true if channel contains FORCEQUIT message"
 check_quit(config::Config{C,Q}) where {C<:Control,Q<:Channel} = 
@@ -250,7 +251,7 @@ end
 mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,logger::Logger)
+function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bool, logger::Logger)
     if stop_early(engine.config)
         logger.stopmidsearch = true
         return α 
@@ -261,16 +262,16 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
     legal_info = gameover!(engine.board)
     if engine.board.State != Neutral()
         logger.pos_eval += 1
-        return eval(engine.board.State,ply)
+        return eval(engine.board.State, ply)
     end
 
     #enter quiescence search if at leaf node
     if depth <= MINDEPTH 
         logger.pos_eval += 1
         if engine.config.quiescence
-            return quiescence(engine,player,α,β,ply,logger)
+            return quiescence(engine, player, α, β, ply, logger)
         else 
-            return evaluate(engine.board)
+            return player * evaluate(engine.board)
         end
     end
 
@@ -311,8 +312,8 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
         next_best!(moves,i)
         move = moves[i]
 
-        make_move!(move,engine.board)
-        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,logger)
+        make_move!(move, engine.board)
+        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, onPV, logger)
         unmake_move!(engine.board)
 
         #only first search is on PV
@@ -338,11 +339,11 @@ function minimax(engine::EngineState,player::Int8,α,β,depth,ply,onPV::Bool,log
             cur_best_move = move
             α = score
             #exact score found, must copy up PV from further down the tree
-            copy_PV!(engine.info.PV,ply,engine.info.PV_len,max_depth(engine),move)
+            copy_PV!(engine.info.PV, ply, engine.info.PV_len, max_depth(engine), move)
         end
     end
 
-    TT_store!(engine,engine.board.ZHash,depth,α,node_type,cur_best_move)
+    TT_store!(engine, engine.board.ZHash, depth, α, node_type, cur_best_move)
     return α
 end
 
@@ -358,14 +359,14 @@ function root(engine::EngineState,moves,depth,logger::Logger)
     onPV = true 
 
     #root node is always on PV
-    score_moves!(moves,engine.info.Killers[ply+1],engine.info.PV[ply+1])
+    score_moves!(moves, engine.info.Killers[ply+1], engine.info.PV[ply+1])
 
     for i in eachindex(moves)
         next_best!(moves,i)
         move = moves[i]
 
-        make_move!(move,engine.board)
-        score = -minimax(engine,-player,-β,-α,depth-1,ply+1,onPV,logger)
+        make_move!(move, engine.board)
+        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, onPV, logger)
         unmake_move!(engine.board)
 
         if stop_early(engine.config)
@@ -374,7 +375,7 @@ function root(engine::EngineState,moves,depth,logger::Logger)
         end
 
         if score > α
-            copy_PV!(engine.info.PV,ply,engine.info.PV_len,max_depth(engine),move)
+            copy_PV!(engine.info.PV, ply, engine.info.PV_len, max_depth(engine), move)
             α = score
         end
         onPV = false
@@ -382,9 +383,11 @@ function root(engine::EngineState,moves,depth,logger::Logger)
     return α
 end
 
-function report_progress(engine::EngineState,logger::Logger)
+function report_progress(engine::EngineState, logger::Logger)
     if engine.config.debug && (time() - engine.config.starttime > 0.05)
-        println("Searched depth $(logger.cur_depth) in $(round(time()-engine.config.starttime,sigdigits=4))s. Current maxdepth = $(logger.seldepth). PV so far: $(logger.PV)")
+        println("Searched depth $(logger.cur_depth) in $(round(time()-engine.config.starttime,sigdigits=4))s. ",
+        "Current maxdepth = $(logger.seldepth). ",
+        "PV so far: ", PV_string(logger.PV))
     end
 end
 
@@ -398,15 +401,15 @@ function iterative_deepening(engine::EngineState)
     #Quit early if we or opponent have mate or if we run out of time
     while (depth < max_depth(engine)) &&  
         !(mate_found(bestscore)) &&
-        !(stop_early(engine.config,0.2,bypass_check=true))
+        !(stop_early(engine.config, 0.5, bypass_check=true))
 
         depth += 1
         logger.cur_depth = depth
         engine.info.PV_len = depth
-        bestscore = root(engine,moves,depth,logger)
+        bestscore = root(engine, moves, depth, logger)
 
-        logger.PV = PV_string(engine.info)
-        report_progress(engine,logger)
+        logger.PV = engine.info.PV[1:engine.info.PV_len]
+        report_progress(engine, logger)
         
         #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
         if !logger.stopmidsearch
@@ -423,14 +426,14 @@ function print_log(logger::Logger)
     if length(logger.PV) > 0
         best ="$(logger.best_score)"
         if mate_found(logger.best_score)
-            dist = Int((INF - abs(logger.best_score))÷2)
+            dist = Int((INF - abs(logger.best_score)) ÷ 2)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
         end
 
         TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut).\
          Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
 
-        println("Best = $(logger.PV[1]). \
+        println("Best = $(LONGmove(logger.PV[1])). \
         Score = "*best*". \
         Nodes = $(logger.nodes) ($(round(logger.nodes/logger.δt,sigdigits=4)) nps). \
         Quiescent nodes = $(logger.Qnodes) ($(round(100*logger.Qnodes/logger.nodes,sigdigits=3))%). \
@@ -448,10 +451,51 @@ function print_log(logger::Logger)
     end
 end
 
+"print results of search, formatted for UCI protocol"
+function UCI_log(logger::Logger, board::Boardstate)
+    if length(logger.PV) > 0
+        best = begin score = logger.best_score
+            if mate_found(score)
+                dist = Int((INF - abs(score))÷2)
+                score > 0 ? "mate $dist" : "mate -$dist"
+            else
+                "cp $score"
+            end
+        end
+
+        TT_msg = begin
+            if logger.hashfull == 0 
+                "" 
+            else
+                hashfull = round(Int64, logger.hashfull*1000 / logger.TT_total)
+                "tthits $(logger.TT_cut) hashfull $(hashfull) "
+            end
+        end
+
+        print("info score " * best * " ",
+        "nodes $(logger.nodes) ",
+        "nps $(round(Int64, logger.nodes/logger.δt)) ",
+        "qnodes $(logger.Qnodes) ",
+        "depth $(logger.cur_depth) ",
+        "seldepth $(logger.seldepth) ",
+        TT_msg,
+        "time $(round(Int64, logger.δt * 1000)) ",
+        "pv ")
+
+        for move in logger.PV
+            print(UCImove(board, move), " ")
+        end
+
+        println("")
+    else
+        error("Failed to find move")
+    end
+end
+
 "Evaluates the position to return the best move"
 function best_move(engine::EngineState)
     engine.config.starttime = time()
-    best_move,logger = iterative_deepening(engine)
+    best_move, logger = iterative_deepening(engine)
 
     logger.δt = time() - engine.config.starttime
     logger.hashfull = engine.TT_HashFull

@@ -125,6 +125,7 @@ const CHECKNODES::UInt32 = UInt32(1000)
 abstract type Control end
 struct FORCEQUIT end
 
+"Time control for engine, where time is in seconds"
 struct Time <: Control
     maxtime::Float64
     maxdepth::UInt8

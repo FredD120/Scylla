@@ -53,10 +53,11 @@ function set_position!(engine, position_moves)
         engine.board = Boardstate(startFEN)
     else
         last_ind = length(position_moves)
+        #set last index to index of "MOVES" keyword if it exists
         if !isnothing(ind)
             last_ind = ind
         end
-        FEN_string = join(position_moves[1:last_ind], " ")
+        FEN_string = join(position_moves[2:last_ind], " ")
         engine.board = Boardstate(FEN_string)
     end
     #play moves if provided
@@ -141,7 +142,7 @@ function parse_msg!(engine, cli_st, msg)::Union{Nothing, String}
         ind = get_msg_index(msg_in, "GO")
         if !isnothing(ind) && length(msg_in) > ind + 1
             if msg_in[ind+1] == "MOVETIME" && (engine.config.control isa Time)
-                newtime = parse(Float64, msg_in[ind+2])
+                newtime = parse(Float64, msg_in[ind+2]) / 1000
                 engine.config.control = Time(newtime, engine.config.control.maxdepth)
             
             elseif msg_in[ind+1] == "WTIME"
@@ -189,12 +190,13 @@ function run_cli()
         end
         if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
             output = take!(cli_state.chnnlOUT)
-            print_log(output[2])
+            UCI_log(output[2], engine.board)
             println("bestmove ", UCImove(engine.board, output[1]))
             reset_worker!(cli_state)
             #not required by UCI to make a move, usually a GUI will overwrite with a new FEN
-            make_move!(output[1], engine.board)
+            #make_move!(output[1], engine.board)
         end
+        flush(stdout)
         sleep(0.05)
     end
     reset_worker!(cli_state)

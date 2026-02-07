@@ -29,3 +29,4 @@ JuliaLocalPreferences.toml
 
 *.md
 .vscode
+*.bat
