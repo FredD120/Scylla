@@ -9,16 +9,16 @@ using Test
         moves = generate_moves(board)
 
         move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
-        @test Scylla.UCImove(board,move) == "c8g2"
+        @test Scylla.UCImove(board, move) == "c8g2"
 
         kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KCASTLE,moves)]
-        @test Scylla.UCImove(board,kcastle) == "e1g1"
+        @test Scylla.UCImove(board, kcastle) == "e1g1"
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.Boardstate(promFEN)
         moves = generate_moves(board)
         move = moves[findfirst(m->Scylla.flag(m)==Scylla.PROMQUEEN,moves)]
-        @test Scylla.UCImove(board,move) == "f7e8q"
+        @test Scylla.UCImove(board, move) == "f7e8q"
     end
 
     @testset "Convert Algebraic <--> Numeric" begin

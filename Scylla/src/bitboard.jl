@@ -1,4 +1,4 @@
-import Base: +,-,*,&,|,⊻,~,<<,>>,==,<,>,convert,promote_rule
+import Base: +, -, *, &, |, ⊻, ~, <<, >>, ==, <, >, convert, promote_rule
 import Random
 
 struct BitBoard

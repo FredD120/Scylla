@@ -83,8 +83,8 @@ end
 @testset "Moves from Location" begin
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Scylla.Boardstate(simpleFEN)
-    moves = Vector{UInt32}()
-    Scylla.moves_from_location!(Scylla.King,moves,Scylla.enemy_pieces(board),BitBoard(3),UInt8(2),false)
+    moves = Vector{Move}()
+    Scylla.moves_from_location!(Scylla.King, moves, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
     @test length(moves) == 2
     @test Scylla.cap_type(moves[1]) == 0
     @test Scylla.from(moves[2]) == 2
@@ -617,11 +617,11 @@ end
 function test_TT_perft()
     #best speed = 220 Mnps
     board = Scylla.Boardstate(FEN)
-    TT = Scylla.TranspositionTable(Scylla.PerftData,verbose,size=24)
+    TT = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
     t = time()
-    @test Scylla.perft(board,7,TT,verbose) == 3195901860
+    @test Scylla.perft(board, 7, TT, verbose) == 3195901860
     δt = time()-t
-    println("Successfully determined perft 7 in $(round(δt,sigdigits=4))s. $(round(3195901860/(δt*1e6),sigdigits=6)) Mnps")
+    println("Successfully determined perft 7 in $(round(δt,sigdigits=4))s. $(round(3195901860 / (δt * 1e6), sigdigits=6)) Mnps")
 end
 if TT_perft::Bool
     test_TT_perft()

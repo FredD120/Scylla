@@ -49,8 +49,8 @@ end
     killer_vec = [Scylla.Killer() for _ in 1:3]
     ply = 2
 
-    killer_vec[ply+1] = Scylla.Killer(UInt32(1),UInt32(2))
-    moves = [UInt32(3),UInt32(5),UInt32(2)]
+    killer_vec[ply+1] = Scylla.Killer(Move(1),Move(2))
+    moves = [Move(3),Move(5),Move(2)]
 
     Scylla.score_moves!(moves,killer_vec[ply+1])
     @test Scylla.score(moves[3]) > Scylla.score(moves[2]) 
@@ -61,12 +61,13 @@ end
     killer_vec = [Scylla.Killer() for _ in 1:3]
     ply = 1
 
-    for move in UInt32(1):UInt32(10)
-        Scylla.new_killer!(killer_vec,ply,move)
+    for i in 1:10
+        move = Move(i)
+        Scylla.new_killer!(killer_vec, ply, move)
     end
-    @test killer_vec[ply+1].First == UInt32(10) 
-    @test killer_vec[ply+1].Second == UInt32(9) 
+    @test killer_vec[ply+1].First == Move(10) 
+    @test killer_vec[ply+1].Second == Move(9) 
 
-    Scylla.new_killer!(killer_vec,ply,UInt32(10))
+    Scylla.new_killer!(killer_vec, ply, Move(10))
     @test killer_vec[ply+1].First != killer_vec[ply+1].Second
 end

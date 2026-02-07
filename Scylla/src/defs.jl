@@ -79,9 +79,9 @@ const ALPHA = UInt8(1)
 const BETA = UInt8(2)
 const EXACT = UInt8(3)
 
-setone(num::Integer,index::Integer) = num | (UInt64(1) << index)
+setone(num::Integer, index::Integer) = num | (UInt64(1) << index)
 
-setzero(num::Integer,index::Integer) = num & ~(UInt64(1) << index)
+setzero(num::Integer, index::Integer) = num & ~(UInt64(1) << index)
 
 "Least significant bit of an integer, returned as a UInt8"
 LSB(BB::Integer) = UInt8(trailing_zeros(BB))
@@ -90,6 +90,13 @@ LSB(BB::Integer) = UInt8(trailing_zeros(BB))
 rank(ind) = 7 - (ind >> 3)
 "Get a file from a 0-63 index"
 file(ind) = ind % 8
+
+"convert a position in algebraic notation to a number from 0-63"
+function algebraic_to_numeric(pos::AbstractString)
+    rank = parse(Int, pos[2])
+    file = Int(pos[1]) - Int('a') + 1
+    return (-rank + 8) * 8 + file - 1
+end
 
 "take in all possible moves as a bitboard for a given piece from a txt file"
 function read_txt(type,filename)

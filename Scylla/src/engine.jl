@@ -20,22 +20,22 @@ end
 
 mutable struct SearchInfo
     #Record best moves from root to leaves for move ordering
-    PV::Vector{UInt32}
+    PV::Vector{Move}
     PV_len::UInt8
     Killers::Vector{Killer}
 end
 
 "Constructor for search info struct"
 function SearchInfo(depth)
-    triangular_PV = NULLMOVE*ones(UInt32,triangle_number(depth))
+    triangular_PV = nulls(triangle_number(depth))
     killers = [Killer() for _ in 1:depth]
-    SearchInfo(triangular_PV,0,killers)
+    SearchInfo(triangular_PV, 0, killers)
 end
 
 #holds all information the engine needs to calculate
 mutable struct EngineState
     board::Boardstate
-    TT::Union{TranspositionTable,Nothing}
+    TT::Union{TranspositionTable, Nothing}
     TT_HashFull::UInt32
     config::Config
     info::SearchInfo
@@ -110,7 +110,7 @@ function TT_retrieve!(engine::EngineState, ZHash, cur_depth)
 end
 
 "return PV as vector of strings"
-PV_string(PV::Vector{UInt32})::Vector{String} = map(m->LONGmove(m), PV)
+PV_string(PV::Vector{Move})::Vector{String} = map(m->LONGmove(m), PV)
 
 mutable struct Logger
     best_score::Int16
@@ -120,7 +120,7 @@ mutable struct Logger
     Qnodes::Int32
     cur_depth::UInt8
     stopmidsearch::Bool
-    PV::Vector{UInt32}
+    PV::Vector{Move}
     seldepth::UInt8
     TT_cut::Int32
     TT_total::Int32
@@ -129,7 +129,7 @@ mutable struct Logger
 end
 
 Logger(TT_entries) = Logger(0, 0, 0, 0, 0, 0, 
-                     false, UInt32[], 0, 0, 
+                     false, Move[], 0, 0, 
                      TT_entries, 0, 0.0)
 
 "Constant evaluation of stalemate"

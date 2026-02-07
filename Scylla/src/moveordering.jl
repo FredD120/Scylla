@@ -4,15 +4,15 @@
 
 "Store two best quiet moves for a given ply"
 mutable struct Killer
-    First::UInt32
-    Second::UInt32
+    First::Move
+    Second::Move
 end
 
 "Construct killers with null moves"
-Killer() = Killer(NULLMOVE,NULLMOVE)
+Killer() = Killer(NULLMOVE, NULLMOVE)
 
 "Check that new move does not match second best killer, then push first to second and replace first"
-function new_killer!(KV::Vector{Killer},ply,move)
+function new_killer!(KV::Vector{Killer}, ply, move)
     if move != KV[ply+1].First
         KV[ply+1].Second = KV[ply+1].First 
         KV[ply+1].First = move 
@@ -86,8 +86,8 @@ function next_best!(moves,cur_ind)
 end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
-function score_moves!(moves,killers::Killer=Killer(),best_move::UInt32=NULLMOVE)
-    for (i,move) in enumerate(moves)
+function score_moves!(moves, killers::Killer=Killer(), best_move::Move=NULLMOVE)
+    for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move,MAXMOVESCORE)
 

@@ -24,11 +24,11 @@ entry_size(type) = Base.summarysize(type())
 
 "return TT size in Mb"
 TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
-TT_size(TT::TranspositionTable{T}) where T = TT_size(entry_size(T),length(TT.HashTable))
+TT_size(TT::TranspositionTable{T}) where T = TT_size(entry_size(T), length(TT.HashTable))
 TT_size(::Nothing) = 0.0
 
 "total number of positions stored in TT"
-num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable)*num_entries(T())
+num_entries(TT::TranspositionTable{T}) where {T} = length(TT.HashTable) * num_entries(T())
 num_entries(::Nothing) = 0
 
 "Reset all entries in TT to default constructor value"
@@ -45,7 +45,7 @@ reset_TT!(::Nothing) = nothing
 function TranspositionTable(type, size::Integer, verbose::Bool)
     actual_len = UInt64(1) << size
     hash_table = [type() for _ in 1:actual_len]
-    TT = TranspositionTable(bitmask(actual_len),hash_table)
+    TT = TranspositionTable(bitmask(actual_len), hash_table)
     if verbose
         println("TT size = $(TT_size(TT)) Mb")
     end
@@ -95,11 +95,11 @@ struct SearchData
     depth::UInt8
     score::Int16
     type::UInt8
-    move::UInt32
+    move::Move
 end
 
 "generic constructor for search data"
-SearchData() = SearchData(BitBoard(),UInt8(0),Int16(0),NONE,NULLMOVE)
+SearchData() = SearchData(BitBoard(), UInt8(0), Int16(0), NONE, NULLMOVE)
 
 "store multiple entries at same Zkey, with different replace schemes"
 mutable struct Bucket
@@ -107,17 +107,17 @@ mutable struct Bucket
     Always::SearchData
 end
 "construct bucket with two entries"
-Bucket() = Bucket(SearchData(),SearchData())
+Bucket() = Bucket(SearchData(), SearchData())
 
 num_entries(::Bucket) = 2
 const TT_ENTRY_TYPE = Bucket
 
 "add depth to score when storing and remove when retrieving"
-function correct_score(score,depth,sgn)::Int16
+function correct_score(score, depth, sgn)::Int16
     if score > MATE
-        score += Int16(sgn*depth)
+        score += Int16(sgn * depth)
     elseif score < -MATE
-        score -= Int16(sgn*depth)
+        score -= Int16(sgn * depth)
     end
     return score
 end

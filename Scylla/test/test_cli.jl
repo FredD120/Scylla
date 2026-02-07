@@ -43,7 +43,7 @@ end
     engine = EngineState(sizeMb=0)
     newFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
 
-    Scylla.parse_msg!(engine, cli_state, "position " * newFEN * "Moves")
+    Scylla.parse_msg!(engine, cli_state, "position fen " * newFEN * "Moves")
     @test engine.board.ZHash == Boardstate(newFEN).ZHash
     Scylla.parse_msg!(engine, cli_state, "position STARTPOS")
     @test engine.board.ZHash == Boardstate(FEN).ZHash
@@ -53,7 +53,7 @@ end
     @test engine.board.ZHash == Boardstate(moveFEN).ZHash
 
     castleFEN = "rnbqk2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 0"
-    Scylla.parse_msg!(engine, cli_state, "position $castleFEN Moves e8g8")
+    Scylla.parse_msg!(engine, cli_state, "position fen $castleFEN Moves e8g8")
     afterFEN = "rnbq1rk1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1"
     @test engine.board.ZHash == Boardstate(afterFEN).ZHash
 end

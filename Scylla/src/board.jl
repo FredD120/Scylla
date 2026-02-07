@@ -39,7 +39,7 @@ mutable struct Boardstate
     State::GameState
     PSTscore::Vector{Int32}
     ZHash::BitBoard
-    MoveHist::Vector{UInt32}
+    MoveHist::Vector{Move}
     Data::BoardData
 end
 
@@ -112,7 +112,7 @@ function Boardstate(FEN)
     EnPassant = BitBoard()
     Colour = white
     PSTscore = zeros(Int32,2)
-    MoveHistory = Vector{UInt32}()
+    MoveHistory = Vector{Move}()
 
     #Keep track of where we are on chessboard
     i = UInt32(0)           

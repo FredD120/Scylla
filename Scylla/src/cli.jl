@@ -152,7 +152,7 @@ function parse_msg!(engine, cli_st, msg)::Union{Nothing, String}
             end
         end
         
-        cli_st.chnnlOUT = Channel{Tuple{UInt32,Logger}}(1)
+        cli_st.chnnlOUT = Channel{Tuple{Move, Logger}}(1)
         cli_st.worker = Threads.@spawn run_engine(engine, cli_st.chnnlOUT)
 
         if engine.config.debug
@@ -202,6 +202,61 @@ function run_cli()
     reset_worker!(cli_state)
     listener = nothing
 end
+
+"convert a position from number 0-63 to rank/file notation"
+UCIpos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
+
+"convert a move to UCI notation"
+function UCImove(B::Boardstate, move::Move)
+    flg = flag(move)
+    F = from(move)
+    T = to(move)
+
+    if flg == KCASTLE || flg == QCASTLE
+        F = locate_king(B,B.Colour)
+        T = F + 2
+        if flg == QCASTLE
+            T = F -2
+        end
+    end
+
+    p = ""
+    prom_type = promote_type(flg)
+    if  prom_type != NULL_PIECE
+        p = lowercase(piece_letter(prom_type))
+    end
+    return UCIpos(F) * UCIpos(T) * p
+end
+
+"try to match given UCI move to a legal move. return null move otherwise"
+function identify_UCImove(B::Boardstate, UCImove::AbstractString)
+    moves = generate_moves(B)
+    num_from = algebraic_to_numeric(UCImove[1:2])
+    num_to = algebraic_to_numeric(UCImove[3:4])
+    num_promote = NOFLAG
+    kingsmove = num_from == locate_king(B,B.Colour)
+
+    if length(UCImove) > 4
+        num_promote = promote_id(Char(UCImove[5]))
+    end
+
+    for move in moves
+        flg = flag(move)
+        if from(move) == num_from && to(move) == num_to
+            if num_promote == NOFLAG || num_promote == flg
+                return move
+            end
+        #check for castling if the king is moving
+        elseif kingsmove
+            if (flg == KCASTLE && num_to == Kcastle_shift(num_from)) ||
+                (flg == QCASTLE && num_to == Qcastle_shift(num_from))
+                return move 
+            end
+        end
+    end
+    return NULLMOVE
+end
+
 
 function test_args()
     s = ArgParseSettings(description="Run chess engine tests with optional extra tests.")

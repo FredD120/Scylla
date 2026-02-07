@@ -44,10 +44,10 @@ using ArgParse
 include("bitboard.jl")
 include("defs.jl")
 include("pst.jl")
+include("move.jl")
 include("board.jl")
 include("magics.jl")
 include("logic.jl")
-include("move.jl")
 include("transposition.jl")
 include("moveordering.jl")
 include("engine.jl")
@@ -55,13 +55,13 @@ include("perft.jl")
 include("precompile.jl")
 include("cli.jl")
 
-export BitBoard,Boardstate,
-       make_move!,unmake_move!,
-       generate_moves,gameover!,
-       best_move,perft,
-       Logger,print_log,
-       run_cli,assign_TT!,reset_engine!,
-       Control,Time,Depth,Nodes,Mate,
+export BitBoard, Boardstate,
+       make_move!, unmake_move!,
+       generate_moves, gameover!,
+       best_move, Move, perft,
+       Logger, print_log,
+       run_cli, assign_TT!, reset_engine!,
+       Control, Time, Depth, Nodes, Mate,
        FORCEQUIT, estimate_movetime,
-       EngineState,Config
+       EngineState, Config
 end #module
