@@ -12,7 +12,7 @@ const Bishop = UInt8(4)
 const Knight = UInt8(5)
 const Pawn = UInt8(6)
 
-const FENdict = Dict('K'=>King,'Q'=>Queen,'R'=>Rook,'B'=>Bishop,'N'=>Knight,'P'=>Pawn)
+const FENdict = Dict('K'=>King, 'Q'=>Queen, 'R'=>Rook, 'B'=>Bishop, 'N'=>Knight, 'P'=>Pawn)
 
 const startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -26,9 +26,6 @@ function piece_letter(p::UInt8)
     return ""
 end
 
-"Iterating through singleton piecetypes. Can cause type instability"
-const piecetypes = [King,Queen,Rook,Bishop,Knight,Pawn]
-
 "Colour ID used in movegen/boardstate"
 const white = UInt8(0)
 const black = UInt8(6)
@@ -37,7 +34,7 @@ const black = UInt8(6)
 const ATTACKONLY = UInt64(0)
 const ALLMOVES = UInt64(1)
 
-const ZobristKeys = rand(rng,BitBoard,12*64+9)
+const ZobristKeys = rand(rng, BitBoard, 12 * 64 + 9)
 
 const NOFLAG = UInt8(0)
 const KCASTLE = UInt8(1)
@@ -137,8 +134,8 @@ struct Time <: Control
     maxtime::Float64
     maxdepth::UInt8
 end
-Time() = Time(DEFAULTTIME,DEFAULTDEPTH)
-Time(max_t) = Time(max_t,DEFAULTDEPTH)
+Time() = Time(DEFAULTTIME, DEFAULTDEPTH)
+Time(max_t) = Time(max_t, DEFAULTDEPTH)
 
 struct Depth <: Control
     maxdepth::UInt8

@@ -44,13 +44,13 @@ end
 max_depth(e::EngineState) = e.config.control.maxdepth
 
 "Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString=startFEN,verbose=false;
-        sizeMb=TT_DEFAULT_MB,sizePO2=nothing,TT_type=TT_ENTRY_TYPE,
-        comms::Union{Channel,Nothing}=nothing,control::Control=Time()) 
+function EngineState(FEN::AbstractString=startFEN, verbose=false;
+        sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
+        comms::Union{Channel,Nothing}=nothing, control::Control=Time()) 
 
     board = Boardstate(FEN)
-    TT = TranspositionTable(verbose;size=sizePO2,sizeMb=sizeMb,type=TT_type)
-    config = Config(comms,control,verbose)
+    TT = TranspositionTable(verbose; size=sizePO2, sizeMb=sizeMb, type=TT_type)
+    config = Config(comms, control, verbose)
     info = SearchInfo(config.control.maxdepth)
     return EngineState(board, TT, UInt32(0), config, info)
 end
@@ -76,12 +76,12 @@ function reset_engine!(E::EngineState)
 end
 
 "update entry in TT. either greater depth or always replace"
-function TT_store!(engine::EngineState,ZHash,depth,score,node_type,best_move)
+function TT_store!(engine::EngineState, ZHash, depth, score, node_type, best_move)
     if !isnothing(engine.TT)
-        TT_view = view_entry(engine.TT,ZHash)
+        TT_view = view_entry(engine.TT, ZHash)
         #correct mate scores in TT
-        score = correct_score(score,depth,-1)
-        new_data = SearchData(ZHash,depth,score,node_type,best_move)
+        score = correct_score(score, depth,-1)
+        new_data = SearchData(ZHash, depth, score, node_type, best_move)
         if depth >= TT_view[].Depth.depth
             if TT_view[].Depth.type == NONE
               engine.TT_HashFull += 1

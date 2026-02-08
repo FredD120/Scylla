@@ -25,8 +25,15 @@ TO-DO (general)
  - Improve time estimate for time controls
  - Fix issue with inconsistant quitting
  - Enable searching to depth/mate/nodes
--> Convert all files to HDF5, combine mid and endgame tables in one file for each piece
+ - Print log at intermediate stages in computation
+-> Convert all files to HDF5
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
+-> Reduce allocations (currently 3.8 Gb for a single 10 second search)
+
+Code Clarity
+-> Consistent naming conventions of variables, functions, constants
+-> Separate out make_move and unmake_move into more functions
+-> Put all constants in one place
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply

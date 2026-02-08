@@ -50,5 +50,3 @@ const profile_engine::Bool = args["profile"]
 const MAXTIME::Float64 = args["maxtime"]
 
 run_tests()
-#println("Tests Complete")
-

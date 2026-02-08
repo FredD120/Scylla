@@ -16,12 +16,12 @@ function Base.iterate(BB::BitBoard)
     else
         next_state = BB & (BB-1)
         first_item = LSB(BB)
-        return first_item,next_state
+        return first_item, next_state
     end
 end
 
 "Returns next (item, state) in iterator through locations in a bitboard"
-function Base.iterate(BB::BitBoard,state::BitBoard) 
+function Base.iterate(BB::BitBoard, state::BitBoard) 
     if state == 0
         return nothing
     else
@@ -34,55 +34,55 @@ end
 Random.rand(rng::Random.AbstractRNG, ::Random.SamplerType{BitBoard}) = BitBoard(rand(rng, UInt64))
 
 #Extend minus operator on bitboards"
--(a::BitBoard, b::BitBoard) = BitBoard(a.n - b.n)
--(a::BitBoard, b::Integer) = -(promote(a,b)...)
--(a::Integer, b::BitBoard) = -(promote(a,b)...)
+@inline -(a::BitBoard, b::BitBoard) = BitBoard(a.n - b.n)
+@inline -(a::BitBoard, b::Integer) = -(promote(a,b)...)
+@inline -(a::Integer, b::BitBoard) = -(promote(a,b)...)
 #Extend add operator on bitboards"
-+(a::BitBoard, b::BitBoard) = BitBoard(a.n + b.n)
-+(a::BitBoard, b::Integer) = +(promote(a,b)...)
-+(a::Integer, b::BitBoard) = +(promote(a,b)...)
+@inline +(a::BitBoard, b::BitBoard) = BitBoard(a.n + b.n)
+@inline +(a::BitBoard, b::Integer) = +(promote(a,b)...)
+@inline +(a::Integer, b::BitBoard) = +(promote(a,b)...)
 #Extend multiply operator on bitboards"
-*(a::BitBoard, b::BitBoard) = BitBoard(a.n * b.n)
-*(a::BitBoard, b::Integer) = *(promote(a,b)...)
-*(a::Integer, b::BitBoard) = *(promote(a,b)...)
+@inline *(a::BitBoard, b::BitBoard) = BitBoard(a.n * b.n)
+@inline *(a::BitBoard, b::Integer) = *(promote(a,b)...)
+@inline *(a::Integer, b::BitBoard) = *(promote(a,b)...)
 
 #Extend comparison operators to compare bitboards to integers
-==(a::BitBoard, b::BitBoard) = a.n == b.n
-==(a::BitBoard, b::Integer) = ==(promote(a,b)...)
-==(a::Integer, b::BitBoard) = ==(promote(a,b)...)
+@inline ==(a::BitBoard, b::BitBoard) = a.n == b.n
+@inline ==(a::BitBoard, b::Integer) = ==(promote(a,b)...)
+@inline ==(a::Integer, b::BitBoard) = ==(promote(a,b)...)
 
 #Extend comparison operators to compare bitboards
-<(a::BitBoard, b::BitBoard) = a.n < b.n
-<(a::BitBoard, b::Integer) = <(promote(a,b)...)
-<(a::Integer, b::BitBoard) = <(promote(a,b)...)
+@inline <(a::BitBoard, b::BitBoard) = a.n < b.n
+@inline <(a::BitBoard, b::Integer) = <(promote(a,b)...)
+@inline <(a::Integer, b::BitBoard) = <(promote(a,b)...)
 
->(a::BitBoard, b::BitBoard) = a.n > b.n
->(a::BitBoard, b::Integer) = >(promote(a,b)...)
->(a::Integer, b::BitBoard) = >(promote(a,b)...)
+@inline >(a::BitBoard, b::BitBoard) = a.n > b.n
+@inline >(a::BitBoard, b::Integer) = >(promote(a,b)...)
+@inline >(a::Integer, b::BitBoard) = >(promote(a,b)...)
 
 #Extend and operator on bitboards"
-function Base.:&(a::BitBoard,b::BitBoard)
+@inline function Base.:&(a::BitBoard,b::BitBoard)
     BitBoard(a.n & b.n)
 end
 
 #Extend or operator on bitboards"
-|(a::BitBoard, b::BitBoard) = BitBoard(a.n | b.n)
+@inline |(a::BitBoard, b::BitBoard) = BitBoard(a.n | b.n)
 #Extend xor operator on bitboards"
-⊻(a::BitBoard, b::BitBoard) = BitBoard(a.n ⊻ b.n)
+@inline ⊻(a::BitBoard, b::BitBoard) = BitBoard(a.n ⊻ b.n)
 #Extend not operator on bitboards"
-~(a::BitBoard) = BitBoard(~a.n)
+@inline ~(a::BitBoard) = BitBoard(~a.n)
 
 #Extend bitshift left operator on bitboards"
-<<(a::BitBoard, b::BitBoard) = BitBoard(a.n << b.n)
+@inline <<(a::BitBoard, b::BitBoard) = BitBoard(a.n << b.n)
 #Extend bitshift right operator on bitboards"
->>(a::BitBoard, b::BitBoard) = BitBoard(a.n >> b.n)
+@inline >>(a::BitBoard, b::BitBoard) = BitBoard(a.n >> b.n)
 #Extend bitshift left operator for integers on bitboards"
-<<(a::BitBoard, b::Integer) = BitBoard(a.n << b)
+@inline <<(a::BitBoard, b::Integer) = BitBoard(a.n << b)
 #Extend bitshift right operator for integers on bitboards"
->>(a::BitBoard, b::Integer) = BitBoard(a.n >> b)
+@inline >>(a::BitBoard, b::Integer) = BitBoard(a.n >> b)
 
-Base.getindex(a::AbstractArray, i::BitBoard) = getindex(a,i.n)
-Base.setindex!(a::AbstractArray ,v, i::BitBoard) = setindex!(a,v,i.n)
+@inbounds Base.getindex(a::AbstractArray, i::BitBoard) = getindex(a, i.n)
+@inbounds Base.setindex!(a::AbstractArray ,v, i::BitBoard) = setindex!(a, v, i.n)
 
 #convert and promote integers to bitboards
 Base.convert(::Type{BitBoard}, int::Integer) = BitBoard(int)
@@ -96,15 +96,15 @@ Base.length(BB::BitBoard) = count_ones(BB)
 
 Base.count_ones(BB::BitBoard) = count_ones(BB.n)
 
-setone(BB::BitBoard,index::Integer) = BitBoard(setone(BB.n, index))
+@inline setone(BB::BitBoard,index::Integer) = BitBoard(setone(BB.n, index))
 
-setzero(BB::BitBoard,index::Integer) = BitBoard(setzero(BB.n, index))
+@inline setzero(BB::BitBoard,index::Integer) = BitBoard(setzero(BB.n, index))
 
 "Least significant bit of a bitboard, returned as a UInt8"
-LSB(BB::BitBoard) = LSB(BB.n)
+@inline LSB(BB::BitBoard) = LSB(BB.n)
 
 "Returns a single bitboard representing the positions of an array of pieces"
-function BBunion(piece_vec::AbstractArray{BitBoard})
+@inline function BBunion(piece_vec::AbstractArray{BitBoard})
     BB = BitBoard()
     for piece in piece_vec
         BB |= piece
@@ -122,7 +122,7 @@ function count_pieces(pieces::AbstractArray{BitBoard})
 end
 
 "loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
-function identify_piecetype(one_side_BBs::AbstractArray{BitBoard},location::Integer)::UInt8
+function identify_piecetype(one_side_BBs::AbstractArray{BitBoard}, location::Integer)::UInt8
     ID = NULL_PIECE
     for (pieceID,pieceBB) in enumerate(one_side_BBs)
         if pieceBB & (BitBoard(1) << location) != 0

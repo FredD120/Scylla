@@ -23,7 +23,7 @@ bitshift(num::Integer) = BitBoard(64-num)
 entry_size(type) = Base.summarysize(type())
 
 "return TT size in Mb"
-TT_size(entry_size,len) = round(entry_size*(len)/Mb,sigdigits=4)
+TT_size(entry_size, len) = round((entry_size * len) / Mb, sigdigits=4)
 TT_size(TT::TranspositionTable{T}) where T = TT_size(entry_size(T), length(TT.HashTable))
 TT_size(::Nothing) = 0.0
 
@@ -56,38 +56,38 @@ end
 function TranspositionTable(verbose=false; 
     sizeMb=TT_DEFAULT_MB, size=nothing, type=TT_ENTRY_TYPE)::Union{TranspositionTable,Nothing}
     if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
-        return TranspositionTable(type,size,verbose)
+        return TranspositionTable(type, size, verbose)
 
     elseif sizeMb > TT_MIN_MB && sizeMb <=  TT_MAX_MB
-        num_entries = fld(sizeMb*Mb,entry_size(type))
-        size = floor(Int16,log2(num_entries))
-        return TranspositionTable(type,size,verbose)
+        num_entries = fld(sizeMb * Mb,entry_size(type))
+        size = floor(Int16, log2(num_entries))
+        return TranspositionTable(type, size, verbose)
 
     end
     return nothing
 end
 
 "retrieve transposition from TT using index derived from bitshift"
-get_entry(TT::TranspositionTable,Zhash::BitBoard) = TT.HashTable[ZKey_mask(Zhash,TT.Key)+1]
+get_entry(TT::TranspositionTable, Zhash::BitBoard) = TT.HashTable[ZKey_mask(Zhash, TT.Key) + 1]
 
 "use zhash and bitshift to make zkey into TT"
-ZKey_shift(ZHash,shift) = ZHash >> shift
+ZKey_shift(ZHash, shift) = ZHash >> shift
 
 "use zhash and bitmask to make zkey into TT"
-ZKey_mask(ZHash,mask) = ZHash & mask
+ZKey_mask(ZHash, mask) = ZHash & mask
 
 "set value of entry in TT"
-function set_entry!(TT::TranspositionTable,data) 
-    TT.HashTable[ZKey_mask(data.ZHash,TT.Key)+1] = data
+function set_entry!(TT::TranspositionTable, data) 
+    TT.HashTable[ZKey_mask(data.ZHash, TT.Key) + 1] = data
 end
 
 "set value of entry in TT using zhash provided"
-function set_entry!(TT::TranspositionTable,ZHash,data) 
-    TT.HashTable[ZKey_mask(ZHash,TT.Key)+1] = data
+function set_entry!(TT::TranspositionTable, ZHash, data) 
+    TT.HashTable[ZKey_mask(ZHash, TT.Key) + 1] = data
 end
 
 "return a view into the TT that can be used to modify the entry"
-view_entry(TT::TranspositionTable,ZHash) = @view TT.HashTable[convert(UInt64,ZKey_mask(ZHash,TT.Key))+1]
+view_entry(TT::TranspositionTable,ZHash) = @view TT.HashTable[convert(UInt64, ZKey_mask(ZHash, TT.Key)) + 1]
 
 "data describing a node, to be stored in TT"
 struct SearchData

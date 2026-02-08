@@ -83,9 +83,10 @@ end
 @testset "Moves from Location" begin
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Scylla.Boardstate(simpleFEN)
-    moves = Vector{Move}()
-    Scylla.moves_from_location!(Scylla.King, moves, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
-    @test length(moves) == 2
+    Scylla.moves_from_location!(Scylla.King, board.Moves, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
+    
+    moves = board.Moves.moves
+    @test board.Moves.ind == 2
     @test Scylla.cap_type(moves[1]) == 0
     @test Scylla.from(moves[2]) == 2
     @test Scylla.pc_type(moves[1]) == 1
