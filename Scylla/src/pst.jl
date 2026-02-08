@@ -5,36 +5,38 @@
 
 "Retrieve piece square tables from file"
 function get_PST(type)
-    data = Vector{Float32}()
-    data_str = readlines("$(dirname(@__DIR__))/src/PST/$(type).txt")
-    for d in data_str
-        push!(data, parse(Float32,d))
-    end   
-    return data
+    h5open("$(dirname(@__DIR__))/src/PST/$(type).h5", "r") do fid
+        MG::SVector{64, Float32} = read(fid["MidGame"])
+        EG::SVector{64, Float32} = read(fid["EndGame"])
+        return (MG, EG)
+    end
 end
 
-"Setup vectors containing the PSTs"
-function PST(stage="")
-    PawnPST::SVector{64,Float32} = get_PST("pawn"*stage)
-    KnightPST::SVector{64,Float32} = get_PST("knight"*stage)
-    BishopPST::SVector{64,Float32} = get_PST("bishop"*stage)
-    RookPST::SVector{64,Float32} = get_PST("rook"*stage)
-    QueenPST::SVector{64,Float32} = get_PST("queen"*stage)
-    KingPST::SVector{64,Float32} = get_PST("king"*stage)
-    return SVector{6,SVector{64,Float32}}([KingPST,QueenPST,RookPST,BishopPST,KnightPST,PawnPST])
+"Setup vectors containing the PSTs for mid and endgame"
+function PST()
+    (kingMG, kingEG) = get_PST("king")
+    (queenMG, queenEG) = get_PST("queen")
+    (rookMG, rookEG) = get_PST("rook")
+    (bishopMG, bishopEG) = get_PST("bishop")
+    (knightMG, knightEG) = get_PST("knight")
+    (pawnMG, pawnEG) = get_PST("pawn")
+
+    return (SVector{6, SVector{64, Float32}}([
+    kingMG, queenMG, rookMG, bishopMG, knightMG, pawnMG]),
+    SVector{6, SVector{64, Float32}}([
+    kingEG, queenEG, rookEG, bishopEG, knightEG, pawnEG]))
 end
 
-const MG_PSTs = PST()
-const EG_PSTs = PST("EG")
+const MG_PSTs, EG_PSTs = PST()
 
 "Simulaneously update mid- and end-game PST scores from white's perspective"
-function update_PST_score!(score::Vector{Int32},colour::UInt8,type_val,pos,add_or_remove)
+function update_PST_score!(score::Vector{Int32}, colour::UInt8, type_val, pos, add_or_remove)
     #+1 if adding, -1 if removing * +1 if white, -1 if black
-    sign = sgn(colour)*add_or_remove 
+    sign = sgn(colour) * add_or_remove 
     ind = side_index(colour,pos)
 
-    score[1] += sign*MG_PSTs[type_val][ind+1]
-    score[2] += sign*EG_PSTs[type_val][ind+1]
+    score[1] += sign * MG_PSTs[type_val][ind+1]
+    score[2] += sign * EG_PSTs[type_val][ind+1]
 end
 
 "Returns score of current position from whites perspective. used when initialising boardstate"

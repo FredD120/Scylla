@@ -194,4 +194,3 @@ function GUIposition(board::Boardstate)
     end
     return position
 end
-

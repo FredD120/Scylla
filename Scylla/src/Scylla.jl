@@ -21,11 +21,10 @@ TO-DO (engine)
 -> NNUE
 
 TO-DO (general)
--> Implement UCI protocol
- - Add time estimate for time controls
+-> UCI protocol
+ - Improve time estimate for time controls
  - Fix issue with inconsistant quitting
  - Enable searching to depth/mate/nodes
--> Convert Move to its own type
 -> Convert all files to HDF5, combine mid and endgame tables in one file for each piece
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
 
@@ -38,6 +37,7 @@ module Scylla
 
 using StaticArrays
 using JLD2
+using HDF5
 using Random
 using ArgParse
 

@@ -25,8 +25,8 @@ using Test
         end
 
         @testset "Two Similar Hashes" begin
-            Z1 = BitBoard(2^61+2^62+2^10) 
-            Z2 = BitBoard(2^61+2^62+2^11) 
+            Z1 = BitBoard(2^61 + 2^62 + 2^10) 
+            Z2 = BitBoard(2^61 + 2^62 + 2^11) 
 
             new_data = Scylla.PerftData(Z1,UInt8(5),UInt128(1))
 
