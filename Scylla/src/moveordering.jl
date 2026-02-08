@@ -14,23 +14,23 @@ Killer() = Killer(NULLMOVE, NULLMOVE)
 "Check that new move does not match second best killer, then push first to second and replace first"
 function new_killer!(KV::Vector{Killer}, ply, move)
     if move != KV[ply+1].First
-        KV[ply+1].Second = KV[ply+1].First 
-        KV[ply+1].First = move 
+        @inbounds KV[ply+1].Second = KV[ply+1].First 
+        @inbounds KV[ply+1].First = move 
     end
 end
 
 "Triangle number for an index starting from zero"
-triangle_number(x) = Int(0.5*x*(x+1))
+triangle_number(x) = Int(0.5 * x * (x + 1))
 
 "find index of PV move at current ply"
-PV_ind(ply,maxdepth) = Int(ply/2 * (2*maxdepth + 1 - ply))
+PV_ind(ply,maxdepth) = Int(ply / 2 * (2*maxdepth + 1 - ply))
 
 "Copies line below in triangular PV table"
 function copy_PV!(triangle_PV,ply,PV_len,maxdepth,move)
     cur_ind = PV_ind(ply,maxdepth)
-    triangle_PV[cur_ind+1] = move
-    for i in (cur_ind+1):(cur_ind+PV_len-ply-1)
-        triangle_PV[i+1] = triangle_PV[i+maxdepth-ply]
+    @inbounds triangle_PV[cur_ind + 1] = move
+    for i in (cur_ind + 1):(cur_ind + PV_len - ply - 1)
+        @inbounds triangle_PV[i + 1] = triangle_PV[i + maxdepth - ply]
     end
 end
 
@@ -74,7 +74,7 @@ function next_best!(moves,cur_ind)
         cur_best_score = 0
         cur_best_ind = cur_ind
 
-        for i in cur_ind:len
+        @inbounds for i in cur_ind:len
             score_i = score(moves[i])
             if score_i > cur_best_score
                 cur_best_score = score_i
@@ -87,7 +87,7 @@ end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
 function score_moves!(moves, killers::Killer=Killer(), best_move::Move=NULLMOVE)
-    for (i, move) in enumerate(moves)
+    @inbounds for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move,MAXMOVESCORE)
 

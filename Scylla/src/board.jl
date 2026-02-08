@@ -202,7 +202,7 @@ ally_pieces(b::Boardstate) = @view b.pieces[b.Colour+1:b.Colour+6]
 "Helper function to obtain vector of enemy bitboards"
 function enemy_pieces(b::Boardstate) 
     enemy_ind = Opposite(b.Colour)
-    return @view b.pieces[enemy_ind+1:enemy_ind+6]
+    return @view b.pieces[enemy_ind + 1:enemy_ind + 6]
 end
 
 "tells GUI where pieces are on the board"

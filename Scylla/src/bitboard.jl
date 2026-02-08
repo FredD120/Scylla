@@ -124,7 +124,7 @@ end
 "loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
 function identify_piecetype(one_side_BBs::AbstractArray{BitBoard}, location::Integer)::UInt8
     ID = NULL_PIECE
-    for (pieceID,pieceBB) in enumerate(one_side_BBs)
+    for (pieceID, pieceBB) in enumerate(one_side_BBs)
         if pieceBB & (BitBoard(1) << location) != 0
             ID = pieceID
             break

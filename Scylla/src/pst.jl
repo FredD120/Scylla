@@ -35,8 +35,8 @@ function update_PST_score!(score::Vector{Int32}, colour::UInt8, type_val, pos, a
     sign = sgn(colour) * add_or_remove 
     ind = side_index(colour,pos)
 
-    score[1] += sign * MG_PSTs[type_val][ind+1]
-    score[2] += sign * EG_PSTs[type_val][ind+1]
+    @inbounds score[1] += sign * MG_PSTs[type_val][ind+1]
+    @inbounds score[2] += sign * EG_PSTs[type_val][ind+1]
 end
 
 "Returns score of current position from whites perspective. used when initialising boardstate"

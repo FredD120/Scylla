@@ -129,9 +129,9 @@ function attack_info(board::Boardstate)::LegalInfo
 
     enemy_list = enemy_pieces(board)
     
-    ally_pcs = board.piece_union[ColID(board.Colour)+1]
+    ally_pcs = board.piece_union[ColID(board.Colour) + 1]
     all_pcs = board.piece_union[end]
-    KingBB = board.pieces[board.Colour+King]
+    KingBB = board.pieces[board.Colour + King]
     position = LSB(KingBB)
     colour::Bool = Whitesmove(board.Colour)
 
@@ -181,15 +181,15 @@ end
         attacked_pieceID = NULL_PIECE
         if isattack
             #move struct needs info on piece being attacked
-            attacked_pieceID = identify_piecetype(enemy_pcs,loc)
+            attacked_pieceID = identify_piecetype(enemy_pcs, loc)
         end
         append!(moves, Move(type, origin, loc, attacked_pieceID, NOFLAG))
     end
 end
 
 "Bitboard containing only the attacks by a particular piece"
-function attack_moves(moveBB,enemy_pcs)
-    return moveBB & enemy_pcs
+function attack_moves(move_bb, enemy_bb)
+    return move_bb & enemy_bb
 end
 
 "Bitboard containing only the quiets by a particular piece"
@@ -222,33 +222,33 @@ function legal_bishop_moves(loc,all_pcs,bishoppins,info::LegalInfo)
 end
 
 "Filter possible moves for legality for Rook"
-function legal_rook_moves(loc,all_pcs,rookpins,info::LegalInfo)
-    poss_moves = possible_rook_moves(loc,all_pcs)
+function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
+    poss_moves = possible_rook_moves(loc, all_pcs)
     #Filter out rook moves that don't block/capture if in check/pinned
     legal_moves = poss_moves & (info.checks | info.blocks) & rookpins
     return legal_moves
 end
 
 "Filter possible moves for legality for Queen"
-function legal_queen_moves(loc,all_pcs,rookpins,bishoppins,info::LegalInfo)
-    legal_rook = legal_rook_moves(loc,all_pcs,rookpins,info)
-    legal_bishop = legal_bishop_moves(loc,all_pcs,bishoppins,info)
+function legal_queen_moves(loc, all_pcs, rookpins, bishoppins, info::LegalInfo)
+    legal_rook = legal_rook_moves(loc, all_pcs, rookpins, info)
+    legal_bishop = legal_bishop_moves(loc, all_pcs, bishoppins, info)
     return legal_rook | legal_bishop
 end
 
 "Bitboard logic to get attacks and quiets from legal moves"
-function QAtt(legal,all_pcs,enemy_pcs,MODE::UInt64)
-    attacks = attack_moves(legal,enemy_pcs)
+function QAtt(legal, all_bb, enemy_bb, MODE::UInt64)
+    attacks = attack_moves(legal, enemy_bb)
     #set quiets to zero if only generating attacks
-    quiets = quiet_moves(legal,all_pcs) * MODE
-    return quiets,attacks
+    quiets = quiet_moves(legal, all_bb) * MODE
+    return quiets, attacks
 end
 
 "Bishop can only move if pinned diagonally"
-pinned_bishop(pieceBB,bishoppins) = pieceBB & bishoppins
+pinned_bishop(piece_bb, bishoppins) = piece_bb & bishoppins
 
 "Rook can only move if pinned vertic/horizontally"
-pinned_rook(pieceBB,rookpins) = pieceBB & rookpins
+pinned_rook(piece_bb,rookpins) = piece_bb & rookpins
 
 "returns attack and quiet moves only if legal, based on checks and pins"
 @inline function get_queen_moves!(moves,pieceBB,enemy_vec::AbstractArray{BitBoard},enemy_pcs,all_pcs,MODE,info::LegalInfo)
@@ -271,7 +271,6 @@ pinned_rook(pieceBB,rookpins) = pieceBB & rookpins
 
         moves_from_location!(Queen,moves,enemy_vec,quiets,loc,false)
         moves_from_location!(Queen,moves,enemy_vec,attacks,loc,true)
-        
     end
 
     for loc in BpinnedBB
@@ -475,7 +474,7 @@ end
 "Create list of pawn capture moves with a given flag"
 function capture_moves!(moves, leftattack, rightattack, promotemask, shift, enemy_pcs, checks, enemy_vec::AbstractArray{BitBoard}, flag)
     for la in (leftattack & enemy_pcs & promotemask & checks)
-        attack_pcID = identify_piecetype(enemy_vec,la)
+        attack_pcID = identify_piecetype(enemy_vec, la)
         append_moves!(moves, Pawn, UInt8(la + shift + 1), la, attack_pcID, flag)
     end
     for ra in (rightattack & enemy_pcs & promotemask & checks)
@@ -566,10 +565,10 @@ function any_pawn_moves(pieceBB,all_pcs,ally_pcsBB,colour::Bool,info::LegalInfo)
     BpinnedBB = pinned_bishop(pieceBB, info.bishoppins)
 
     #push once and remove any that are blocked
-    pushpawn1 = cond_push(colour,unpinnedBB)
-    legalpush1 = quiet_moves(pushpawn1,all_pcs)
-    pushpinned = cond_push(colour,RpinnedBB)
-    legalpush1 |= quiet_moves(pushpinned,all_pcs) & info.rookpins
+    pushpawn1 = cond_push(colour, unpinnedBB)
+    legalpush1 = quiet_moves(pushpawn1, all_pcs)
+    pushpinned = cond_push(colour, RpinnedBB)
+    legalpush1 |= quiet_moves(pushpinned, all_pcs) & info.rookpins
 
     if (legalpush1 & info.blocks) > 0
         return true
@@ -579,7 +578,7 @@ function any_pawn_moves(pieceBB,all_pcs,ally_pcsBB,colour::Bool,info::LegalInfo)
     attackleft = attack_left(pushpawn1)
     attackright = attack_right(pushpawn1)
 
-    Bpush = cond_push(colour,BpinnedBB)
+    Bpush = cond_push(colour, BpinnedBB)
     Battackleft = attack_left(Bpush)
     Battackright = attack_right(Bpush)
 
@@ -620,13 +619,12 @@ end
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
 function generate_moves(board::Boardstate, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)::Vector{Move}
     clear!(board.Moves)
-    ally = ally_pieces(board)
     enemy = enemy_pieces(board)
 
     enemy_pcsBB = board.piece_union[ColID(Opposite(board.Colour)) + 1] 
     all_pcsBB = board.piece_union[end]
-
-    kingBB = ally[King]
+    
+    kingBB = board.pieces[King + board.Colour]
     kingpos = LSB(kingBB)
 
     get_king_moves!(board.Moves, kingBB, enemy, enemy_pcsBB, all_pcsBB,
@@ -635,19 +633,19 @@ function generate_moves(board::Boardstate, legal_info::LegalInfo=attack_info(boa
     #if multiple checks on king, only king can move
     if legal_info.attack_num <= 1
         #run through pieces and BBs, adding moves to list
-        get_knight_moves!(board.Moves, ally[Knight], enemy,
+        get_knight_moves!(board.Moves, board.pieces[Knight + board.Colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
 
-        get_bishop_moves!(board.Moves, ally[Bishop], enemy,
+        get_bishop_moves!(board.Moves, board.pieces[Bishop + board.Colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
         
-        get_rook_moves!(board.Moves, ally[Rook], enemy,
+        get_rook_moves!(board.Moves, board.pieces[Rook + board.Colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
         
-        get_queen_moves!(board.Moves, ally[Queen], enemy,
+        get_queen_moves!(board.Moves, board.pieces[Queen + board.Colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
 
-        get_pawn_moves!(board.Moves, ally[Pawn], enemy, enemy_pcsBB, all_pcsBB, board.EnPass,
+        get_pawn_moves!(board.Moves, board.pieces[Pawn + board.Colour], enemy, enemy_pcsBB, all_pcsBB, board.EnPass,
         Whitesmove(board.Colour), kingpos, MODE, legal_info)
     end
     return current_moves(board.Moves)
@@ -688,16 +686,15 @@ function gameover!(board::Boardstate)
     return info
 end
 
-
 "utilises setzero to remove a piece from a position"
 function destroy_piece!(B::Boardstate, colour::UInt8, pieceID, pos)
     CpieceID = ColourPieceID(colour, pieceID)
-    B.pieces[CpieceID] = setzero(B.pieces[CpieceID],pos)
-    update_PST_score!(B.PSTscore,colour,pieceID,pos,-1)
-    B.ZHash ⊻= ZKey_piece(CpieceID,pos)
+    B.pieces[CpieceID] = setzero(B.pieces[CpieceID], pos)
+    update_PST_score!(B.PSTscore, colour, pieceID, pos, -1)
+    B.ZHash ⊻= ZKey_piece(CpieceID, pos)
 
-    unionID = ColID(colour)+1
-    B.piece_union[unionID] = setzero(B.piece_union[unionID],pos)
+    unionID = ColID(colour) + 1
+    B.piece_union[unionID] = setzero(B.piece_union[unionID], pos)
 end
 
 "utilises setone to create a piece in a position"

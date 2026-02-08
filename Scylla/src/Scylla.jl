@@ -29,6 +29,9 @@ TO-DO (general)
 -> Convert all files to HDF5
 -> Check type stability of mutable structs such as EngineState (TT could be nothing)
 -> Reduce allocations (currently 3.8 Gb for a single 10 second search)
+ - Create 64 length vector containing information about locations of pieces 
+   for identify_piecetype (avoid allocating enemy_pcs in generate moves)
+ - Search for allocations in engine.jl
 
 Code Clarity
 -> Consistent naming conventions of variables, functions, constants
