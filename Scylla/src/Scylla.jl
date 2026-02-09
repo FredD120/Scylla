@@ -66,7 +66,7 @@ include("perft.jl")
 include("precompile.jl")
 include("cli.jl")
 
-export BitBoard, Boardstate,
+export BitBoard, BoardState,
        make_move!, unmake_move!,
        generate_moves, gameover!,
        best_move, Move, perft,

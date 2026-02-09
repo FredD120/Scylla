@@ -4,7 +4,7 @@ using Test
 @testset "Basic Evaluation" begin 
     @testset "Start Position" begin
         eFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev = Scylla.evaluate(board)
 
         @test ev == 0
@@ -12,7 +12,7 @@ using Test
 
     @testset "Up a Pawn" begin
         eFEN = "8/P6k/K7/8/8/8/8/8 w - - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev = Scylla.evaluate(board)
 
         @test ev >= 100
@@ -21,7 +21,7 @@ end
 
 @testset "PST Weighting" begin 
     eFEN = "4k3/ppppppp1/8/8/8/8/PPP5/R3K3 w Qkq - 0 1"
-    board = Scylla.Boardstate(eFEN)
+    board = Scylla.BoardState(eFEN)
     num_pcs = Scylla.count_pieces(board.pieces)
 
     @test Scylla.MGweighting(num_pcs) > Scylla.EGweighting(num_pcs)
@@ -33,11 +33,11 @@ end
 @testset "Positional Evaluation" begin
     @testset "Central Knights" begin
         eFEN = "1n2k1n1/8/8/8/8/8/8/4K3 b KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev1 = -Scylla.evaluate(board)
 
         eFEN = "4k3/8/8/3n4/8/4n3/8/4K3 b KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev2 = -Scylla.evaluate(board)
 
         @test ev2 > ev1
@@ -45,11 +45,11 @@ end
 
     @testset "Central Pawns" begin
         eFEN = "4k3/pppppppp/8/8/PP4PP/8/2PPPP2/4K3 w KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev1 = Scylla.evaluate(board)
 
         eFEN = "4k3/pppppppp/8/8/2PPPP2/8/PP4PP/4K3 w KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev2 = Scylla.evaluate(board)
 
         @test ev2 > ev1
@@ -57,11 +57,11 @@ end
 
     @testset "Castling" begin
         eFEN = "4k3/pppppppp/8/8/8/8/PPPPPPPP/R3K3 w Qkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev1 = Scylla.evaluate(board)
 
         eFEN = "4k3/pppppppp/8/8/8/8/PPPPPPPP/2KR4 w KQkq - 0 1"
-        board = Scylla.Boardstate(eFEN)
+        board = Scylla.BoardState(eFEN)
         ev2 = Scylla.evaluate(board)
 
         @test ev2 > ev1
@@ -109,7 +109,7 @@ end
         make_move!(best,engine.board)
         gameover!(engine.board)
         
-        @test engine.board.State == Scylla.Loss()
+        @test engine.board.state == Scylla.Loss()
     end
 end
 
@@ -136,7 +136,7 @@ function test_positions()
     for pos in positions
         FEN_move = split(split(pos,";")[1],"- bm ")
         eFEN = FEN_move[1]*"0"
-        board = Boardstate(eFEN)
+        board = BoardState(eFEN)
         correct_mv = FEN_move[2]
 
         if verbose

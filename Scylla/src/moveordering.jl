@@ -68,7 +68,7 @@ function swap!(list,ind1,ind2)
 end
 
 "iterates through scores and swaps next best score and move to top of list"
-function next_best!(moves,cur_ind)
+function next_best!(moves, cur_ind)
     len = length(moves)
     if cur_ind < len
         cur_best_score = 0
@@ -81,7 +81,7 @@ function next_best!(moves,cur_ind)
                 cur_best_ind = i 
             end
         end
-        swap!(moves,cur_ind,cur_best_ind)
+        swap!(moves, cur_ind, cur_best_ind)
     end
 end
 

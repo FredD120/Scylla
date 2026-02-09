@@ -43,34 +43,34 @@ colour_piece_id(colour::UInt8, piece::Integer) = colour + piece
 side_index(colour::UInt8, ind) = ifelse(colour==0, ind, 8 * rank(ind) + file(ind))
 
 mutable struct BoardData
-    Halfmoves::Vector{UInt8}
-    Castling::Vector{UInt8}
-    CastleCount::Vector{UInt16}
-    EnPassant::Vector{BitBoard}
-    EPCount::Vector{UInt16}
+    half_moves::Vector{UInt8}
+    castling::Vector{UInt8}
+    castleCount::Vector{UInt16}
+    enpassant::Vector{BitBoard}
+    enpassant_count::Vector{UInt16}
     zobrist_hash_history::Vector{BitBoard}
 end
 
-mutable struct Boardstate
+mutable struct BoardState
     pieces::Vector{BitBoard}
     piece_union::Vector{BitBoard}
-    Colour::UInt8
-    Castle::UInt8
-    EnPass::BitBoard
-    State::GameState
+    colour::UInt8
+    castle::UInt8
+    enpassant_bb::BitBoard
+    state::GAME_STATE
     PSTscore::Vector{Int32}
     zobrist_hash::BitBoard
-    MoveHist::Vector{Move}
+    move_history::Vector{Move}
     Data::BoardData
-    Moves::MoveVec
+    move_vector::MoveVec
 end
 
 "Find position of king on bitboard"
-king_pos(board::Boardstate, side_index) = LSB(board.pieces[side_index + King])
+king_pos(board::BoardState, side_index) = LSB(board.pieces[side_index + King])
 
 function pc_unions(pieces)::Vector{BitBoard}
-    white_pc_BB = BBunion(pieces[1:6]) 
-    black_pc_BB = BBunion(pieces[7:12]) 
+    white_pc_BB = bb_union(pieces[1:6]) 
+    black_pc_BB = bb_union(pieces[7:12]) 
     all_pc_BB = white_pc_BB | black_pc_BB
     [white_pc_BB,black_pc_BB,all_pc_BB]
 end
@@ -80,17 +80,17 @@ function place_piece!(pieces::AbstractArray{BitBoard},pieceID,pos)
     pieces[pieceID] = setone(pieces[pieceID],pos)
 end
 
-"Helper function to modify Zhash based on castle rights"
-function Zhashcastle(zobrist_hash, castling)
+"Helper function to modify zobrist based on castle rights"
+function zobrist_castle(zobrist_hash, castling)
     #use last rank of black pawns and 8 extra indices (0⋜castling⋜15)
     zobrist_hash ⊻= ZOBRIST_KEYS[end - 16 + castling]
     return zobrist_hash
 end
 
-"Helper function to modify Zhash based on en-passant"
-function ZhashEP(zobrist_hash,enpassant)
-    for EP in enpassant
-        file = EP % 8
+"Helper function to modify zobrist based on en-passant"
+function zobrist_enpassant(zobrist_hash, enpassant)
+    for ep in enpassant
+        file = ep % 8
         #use first rank of black pawns
         zobrist_hash ⊻= ZOBRIST_KEYS[(64 * 11) + file + 1]
     end
@@ -98,114 +98,110 @@ function ZhashEP(zobrist_hash,enpassant)
 end
 
 "Returns zobrist key associated with a coloured piece at a location"
-ZKey_piece(CpieceID,pos) = ZOBRIST_KEYS[64 * (CpieceID - 1) + pos + 1]
+zobrist_piece(colour_id, pos) = ZOBRIST_KEYS[64 * (colour_id - 1) + pos + 1]
 
 "Returns zobrist key associated with whose turn it is (switched on if black)"
-ZKeyColour() = ZOBRIST_KEYS[end]
+zobrist_colour() = ZOBRIST_KEYS[end]
 
 "Generate Zobrist hash of a boardstate"
 function generate_hash(pieces, colour::UInt8, castling, enpassant)
     zobrist_hash = BitBoard()
     for (pieceID,pieceBB) in enumerate(pieces)
         for loc in pieceBB
-            zobrist_hash ⊻= ZKey_piece(pieceID, loc)
+            zobrist_hash ⊻= zobrist_piece(pieceID, loc)
         end
     end
 
     #the rest of this data is packed in using the fact that neither
     #black nor white pawns will exist on first or last rank
-    zobrist_hash = ZhashEP(zobrist_hash, enpassant)
-    zobrist_hash = Zhashcastle(zobrist_hash, castling)
+    zobrist_hash = zobrist_enpassant(zobrist_hash, enpassant)
+    zobrist_hash = zobrist_castle(zobrist_hash, castling)
 
     if !whitesmove(colour)
-        zobrist_hash ⊻= ZKeyColour()
+        zobrist_hash ⊻= zobrist_colour()
     end
     return zobrist_hash
 end
 
 "generate zobrist hash statically from existing boardstate"
-generate_hash(b::Boardstate) = generate_hash(b.pieces, b.Colour, b.Castle, b.EnPass)
+generate_hash(b::BoardState) = generate_hash(b.pieces, b.colour, b.castle, b.enpassant_bb)
 
 "Initialise a boardstate from a FEN string"
-function Boardstate(FEN)
+function BoardState(FEN)
     pieces = [BitBoard() for _ in 1:12]
-    Castling = UInt8(0)
-    Halfmoves = UInt8(0)
-    EnPassant = BitBoard()
-    Colour = white
+    castling = UInt8(0)
+    half_moves = UInt8(0)
+    enpassant = BitBoard()
+    colour = white
     PSTscore = zeros(Int32,2)
-    MoveHistory = Vector{Move}()
+    move_historyory = Vector{Move}()
 
     #Keep track of where we are on chessboard
     i = UInt32(0)           
     FENvec = split(FEN)
 
     #Positions of  pieces
-    for c in FENvec[1]
-        if isletter(c)
-            upperC = uppercase(c)
-            if c == upperC
-                colour = white
-            else
-                colour = black
-            end
-            place_piece!(pieces,FEN_DICT[upperC]+colour,i)
+    for char in FENvec[1]
+        if isletter(char)
+            upper_letter = uppercase(char)
+            piece_colour = char == upper_letter ? white : black
+            place_piece!(pieces, FEN_DICT[upper_letter] + piece_colour, i)
             i += 1
-        elseif isnumeric(c)
-            i += parse(Int,c)
+        elseif isnumeric(char)
+            i += parse(Int, char)
         end
     end
   
     #Determine whose turn it is
     if FENvec[2] == "b"
-        Colour = black
+        colour = black
     end
 
     #castling rights
     for c in FENvec[3]
         if c == 'K'
-            Castling = setone(Castling,0)
+            castling = setone(castling,0)
         elseif c == 'Q'
-            Castling = setone(Castling,1)
+            castling = setone(castling,1)
         elseif c == 'k'
-            Castling = setone(Castling,2)
+            castling = setone(castling,2)
         elseif c == 'q'
-            Castling = setone(Castling,3)
+            castling = setone(castling,3)
         end
     end
 
     #en-passant
     if length(FENvec[4]) == 2
-        EnPassant = setone(EnPassant,algebraic_to_numeric(FENvec[4]))
+        enpassant = setone(enpassant, algebraic_to_numeric(FENvec[4]))
     end
 
     if length(FENvec) > 4
-        Halfmoves = parse(UInt8,FENvec[5])
+        half_moves = parse(UInt8,FENvec[5])
     end
 
-    Zobrist = generate_hash(pieces, Colour, Castling, EnPassant)
-    data = BoardData(Vector{UInt8}([Halfmoves]),
-                     Vector{UInt8}([Castling]),Vector{UInt8}([0]),
-                     Vector{BitBoard}([EnPassant]),Vector{UInt8}([0]),
+    Zobrist = generate_hash(pieces, colour, castling, enpassant)
+    data = BoardData(Vector{UInt8}([half_moves]),
+                     Vector{UInt8}([castling]),Vector{UInt8}([0]),
+                     Vector{BitBoard}([enpassant]),Vector{UInt8}([0]),
                      Vector{BitBoard}([Zobrist]))
 
     set_PST!(PSTscore, pieces)
 
-    Boardstate(pieces, pc_unions(pieces), Colour, Castling, EnPassant,
-    Neutral(), PSTscore, Zobrist, MoveHistory, data, MoveVec())
+    BoardState(pieces, pc_unions(pieces), colour, castling, enpassant,
+    Neutral(), PSTscore, Zobrist, move_historyory, data, MoveVec())
 end
 
 "Helper function to obtain vector of ally bitboards"
-ally_pieces(b::Boardstate) = @view b.pieces[b.Colour+1:b.Colour+6]
+ally_pieces(b::BoardState) = @view b.pieces[b.colour + 1:b.colour + 6]
 
 "Helper function to obtain vector of enemy bitboards"
-function enemy_pieces(b::Boardstate) 
-    enemy_ind = opposite(b.Colour)
+function enemy_pieces(b::BoardState) 
+    enemy_ind = opposite(b.colour)
     return @view b.pieces[enemy_ind + 1:enemy_ind + 6]
 end
 
 "tells GUI where pieces are on the board"
-function GUIposition(board::Boardstate)
+function GUIposition(board::BoardState)
     position = zeros(UInt8, 64)
     for (pieceID, piece) in enumerate(board.pieces)
         for i in 0:63

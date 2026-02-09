@@ -71,7 +71,7 @@ struct Neutral end
 struct Loss end
 struct Draw end
 
-const GameState = Union{Neutral,Loss,Draw}
+const GAME_STATE = Union{Neutral, Loss, Draw}
 
 "types of nodes based on position in search tree"
 const NONE = UInt8(0)
@@ -149,8 +149,8 @@ struct Nodes <: Control
     maxnodes::UInt64
     maxdepth::UInt8
 end
-Nodes() = Nodes(DEFAULTNODES,DEFAULTDEPTH)
-Nodes(nodes) = Nodes(nodes,DEFAULTDEPTH)
+Nodes() = Nodes(DEFAULTNODES, DEFAULTDEPTH)
+Nodes(nodes) = Nodes(nodes, DEFAULTDEPTH)
 
 struct Mate <: Control
     maxdepth::UInt8

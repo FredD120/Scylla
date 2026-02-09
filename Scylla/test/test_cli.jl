@@ -6,7 +6,7 @@ using Scylla
     engine = EngineState("K7/8/8/8/8/8/8/7k w - - 0 1",sizeMb=0)
 
     Scylla.parse_msg!(engine, cli_state, "  ucinewgame  ")
-    @test engine.board.pieces == Boardstate(Scylla.startFEN).pieces
+    @test engine.board.pieces == BoardState(Scylla.startFEN).pieces
 
     Scylla.parse_msg!(engine, cli_state, "qqq QUIT")
     @test cli_state.QUIT == true
@@ -44,18 +44,18 @@ end
     newFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
 
     Scylla.parse_msg!(engine, cli_state, "position fen " * newFEN * "Moves")
-    @test engine.board.zobrist_hash == Boardstate(newFEN).zobrist_hash
+    @test engine.board.zobrist_hash == BoardState(newFEN).zobrist_hash
     Scylla.parse_msg!(engine, cli_state, "position STARTPOS")
-    @test engine.board.zobrist_hash == Boardstate(FEN).zobrist_hash
+    @test engine.board.zobrist_hash == BoardState(FEN).zobrist_hash
 
     Scylla.parse_msg!(engine, cli_state, "position STARTPOS Moves c2c4 a7a6")
     moveFEN = "rnbqkbnr/1ppppppp/p7/8/2P5/8/PP1PPPPP/RNBQKBNR w KQkq - 0 2"
-    @test engine.board.zobrist_hash == Boardstate(moveFEN).zobrist_hash
+    @test engine.board.zobrist_hash == BoardState(moveFEN).zobrist_hash
 
     castleFEN = "rnbqk2r/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 0"
     Scylla.parse_msg!(engine, cli_state, "position fen $castleFEN Moves e8g8")
     afterFEN = "rnbq1rk1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ - 0 1"
-    @test engine.board.zobrist_hash == Boardstate(afterFEN).zobrist_hash
+    @test engine.board.zobrist_hash == BoardState(afterFEN).zobrist_hash
 end
 
 @testset "Time Controls" begin

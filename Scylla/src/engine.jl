@@ -34,7 +34,7 @@ end
 
 #holds all information the engine needs to calculate
 mutable struct EngineState
-    board::Boardstate
+    board::BoardState
     TT::Union{TranspositionTable, Nothing}
     TT_HashFull::UInt32
     config::Config
@@ -48,7 +48,7 @@ function EngineState(FEN::AbstractString=startFEN, verbose=false;
         sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
         comms::Union{Channel,Nothing}=nothing, control::Control=Time()) 
 
-    board = Boardstate(FEN)
+    board = BoardState(FEN)
     TT = TranspositionTable(verbose; size=sizePO2, sizeMb=sizeMb, type=TT_type)
     config = Config(comms, control, verbose)
     info = SearchInfo(config.control.maxdepth)
@@ -72,7 +72,7 @@ end
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(E::EngineState)
     reset_TT!(E)
-    E.board = Boardstate(startFEN)
+    E.board = BoardState(startFEN)
 end
 
 "update entry in TT. either greater depth or always replace"
@@ -138,7 +138,7 @@ eval(::Draw,ply) = Int16(0)
 eval(::Loss,ply) = -INF + Int16(ply)
 
 "Returns score of current position from whites perspective"
-function evaluate(board::Boardstate)::Int16
+function evaluate(board::BoardState)::Int16
     num_pieces = count_pieces(board.pieces)
     score = board.PSTscore[1]*MGweighting(num_pieces) + board.PSTscore[2]*EGweighting(num_pieces)
     
@@ -158,8 +158,8 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     #still need to check for terminal nodes in qsearch
     legal_info = gameover!(engine.board)
-    if engine.board.State != Neutral()
-        return eval(engine.board.State,ply)
+    if engine.board.state != Neutral()
+        return eval(engine.board.state, ply)
     end
 
     #not in check, continue quiescence
@@ -260,9 +260,9 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
 
     #Evaluate whether we are in a terminal node
     legal_info = gameover!(engine.board)
-    if engine.board.State != Neutral()
+    if engine.board.state != Neutral()
         logger.pos_eval += 1
-        return eval(engine.board.State, ply)
+        return eval(engine.board.state, ply)
     end
 
     #enter quiescence search if at leaf node
@@ -348,12 +348,12 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
 end
 
 "root of minimax search"
-function root(engine::EngineState,moves,depth,logger::Logger)
+function root(engine::EngineState, moves, depth, logger::Logger)
     #whites current best score
     α = -INF 
     #whites current worst score (blacks best score)
     β = INF
-    player::Int8 = sgn(engine.board.Colour)
+    player::Int8 = sgn(engine.board.colour)
     ply = 0
     #search PV first, only if it exists
     onPV = true 
@@ -362,7 +362,7 @@ function root(engine::EngineState,moves,depth,logger::Logger)
     score_moves!(moves, engine.info.Killers[ply+1], engine.info.PV[ply+1])
 
     for i in eachindex(moves)
-        next_best!(moves,i)
+        next_best!(moves, i)
         move = moves[i]
 
         make_move!(move, engine.board)
@@ -452,7 +452,7 @@ function print_log(logger::Logger)
 end
 
 "print results of search, formatted for UCI protocol"
-function UCI_log(logger::Logger, board::Boardstate)
+function UCI_log(logger::Logger, board::BoardState)
     if length(logger.PV) > 0
         best = begin score = logger.best_score
             if mate_found(score)

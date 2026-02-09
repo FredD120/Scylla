@@ -1,5 +1,5 @@
 "return location of king for side to move"
-locate_king(B::Boardstate, colour) = LSB(B.pieces[colour_piece_id(colour, King)])
+locate_king(B::BoardState, colour) = LSB(B.pieces[colour_piece_id(colour, King)])
 
 "Masked 4-bit integer representing king- and queen-side castling rights for one side"
 function get_Crights(castling, colour_id, KorQside)
@@ -122,28 +122,28 @@ function detect_pins(pos,pc_list,all_pcs,ally_pcs)
 end
 
 "returns struct containing info on attacks, blocks and pins of king by enemy piecelist"
-function attack_info(board::Boardstate)::LegalInfo
+function attack_info(board::BoardState)::LegalInfo
     attacks = BitBoard_full()
     blocks = BitBoard()
     attacker_num = 0
 
     enemy_list = enemy_pieces(board)
     
-    ally_pcs = board.piece_union[colour_id(board.Colour) + 1]
+    ally_pcs = board.piece_union[colour_id(board.colour) + 1]
     all_pcs = board.piece_union[end]
-    KingBB = board.pieces[board.Colour + King]
+    KingBB = board.pieces[board.colour + King]
     position = LSB(KingBB)
-    colour::Bool = whitesmove(board.Colour)
+    colour::Bool = whitesmove(board.colour)
 
     #construct BB of all enemy attacks, must remove king when checking if square is attacked
     all_except_king = all_pcs & ~(KingBB)
-    attacked_sqs = all_poss_moves(enemy_list,all_except_king,colour)
+    attacked_sqs = all_poss_moves(enemy_list, all_except_king, colour)
 
     #if king not under attack, dont need to find attacking pieces or blockers
     if KingBB & attacked_sqs == BitBoard() 
         blocks = BitBoard_full()
     else
-        attacks = attack_pcs(enemy_list,all_pcs,position,colour)
+        attacks = attack_pcs(enemy_list, all_pcs, position, colour)
         attacker_num = count_ones(attacks)
         #if only a single sliding piece is attacking the king, it can be blocked
         if attacker_num == 1
@@ -406,10 +406,10 @@ end
         #index into lookup table containing squares that must be free/not in check to castle
         #must mask out opponent's castle rights
         for castleID in identify_locations(get_Crights(castlrts, (colID + 1) % 2, 0))
-            castleattack = moveset.CastleCheck[castleID + 1]
+            castleattack = moveset.castleCheck[castleID + 1]
             blockId = castleID % 2 # only queenside castle (=1) has extra block squares
             #white queen blockers are at index 5, black queen blockers are at index 6
-            castleblock = moveset.CastleCheck[castleID + blockId * (2 + (castleID % 3)) + 1]
+            castleblock = moveset.castleCheck[castleID + blockId * (2 + (castleID % 3)) + 1]
             if (castleblock & all_pcs == 0) & (castleattack & info.attack_sqs == 0)
                 append!(moves, create_castle(UInt8(castleID % 2), colID))
             end
@@ -488,8 +488,8 @@ function EPedgecase(from,EPcap,kingpos,all_pcs,enemy_vec)
     #test if king is on same rank as EP pawn
     if rank(from) == rank(kingpos)
         #all pcs BB after en-passant
-        after_EP = setzero(setzero(all_pcs,from),EPcap)
-        kingrookmvs = possible_rook_moves(kingpos,after_EP)
+        after_enpassant = setzero(setzero(all_pcs,from),EPcap)
+        kingrookmvs = possible_rook_moves(kingpos, after_enpassant)
         if (kingrookmvs & (enemy_vec[Rook] | enemy_vec[Queen])) > 0
             return false
         end
@@ -498,7 +498,7 @@ function EPedgecase(from,EPcap,kingpos,all_pcs,enemy_vec)
 end
 
 "Check legality of en-passant before adding it to move list"
-function push_EP!(moves, from, to, shift, checks, all_pcs, enemy_vec, kingpos)
+function push_enpassant!(moves, from, to, shift, checks, all_pcs, enemy_vec, kingpos)
     EPcap = to + shift
     if checks & (BitBoard(1) << EPcap) > 0
         if EPedgecase(from, EPcap, kingpos, all_pcs, enemy_vec)
@@ -510,10 +510,10 @@ end
 "Create list of pawn en-passant moves"
 function EP_moves!(movelist, leftattack, rightattack, shift, EP_sqs, checks, all_pcs, enemy_vec, kingpos)
     for la in (leftattack & EP_sqs)  
-        push_EP!(movelist, UInt8(la + shift + 1), la, shift, checks, all_pcs, enemy_vec, kingpos)
+        push_enpassant!(movelist, UInt8(la + shift + 1), la, shift, checks, all_pcs, enemy_vec, kingpos)
     end
     for ra in (rightattack & EP_sqs)
-        push_EP!(movelist, UInt8(ra + shift - 1), ra, shift, checks, all_pcs, enemy_vec, kingpos)
+        push_enpassant!(movelist, UInt8(ra + shift - 1), ra, shift, checks, all_pcs, enemy_vec, kingpos)
     end
 end
 
@@ -558,7 +558,7 @@ function get_pawn_moves!(movelist, pieceBB, enemy_vec::AbstractArray{BitBoard}, 
 end
 
 "Return true if any pawn moves exist"
-function any_pawn_moves(pieceBB,all_pcs,ally_pcsBB,colour::Bool,info::LegalInfo)::Bool
+function any_pawn_moves(pieceBB, all_pcs, ally_pcsBB, colour::Bool, info::LegalInfo)::Bool
     #split into pinned and unpinned pieces, then run movegetter seperately on each
     unpinnedBB = pieceBB & ~(info.rookpins | info.bishoppins)
     RpinnedBB = pinned_rook(pieceBB, info.rookpins)
@@ -595,10 +595,10 @@ function any_pawn_moves(pieceBB,all_pcs,ally_pcsBB,colour::Bool,info::LegalInfo)
 end
 
 "Iterate through zhash list until last halfmove reset to check for repeated positions - not working"
-function three_repetition(Zhash,Data::BoardData)::Bool
+function three_repetition(zobrist_hash ,Data::BoardData)::Bool
     count = 1
-    for zhist in Data.zobrist_hash_history[end - 1:end - Data.Halfmoves[end] - 1]
-        if zhist == Zhash 
+    for zhist in Data.zobrist_hash_history[end - 1:end - Data.half_moves[end] - 1]
+        if zhist == zobrist_hash 
             count += 1
         end
         if count > 2
@@ -609,77 +609,77 @@ function three_repetition(Zhash,Data::BoardData)::Bool
 end
 
 "one-liner to test repetition. function above should be faster but doesn't seem to work currently"
-three_repetition(board::Boardstate) = count(i->(i==board.zobrist_hash), board.Data.zobrist_hash_history) >= 3
+three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.Data.zobrist_hash_history) >= 3
 
 "implement 50 move rule and 3 position repetition"
-function draw_state(board::Boardstate)::Bool
-    return (board.Data.Halfmoves[end] >= 100) || three_repetition(board) #three_repetition(board.zobrist_hash, board.Data)
+function draw_state(board::BoardState)::Bool
+    return (board.Data.half_moves[end] >= 100) || three_repetition(board) #three_repetition(board.zobrist_hash, board.Data)
 end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
-function generate_moves(board::Boardstate, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)::Vector{Move}
-    clear!(board.Moves)
+function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)::Vector{Move}
+    clear!(board.move_vector)
     enemy = enemy_pieces(board)
 
-    enemy_pcsBB = board.piece_union[colour_id(opposite(board.Colour)) + 1] 
+    enemy_pcsBB = board.piece_union[colour_id(opposite(board.colour)) + 1] 
     all_pcsBB = board.piece_union[end]
     
-    kingBB = board.pieces[King + board.Colour]
+    kingBB = board.pieces[King + board.colour]
     kingpos = LSB(kingBB)
 
-    get_king_moves!(board.Moves, kingBB, enemy, enemy_pcsBB, all_pcsBB,
-    board.Castle, colour_id(board.Colour), MODE, legal_info)
+    get_king_moves!(board.move_vector, kingBB, enemy, enemy_pcsBB, all_pcsBB,
+    board.castle, colour_id(board.colour), MODE, legal_info)
 
     #if multiple checks on king, only king can move
     if legal_info.attack_num <= 1
         #run through pieces and BBs, adding moves to list
-        get_knight_moves!(board.Moves, board.pieces[Knight + board.Colour], enemy,
+        get_knight_moves!(board.move_vector, board.pieces[Knight + board.colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
 
-        get_bishop_moves!(board.Moves, board.pieces[Bishop + board.Colour], enemy,
+        get_bishop_moves!(board.move_vector, board.pieces[Bishop + board.colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
         
-        get_rook_moves!(board.Moves, board.pieces[Rook + board.Colour], enemy,
+        get_rook_moves!(board.move_vector, board.pieces[Rook + board.colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
         
-        get_queen_moves!(board.Moves, board.pieces[Queen + board.Colour], enemy,
+        get_queen_moves!(board.move_vector, board.pieces[Queen + board.colour], enemy,
             enemy_pcsBB, all_pcsBB, MODE, legal_info)
 
-        get_pawn_moves!(board.Moves, board.pieces[Pawn + board.Colour], enemy, enemy_pcsBB, all_pcsBB, board.EnPass,
-        whitesmove(board.Colour), kingpos, MODE, legal_info)
+        get_pawn_moves!(board.move_vector, board.pieces[Pawn + board.colour], enemy, enemy_pcsBB, all_pcsBB, board.enpassant_bb,
+        whitesmove(board.colour), kingpos, MODE, legal_info)
     end
-    return current_moves(board.Moves)
+    return current_moves(board.move_vector)
 end
 
 "helper function that used generate moves create a movelist of all attacking moves (no quiets)"
-function generate_attacks(board::Boardstate, legal_info::LegalInfo=attack_info(board))::Vector{Move}
+function generate_attacks(board::BoardState, legal_info::LegalInfo=attack_info(board))::Vector{Move}
     return generate_moves(board, legal_info, ATTACKONLY)
 end
 
 "evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"
-function gameover!(board::Boardstate)
+function gameover!(board::BoardState)
     info = attack_info(board)
     if draw_state(board)
-        board.State = Draw()
+        board.state = Draw()
     else
         all_pcsBB = board.piece_union[end]
-        ally_pcsBB = board.piece_union[colour_id(board.Colour)+1] 
-        kingpos = locate_king(board,board.Colour)
+        ally_pcsBB = board.piece_union[colour_id(board.colour) + 1] 
+        kingpos = locate_king(board, board.colour)
 
-        if any_king_moves(kingpos,ally_pcsBB,info) 
-            board.State = Neutral()
+        if any_king_moves(kingpos, ally_pcsBB, info) 
+            board.state = Neutral()
         elseif info.attack_num <= 1 && (
-                any_pawn_moves(board.pieces[board.Colour+Pawn],all_pcsBB,ally_pcsBB,whitesmove(board.Colour),info) ||
-                any_knight_moves(board.pieces[board.Colour+Knight],ally_pcsBB,info) ||
-                any_bishop_moves(board.pieces[board.Colour+Bishop],all_pcsBB,ally_pcsBB,info) ||
-                any_rook_moves(board.pieces[board.Colour+Rook],all_pcsBB,ally_pcsBB,info) ||
-                any_queen_moves(board.pieces[board.Colour+Queen],all_pcsBB,ally_pcsBB,info))
-            board.State = Neutral() 
+                any_pawn_moves(board.pieces[board.colour + Pawn], all_pcsBB, ally_pcsBB, whitesmove(board.colour), info) ||
+                any_knight_moves(board.pieces[board.colour + Knight], ally_pcsBB, info) ||
+                any_bishop_moves(board.pieces[board.colour + Bishop], all_pcsBB, ally_pcsBB, info) ||
+                any_rook_moves(board.pieces[board.colour + Rook], all_pcsBB, ally_pcsBB, info) ||
+                any_queen_moves(board.pieces[board.colour + Queen], all_pcsBB, ally_pcsBB, info))
+            board.state = Neutral() 
         else
             if info.attack_num > 0
-                board.State = Loss()
+                board.state = Loss()
             else
-                board.State = Draw()
+                board.state = Draw()
             end
         end
     end

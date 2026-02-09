@@ -50,7 +50,7 @@ end
 function set_position!(engine, position_moves)
     ind = get_msg_index(uppercase.(position_moves), "MOVES")
     if uppercase(position_moves[1]) == "STARTPOS"
-        engine.board = Boardstate(startFEN)
+        engine.board = BoardState(startFEN)
     else
         last_ind = length(position_moves)
         #set last index to index of "MOVES" keyword if it exists
@@ -58,7 +58,7 @@ function set_position!(engine, position_moves)
             last_ind = ind
         end
         FEN_string = join(position_moves[2:last_ind], " ")
-        engine.board = Boardstate(FEN_string)
+        engine.board = BoardState(FEN_string)
     end
     #play moves if provided
     if !isnothing(ind)
@@ -71,10 +71,10 @@ end
 
 "parse time-control info from CLI, return as time + increment in seconds"
 function get_time_control(e::EngineState, msg_array)
-    matchcolour = whitesmove(e.board.Colour) ? "W" : "B"
+    match_colour = whitesmove(e.board.colour) ? "W" : "B"
 
-    time_ind = get_msg_index(msg_array, matchcolour * "TIME")
-    inc_ind = get_msg_index(msg_array, matchcolour * "INC")
+    time_ind = get_msg_index(msg_array, match_colour * "TIME")
+    inc_ind = get_msg_index(msg_array, match_colour * "INC")
 
     length(msg_array) > time_ind || error("No move-time given")
     time = parse(Float64, msg_array[time_ind + 1])
@@ -207,13 +207,13 @@ end
 UCIpos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 
 "convert a move to UCI notation"
-function UCImove(B::Boardstate, move::Move)
+function UCImove(B::BoardState, move::Move)
     flg = flag(move)
     F = from(move)
     T = to(move)
 
     if flg == KCASTLE || flg == QCASTLE
-        F = locate_king(B,B.Colour)
+        F = locate_king(B, B.colour)
         T = F + 2
         if flg == QCASTLE
             T = F -2
@@ -229,12 +229,12 @@ function UCImove(B::Boardstate, move::Move)
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"
-function identify_UCImove(B::Boardstate, UCImove::AbstractString)
+function identify_UCImove(B::BoardState, UCImove::AbstractString)
     moves = generate_moves(B)
     num_from = algebraic_to_numeric(UCImove[1:2])
     num_to = algebraic_to_numeric(UCImove[3:4])
     num_promote = NOFLAG
-    kingsmove = num_from == locate_king(B,B.Colour)
+    kingsmove = num_from == locate_king(B, B.colour)
 
     if length(UCImove) > 4
         num_promote = promote_id(Char(UCImove[5]))

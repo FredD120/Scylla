@@ -33,7 +33,7 @@ const MG_PSTs, EG_PSTs = PST()
 function update_PST_score!(score::Vector{Int32}, colour::UInt8, type_val, pos, add_or_remove)
     #+1 if adding, -1 if removing * +1 if white, -1 if black
     sign = sgn(colour) * add_or_remove 
-    ind = side_index(colour,pos)
+    ind = side_index(colour, pos)
 
     @inbounds score[1] += sign * MG_PSTs[type_val][ind+1]
     @inbounds score[2] += sign * EG_PSTs[type_val][ind+1]

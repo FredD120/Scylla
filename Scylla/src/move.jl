@@ -119,7 +119,7 @@ struct Move_BB
     king::SVector{64, BitBoard}
     knight::SVector{64, BitBoard}
     CRightsMask::SVector{6, UInt8}
-    CastleCheck::SVector{6, BitBoard}
+    castleCheck::SVector{6, BitBoard}
 end
 
 "constructor for Move_BB that reads all moves from txt files"
@@ -127,7 +127,7 @@ function Move_BB()
     king_mvs = read_txt(BitBoard, "king")
     knight_mvs = read_txt(BitBoard, "knight")
     Crights = [0b1100, 0b1110, 0b1101, 0b0011, 0b1011, 0b0111]
-    castle_check = read_txt(BitBoard, "CastleCheck")
+    castle_check = read_txt(BitBoard, "castleCheck")
     return Move_BB(king_mvs, knight_mvs, Crights, castle_check)
 end
 

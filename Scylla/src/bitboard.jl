@@ -104,7 +104,7 @@ Base.count_ones(BB::BitBoard) = count_ones(BB.n)
 @inline LSB(BB::BitBoard) = LSB(BB.n)
 
 "Returns a single bitboard representing the positions of an array of pieces"
-@inline function BBunion(piece_vec::AbstractArray{BitBoard})
+@inline function bb_union(piece_vec::AbstractArray{BitBoard})
     BB = BitBoard()
     for piece in piece_vec
         BB |= piece

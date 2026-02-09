@@ -68,7 +68,7 @@ function TranspositionTable(verbose=false;
 end
 
 "retrieve transposition from TT using index derived from bitshift"
-get_entry(TT::TranspositionTable, Zhash::BitBoard) = TT.HashTable[ZKey_mask(Zhash, TT.Key) + 1]
+get_entry(TT::TranspositionTable, zobrist::BitBoard) = TT.HashTable[ZKey_mask(zobrist, TT.Key) + 1]
 
 "use zhash and bitshift to make zkey into TT"
 ZKey_shift(zobrist_hash, shift) = zobrist_hash >> shift
