@@ -18,7 +18,7 @@ using Test
         TT = Scylla.TranspositionTable(verbose, size=4, type=Scylla.PerftData)
         @testset "Initialise" begin
             for Data in TT.HashTable
-                @test Data.ZHash == 0
+                @test Data.zobrist_hash == 0
                 @test Data.depth == 0
                 @test Data.leaves == 0
             end    
@@ -36,8 +36,8 @@ using Test
 
             @test TT_entry1 == new_data 
             @test TT_entry1 == TT_entry2 
-            @test TT_entry2.ZHash == Z1
-            @test TT_entry2.ZHash != Z2 
+            @test TT_entry2.zobrist_hash == Z1
+            @test TT_entry2.zobrist_hash != Z2 
         end
     end
 end

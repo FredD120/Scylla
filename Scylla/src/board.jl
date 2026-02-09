@@ -1,7 +1,6 @@
 #define objects that make up the boardstate
 #define helper functions to construct the boardstate
 #define utility functions to fetch data from boardstate
-const FIRST_MOVE_INDEX = 0
 
 "pre-allocated array of moves"
 mutable struct MoveVec
@@ -28,17 +27,17 @@ current_moves(m::MoveVec) = @view m.moves[1:m.ind]
 sgn(colour::UInt8) = ifelse(colour==0, +1, -1)
 
 "Boolean representing whose turn it is, chosen based on value on UInt8"
-Whitesmove(ColourIndex::UInt8) = ifelse(ColourIndex == 0, true, false)
+whitesmove(colour_index::UInt8) = ifelse(colour_index == 0, true, false)
 
 "Colour ID from value stored in board representation"
-ColID(ColourIndex::UInt8)::UInt8 = ColourIndex % 5
+colour_id(colour_index::UInt8)::UInt8 = colour_index % 5
 
 "Helper functions to return opposite colour index"
-Opposite(ColourIndex::UInt8)::UInt8 = (ColourIndex + 6) % 12
-Opposite(colour::Bool) = !colour
+opposite(colour_index::UInt8)::UInt8 = (colour_index + 6) % 12
+opposite(colour::Bool) = !colour
 
 "Helper functions to return index of piece BB in piece list"
-ColourPieceID(colour::UInt8, piece::Integer) = colour + piece
+colour_piece_id(colour::UInt8, piece::Integer) = colour + piece
 
 "Index into PST based on colour index"
 side_index(colour::UInt8, ind) = ifelse(colour==0, ind, 8 * rank(ind) + file(ind))
@@ -49,7 +48,7 @@ mutable struct BoardData
     CastleCount::Vector{UInt16}
     EnPassant::Vector{BitBoard}
     EPCount::Vector{UInt16}
-    ZHashHist::Vector{BitBoard}
+    zobrist_hash_history::Vector{BitBoard}
 end
 
 mutable struct Boardstate
@@ -60,7 +59,7 @@ mutable struct Boardstate
     EnPass::BitBoard
     State::GameState
     PSTscore::Vector{Int32}
-    ZHash::BitBoard
+    zobrist_hash::BitBoard
     MoveHist::Vector{Move}
     Data::BoardData
     Moves::MoveVec
@@ -82,46 +81,46 @@ function place_piece!(pieces::AbstractArray{BitBoard},pieceID,pos)
 end
 
 "Helper function to modify Zhash based on castle rights"
-function Zhashcastle(ZHash,castling)
+function Zhashcastle(zobrist_hash, castling)
     #use last rank of black pawns and 8 extra indices (0⋜castling⋜15)
-    ZHash ⊻= ZobristKeys[end - 16 + castling]
-    return ZHash
+    zobrist_hash ⊻= ZOBRIST_KEYS[end - 16 + castling]
+    return zobrist_hash
 end
 
 "Helper function to modify Zhash based on en-passant"
-function ZhashEP(ZHash,enpassant)
+function ZhashEP(zobrist_hash,enpassant)
     for EP in enpassant
         file = EP % 8
         #use first rank of black pawns
-        ZHash ⊻= ZobristKeys[(64 * 11) + file + 1]
+        zobrist_hash ⊻= ZOBRIST_KEYS[(64 * 11) + file + 1]
     end
-    return ZHash
+    return zobrist_hash
 end
 
 "Returns zobrist key associated with a coloured piece at a location"
-ZKey_piece(CpieceID,pos) = ZobristKeys[64 * (CpieceID - 1) + pos + 1]
+ZKey_piece(CpieceID,pos) = ZOBRIST_KEYS[64 * (CpieceID - 1) + pos + 1]
 
 "Returns zobrist key associated with whose turn it is (switched on if black)"
-ZKeyColour() = ZobristKeys[end]
+ZKeyColour() = ZOBRIST_KEYS[end]
 
 "Generate Zobrist hash of a boardstate"
 function generate_hash(pieces, colour::UInt8, castling, enpassant)
-    ZHash = BitBoard()
+    zobrist_hash = BitBoard()
     for (pieceID,pieceBB) in enumerate(pieces)
         for loc in pieceBB
-            ZHash ⊻= ZKey_piece(pieceID, loc)
+            zobrist_hash ⊻= ZKey_piece(pieceID, loc)
         end
     end
 
     #the rest of this data is packed in using the fact that neither
     #black nor white pawns will exist on first or last rank
-    ZHash = ZhashEP(ZHash, enpassant)
-    ZHash = Zhashcastle(ZHash, castling)
+    zobrist_hash = ZhashEP(zobrist_hash, enpassant)
+    zobrist_hash = Zhashcastle(zobrist_hash, castling)
 
-    if !Whitesmove(colour)
-        ZHash ⊻= ZKeyColour()
+    if !whitesmove(colour)
+        zobrist_hash ⊻= ZKeyColour()
     end
-    return ZHash
+    return zobrist_hash
 end
 
 "generate zobrist hash statically from existing boardstate"
@@ -150,7 +149,7 @@ function Boardstate(FEN)
             else
                 colour = black
             end
-            place_piece!(pieces,FENdict[upperC]+colour,i)
+            place_piece!(pieces,FEN_DICT[upperC]+colour,i)
             i += 1
         elseif isnumeric(c)
             i += parse(Int,c)
@@ -201,7 +200,7 @@ ally_pieces(b::Boardstate) = @view b.pieces[b.Colour+1:b.Colour+6]
 
 "Helper function to obtain vector of enemy bitboards"
 function enemy_pieces(b::Boardstate) 
-    enemy_ind = Opposite(b.Colour)
+    enemy_ind = opposite(b.Colour)
     return @view b.pieces[enemy_ind + 1:enemy_ind + 6]
 end
 

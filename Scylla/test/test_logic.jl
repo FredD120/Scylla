@@ -18,7 +18,7 @@ end
 
 @testset "Board Initialise" begin
     board = Scylla.Boardstate(FEN)
-    @test Scylla.Whitesmove(board.Colour) == true
+    @test Scylla.whitesmove(board.Colour) == true
     @test board.Data.EnPassant[end] == UInt64(0)
     @test Scylla.ally_pieces(board)[3] != UInt64(0)
     @test Scylla.enemy_pieces(board)[3] != UInt64(0)
@@ -302,7 +302,7 @@ end
     simpleFEN = "R1R1R1R1/8/8/8/8/8/8/1R1R1R1R b - - 0 1"
     board = Scylla.Boardstate(simpleFEN) 
     all_pcs = Scylla.BBunion(board.pieces)  
-    attkBB = Scylla.all_poss_moves(Scylla.enemy_pieces(board),all_pcs,Scylla.Whitesmove(board.Colour))
+    attkBB = Scylla.all_poss_moves(Scylla.enemy_pieces(board),all_pcs,Scylla.whitesmove(board.Colour))
 
     @test attkBB == typemax(UInt64)
 end
@@ -483,7 +483,7 @@ end
 
     newFEN = "rnbqkbnr/pppppppp/8/8/8/N7/PPPPPPPP/R1BQKBNR b KQkq - 1 1"
     newboard = Scylla.Boardstate(newFEN)
-    @test board.ZHash == newboard.ZHash
+    @test board.zobrist_hash == newboard.zobrist_hash
 
     #should end up back at start position
     moves = Scylla.generate_moves(board)
@@ -504,12 +504,12 @@ end
         Scylla.make_move!(move,board)
        end
     end
-    @test board.ZHash == board.Data.ZHashHist[1]
+    @test board.zobrist_hash == board.Data.zobrist_hash_history[1]
 
     Scylla.unmake_move!(board)
     Scylla.unmake_move!(board)
     Scylla.unmake_move!(board)
-    @test board.ZHash == newboard.ZHash
+    @test board.zobrist_hash == newboard.zobrist_hash
 end
 
 @testset "PST Values" begin

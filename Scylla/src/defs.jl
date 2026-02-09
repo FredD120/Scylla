@@ -12,13 +12,14 @@ const Bishop = UInt8(4)
 const Knight = UInt8(5)
 const Pawn = UInt8(6)
 
-const FENdict = Dict('K'=>King, 'Q'=>Queen, 'R'=>Rook, 'B'=>Bishop, 'N'=>Knight, 'P'=>Pawn)
+const FEN_DICT = Dict('K' => King, 'Q' => Queen, 'R' => Rook, 
+                     'B' => Bishop, 'N' => Knight, 'P' => Pawn)
 
 const startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 "return letter associated with piecetype index"
 function piece_letter(p::UInt8)
-    for (k,v) in FENdict
+    for (k,v) in FEN_DICT
         if p==v
             return k
         end
@@ -34,7 +35,9 @@ const black = UInt8(6)
 const ATTACKONLY = UInt64(0)
 const ALLMOVES = UInt64(1)
 
-const ZobristKeys = rand(rng, BitBoard, 12 * 64 + 9)
+const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
+
+const FIRST_MOVE_INDEX = 0
 
 const NOFLAG = UInt8(0)
 const KCASTLE = UInt8(1)
@@ -58,7 +61,7 @@ end
 
 "return the promotion flag identifier using the char representing a piece"
 function promote_id(c::Char)
-    piecetype = FENdict[uppercase(c)]
+    piecetype = FEN_DICT[uppercase(c)]
     return piecetype + PROMSHIFT
 end
 

@@ -82,7 +82,7 @@ end
             end
         end
 
-        @test Scylla.Whitesmove(board.Colour) == false
+        @test Scylla.whitesmove(board.Colour) == false
         @test board.Data.Halfmoves[end] == UInt8(1)
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
     end
@@ -106,7 +106,7 @@ end
         basicFEN = "1n6/K7/8/8/8/8/8/7k b - - 0 1"
         board = Scylla.Boardstate(basicFEN)
         moves = Scylla.generate_moves(board)
-        @test Scylla.Whitesmove(board.Colour) == false
+        @test Scylla.whitesmove(board.Colour) == false
         @test length(moves) == 6
 
         for m in moves
@@ -130,7 +130,7 @@ end
                 Scylla.make_move!(m,board)
             end
         end
-        @test Scylla.Whitesmove(board.Colour) == false
+        @test Scylla.whitesmove(board.Colour) == false
         @test sum(Scylla.ally_pieces(board)[2:end]) == 0
 
         GUI = Scylla.GUIposition(board)
@@ -152,7 +152,7 @@ end
         end
         Scylla.unmake_move!(board)
 
-        @test Scylla.Whitesmove(board.Colour) == true
+        @test Scylla.whitesmove(board.Colour) == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
     end
@@ -184,7 +184,7 @@ end
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
 
-        @test Scylla.Whitesmove(board.Colour) == true
+        @test Scylla.whitesmove(board.Colour) == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
         @test length(board.Data.Halfmoves) == 1

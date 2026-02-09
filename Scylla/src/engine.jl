@@ -76,12 +76,12 @@ function reset_engine!(E::EngineState)
 end
 
 "update entry in TT. either greater depth or always replace"
-function TT_store!(engine::EngineState, ZHash, depth, score, node_type, best_move)
+function TT_store!(engine::EngineState, zobrist_hash, depth, score, node_type, best_move)
     if !isnothing(engine.TT)
-        TT_view = view_entry(engine.TT, ZHash)
+        TT_view = view_entry(engine.TT, zobrist_hash)
         #correct mate scores in TT
         score = correct_score(score, depth,-1)
-        new_data = SearchData(ZHash, depth, score, node_type, best_move)
+        new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
         if depth >= TT_view[].Depth.depth
             if TT_view[].Depth.type == NONE
               engine.TT_HashFull += 1
@@ -97,12 +97,12 @@ function TT_store!(engine::EngineState, ZHash, depth, score, node_type, best_mov
 end
 
 "retrieve TT entry and corrected score, also returning true if retrieval successful"
-function TT_retrieve!(engine::EngineState, ZHash, cur_depth)
-    bucket = get_entry(engine.TT, ZHash)
+function TT_retrieve!(engine::EngineState, zobrist_hash, cur_depth)
+    bucket = get_entry(engine.TT, zobrist_hash)
     #no point using TT if hash collision
-    if bucket.Depth.ZHash == ZHash
+    if bucket.Depth.zobrist_hash == zobrist_hash
         return bucket.Depth, correct_score(bucket.Depth.score, cur_depth,+1)
-    elseif bucket.Always.ZHash == ZHash
+    elseif bucket.Always.zobrist_hash == zobrist_hash
         return bucket.Always, correct_score(bucket.Always.score, cur_depth,+1)
     else
         return nothing, nothing
@@ -280,7 +280,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
     if onPV
         best_move = engine.info.PV[ply+1]
     elseif !isnothing(engine.TT)
-        TT_data, TT_score = TT_retrieve!(engine, engine.board.ZHash, depth)
+        TT_data, TT_score = TT_retrieve!(engine, engine.board.zobrist_hash, depth)
         if !isnothing(TT_data)
             #don't try to cutoff if depth of TT entry is too low
             if TT_data.depth >= depth 
@@ -332,7 +332,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
                     logger.TT_cut += 1
                 end
 
-                TT_store!(engine,engine.board.ZHash,depth,score,BETA,move)
+                TT_store!(engine,engine.board.zobrist_hash,depth,score,BETA,move)
                 return β
             end
             node_type = EXACT
@@ -343,7 +343,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
         end
     end
 
-    TT_store!(engine, engine.board.ZHash, depth, α, node_type, cur_best_move)
+    TT_store!(engine, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
     return α
 end
 

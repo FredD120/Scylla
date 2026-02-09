@@ -3,7 +3,7 @@
 
 "hold data required for perft"
 struct PerftData
-    ZHash::BitBoard
+    zobrist_hash::BitBoard
     depth::UInt8
     leaves::UInt128
 end
@@ -18,8 +18,8 @@ function perft(board::Boardstate, depth, TT::Union{TranspositionTable,Nothing}=n
     end
     
     if TT_enabled
-        TT_entry = get_entry(TT, board.ZHash)
-        if TT_entry.ZHash == board.ZHash
+        TT_entry = get_entry(TT, board.zobrist_hash)
+        if TT_entry.zobrist_hash == board.zobrist_hash
             if depth == TT_entry.depth
                 return TT_entry.leaves
             end
@@ -41,7 +41,7 @@ function perft(board::Boardstate, depth, TT::Union{TranspositionTable,Nothing}=n
     end
 
     if TT_enabled
-        set_entry!(TT, PerftData(board.ZHash, depth, leaf_nodes))
+        set_entry!(TT, PerftData(board.zobrist_hash, depth, leaf_nodes))
     end
     return leaf_nodes
 end

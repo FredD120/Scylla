@@ -71,7 +71,7 @@ end
 
 "parse time-control info from CLI, return as time + increment in seconds"
 function get_time_control(e::EngineState, msg_array)
-    matchcolour = Whitesmove(e.board.Colour) ? "W" : "B"
+    matchcolour = whitesmove(e.board.Colour) ? "W" : "B"
 
     time_ind = get_msg_index(msg_array, matchcolour * "TIME")
     inc_ind = get_msg_index(msg_array, matchcolour * "INC")

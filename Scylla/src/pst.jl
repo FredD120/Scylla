@@ -43,7 +43,7 @@ end
 function set_PST!(score::Vector{Int32},pieces::AbstractArray{BitBoard})
     for type in [King, Queen, Rook, Bishop, Knight, Pawn]
         for colour in [white,black]
-            for pos in pieces[ColourPieceID(colour, type)]
+            for pos in pieces[colour_piece_id(colour, type)]
                 update_PST_score!(score, colour, type, pos, +1)
             end
         end

@@ -71,27 +71,27 @@ end
 get_entry(TT::TranspositionTable, Zhash::BitBoard) = TT.HashTable[ZKey_mask(Zhash, TT.Key) + 1]
 
 "use zhash and bitshift to make zkey into TT"
-ZKey_shift(ZHash, shift) = ZHash >> shift
+ZKey_shift(zobrist_hash, shift) = zobrist_hash >> shift
 
 "use zhash and bitmask to make zkey into TT"
-ZKey_mask(ZHash, mask) = ZHash & mask
+ZKey_mask(zobrist_hash, mask) = zobrist_hash & mask
 
 "set value of entry in TT"
 function set_entry!(TT::TranspositionTable, data) 
-    TT.HashTable[ZKey_mask(data.ZHash, TT.Key) + 1] = data
+    TT.HashTable[ZKey_mask(data.zobrist_hash, TT.Key) + 1] = data
 end
 
 "set value of entry in TT using zhash provided"
-function set_entry!(TT::TranspositionTable, ZHash, data) 
-    TT.HashTable[ZKey_mask(ZHash, TT.Key) + 1] = data
+function set_entry!(TT::TranspositionTable, zobrist_hash, data) 
+    TT.HashTable[ZKey_mask(zobrist_hash, TT.Key) + 1] = data
 end
 
 "return a view into the TT that can be used to modify the entry"
-view_entry(TT::TranspositionTable,ZHash) = @view TT.HashTable[convert(UInt64, ZKey_mask(ZHash, TT.Key)) + 1]
+view_entry(TT::TranspositionTable,zobrist_hash) = @view TT.HashTable[convert(UInt64, ZKey_mask(zobrist_hash, TT.Key)) + 1]
 
 "data describing a node, to be stored in TT"
 struct SearchData
-    ZHash::BitBoard
+    zobrist_hash::BitBoard
     depth::UInt8
     score::Int16
     type::UInt8
