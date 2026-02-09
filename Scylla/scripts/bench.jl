@@ -4,7 +4,7 @@ engine = Scylla.EngineState(control = Time(10))
 #@time move, logger = best_move(engine)
 #Scylla.print_log(logger)
 
-@time Scylla.perft(engine.board, 6)
+@time Scylla.perft(engine.board, 7) #49.003617 seconds (986.96 M allocations: 48.943 GiB)
 
 #=
 board = Scylla.Boardstate(Scylla.startFEN)

@@ -83,7 +83,7 @@ end
 @testset "Moves from Location" begin
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Scylla.BoardState(simpleFEN)
-    Scylla.moves_from_location!(Scylla.King, board.move_vector, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
+    Scylla.moves_from_location!(Scylla.King, board, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
     
     moves = board.move_vector.moves
     @test board.move_vector.ind == 2
