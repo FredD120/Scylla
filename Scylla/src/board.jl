@@ -191,14 +191,20 @@ function BoardState(FEN)
     Neutral(), PSTscore, Zobrist, move_historyory, data, MoveVec())
 end
 
-"Helper function to obtain vector of ally bitboards"
+"helper function to obtain vector of ally bitboards"
 ally_pieces(b::BoardState) = @view b.pieces[b.colour + 1:b.colour + 6]
 
-"Helper function to obtain vector of enemy bitboards"
+"helper function to obtain vector of enemy bitboards"
 function enemy_pieces(b::BoardState) 
     enemy_ind = opposite(b.colour)
     return @view b.pieces[enemy_ind + 1:enemy_ind + 6]
 end
+
+"helper function to obtain bitboard of ally piece"
+ally_piece(b::BoardState, piece) = b.pieces[b.colour + piece]
+
+"helper function to obtain bitboard of enemy piece"
+enemy_piece(b::BoardState, piece) = b.pieces[opposite(b.colour) + piece]
 
 "tells GUI where pieces are on the board"
 function GUIposition(board::BoardState)
