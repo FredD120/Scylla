@@ -20,3 +20,6 @@ println("Allocations: $(allocs/count) bytes")
 =#
 #generate moves allocates 400 bytes
 #make/unmake allocates 48 bytes
+
+###NOT###
+#EP edge case

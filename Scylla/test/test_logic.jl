@@ -83,7 +83,7 @@ end
 @testset "Moves from Location" begin
     simpleFEN = "8/8/8/8/8/8/8/8 w KQkq - 0 1"
     board = Scylla.BoardState(simpleFEN)
-    Scylla.moves_from_location!(Scylla.King, board, Scylla.enemy_pieces(board), BitBoard(3), UInt8(2), false)
+    Scylla.moves_from_location!(Scylla.King, board, BitBoard(3), UInt8(2), false)
     
     moves = board.move_vector.moves
     @test board.move_vector.ind == 2
@@ -294,7 +294,7 @@ end
     all_pcs = Scylla.bb_union(board.pieces)
     kingpos = Scylla.LSB(board.pieces[Scylla.King])
 
-    checkers = Scylla.attack_pcs(Scylla.enemy_pieces(board),all_pcs,kingpos,true)
+    checkers = Scylla.attack_pcs(board, all_pcs, kingpos,true)
     @test checkers == (UInt64(1)<<8)|(UInt64(1)<<11)|(UInt64(1)<<23)|(UInt64(1)<<62)
 end
 
@@ -302,7 +302,7 @@ end
     simpleFEN = "R1R1R1R1/8/8/8/8/8/8/1R1R1R1R b - - 0 1"
     board = Scylla.BoardState(simpleFEN) 
     all_pcs = Scylla.bb_union(board.pieces)  
-    attkBB = Scylla.all_poss_moves(Scylla.enemy_pieces(board),all_pcs,Scylla.whitesmove(board.colour))
+    attkBB = Scylla.all_poss_moves(board, all_pcs, Scylla.whitesmove(board.colour))
 
     @test attkBB == typemax(UInt64)
 end
@@ -562,7 +562,7 @@ function Testing_perft(board::BoardState,depth)
 end
 
 function test_with_perft()
-    #Test that PST values from incremental upadate are not different from static evaluation
+    #Test that PST values from incremental update are not different from static evaluation
     #Also that number of attacks from generate_attacks is the same as from Scylla.generate_moves(all)
     #Also that we can identify terminal nodes without running movegen
 
