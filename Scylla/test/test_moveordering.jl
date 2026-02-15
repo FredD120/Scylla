@@ -17,7 +17,7 @@ end
 @testset "MVV-LVA Scoring" begin
     eFEN = "8/8/8/8/8/8/q1r5/1K6 w - - 0 1"
     board = Scylla.BoardState(eFEN)
-    moves = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_moves(board)
 
     Scylla.score_moves!(moves)
     
@@ -36,7 +36,7 @@ end
     moves = [Scylla.NULLMOVE for _ in 1:3]
 
     for i in eachindex(moves)
-        moves[i] = Scylla.set_score(moves[i],UInt8(i))
+        moves[i] = Scylla.set_score(moves[i], UInt8(i))
     end
 
     for i in eachindex(moves)
@@ -52,7 +52,7 @@ end
     killer_vec[ply+1] = Scylla.Killer(Move(1),Move(2))
     moves = [Move(3),Move(5),Move(2)]
 
-    Scylla.score_moves!(moves,killer_vec[ply+1])
+    Scylla.score_moves!(moves, killer_vec[ply+1])
     @test Scylla.score(moves[3]) > Scylla.score(moves[2]) 
     @test Scylla.score(moves[3]) > Scylla.score(moves[1]) 
 end

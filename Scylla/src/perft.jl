@@ -15,7 +15,7 @@ PerftData() = PerftData(BitBoard(), UInt8(0), UInt128(0))
 function perft(board::BoardState, depth, TT::Union{TranspositionTable,Nothing}=nothing, verbose=false; TT_enabled=!isnothing(TT))
     if depth == 1
         moves, move_length = generate_moves(board)
-        clear_current_moves!(engine.board.move_vector, move_length)
+        clear_current_moves!(board.move_vector, move_length)
         return move_length
     end
     
@@ -41,7 +41,7 @@ function perft(board::BoardState, depth, TT::Union{TranspositionTable,Nothing}=n
         leaf_nodes += nodecount
         unmake_move!(board)
     end
-    clear_current_moves!(engine.board.move_vector, move_length)
+    clear_current_moves!(board.move_vector, move_length)
 
     if TT_enabled
         set_entry!(TT, PerftData(board.zobrist_hash, depth, leaf_nodes))

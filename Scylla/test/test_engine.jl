@@ -102,7 +102,7 @@ end
         best,log = Scylla.best_move(engine)
         #rook moves to cut off king
         make_move!(best,engine.board)
-        moves = generate_moves(engine.board)
+        moves, move_count = generate_moves(engine.board)
         #king response doesn't matter
         make_move!(moves[1],engine.board)
         best,log = Scylla.best_move(engine)

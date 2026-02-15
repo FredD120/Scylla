@@ -86,7 +86,7 @@ function next_best!(moves, cur_ind)
 end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
-function score_moves!(moves, killers::Killer=Killer(), best_move::Move=NULLMOVE)
+function score_moves!(moves::AbstractArray, killers::Killer=Killer(), best_move::Move=NULLMOVE)
     @inbounds for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move, MAXMOVESCORE)

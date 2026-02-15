@@ -6,7 +6,7 @@ using Test
     @testset "UCI Move" begin
         cFEN = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
         board = Scylla.BoardState(cFEN)
-        moves = generate_moves(board)
+        moves, move_count = generate_moves(board)
 
         move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
         @test Scylla.UCImove(board, move) == "c8g2"
@@ -16,7 +16,7 @@ using Test
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
-        moves = generate_moves(board)
+        moves, move_count = generate_moves(board)
         move = moves[findfirst(m->Scylla.flag(m)==Scylla.PROMQUEEN, moves)]
         @test Scylla.UCImove(board, move) == "f7e8q"
     end
@@ -30,7 +30,7 @@ using Test
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
-        moves = generate_moves(board)
+        moves, move_count = generate_moves(board)
 
         for move in moves 
             uci = Scylla.UCImove(board,move)
@@ -72,7 +72,7 @@ end
     @testset "One Piece" begin
         basicFEN = "K7/8/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(basicFEN)
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
 
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
 
@@ -90,7 +90,7 @@ end
     @testset "Non-Capture" begin
         basicFEN = "Kn6/8/8/8/8/8/8/7k w - 0 1"
         board = Scylla.BoardState(basicFEN)
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
 
         for m in moves
             if Scylla.to(m) == 8
@@ -99,13 +99,13 @@ end
         end
         @test sum(Scylla.ally_pieces(board)[2:end])  == UInt64(1) << 1
         @test Scylla.enemy_pieces(board)[1] == UInt64(1) << 8
-        @test length(generate_moves(board)) == 6
+        @test length(generate_moves(board)[1]) == 6
     end
 
     @testset "Black Move" begin
         basicFEN = "1n6/K7/8/8/8/8/8/7k b - - 0 1"
         board = Scylla.BoardState(basicFEN)
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
         @test Scylla.whitesmove(board.colour) == false
         @test length(moves) == 6
 
@@ -122,7 +122,7 @@ end
     @testset "Multiple Pieces" begin
         basicFEN = "k7/8/8/8/8/8/8/NNN4K w - - 0 1"
         board = Scylla.BoardState(basicFEN)
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
         @test length(moves) == 12
         
         for m in moves
@@ -142,7 +142,7 @@ end
 @testset "Unmake Move" begin
     basicFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
     board = Scylla.BoardState(basicFEN)
-    moves = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_moves(board)
 
     @testset "Single Make/Unmake" begin
         for m in moves
@@ -158,21 +158,21 @@ end
     end
 
     @testset "Triple Make/Unmake" begin
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
         for m in moves
             if Scylla.to(m) == 8
                 Scylla.make_move!(m,board)
             end
         end
         @test Scylla.enemy_pieces(board)[1] == UInt(1) << 8
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
         for m in moves
             if Scylla.to(m) == 16
                 Scylla.make_move!(m,board)
             end
         end
         @test Scylla.enemy_pieces(board)[5] == UInt(1) << 16
-        moves = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_moves(board)
         for m in moves
             if Scylla.cap_type(m) == 5
                 Scylla.make_move!(m,board)

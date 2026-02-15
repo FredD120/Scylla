@@ -171,7 +171,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
             end
             α = best_score
         end
-        moves = generate_attacks(engine.board, legal_info)
+        moves, move_count = generate_attacks(engine.board, legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
@@ -335,6 +335,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
                 end
 
                 TT_store!(engine, engine.board.zobrist_hash, depth, score, BETA, move)
+                clear_current_moves!(engine.board.move_vector, move_length)
                 return β
             end
             node_type = EXACT
@@ -353,7 +354,7 @@ end
 "root of minimax search"
 function root(engine::EngineState, moves, depth, logger::Logger)
     #whites current best score
-    α = -INF 
+    α = -INF
     #whites current worst score (blacks best score)
     β = INF
     player::Int8 = sgn(engine.board.colour)
@@ -421,7 +422,7 @@ function iterative_deepening(engine::EngineState)
             logger.best_score = bestscore
         end
     end
-    clear_current_moves!(engine.board.move_vector, move_length)
+    clear!(engine.board.move_vector)
     return engine.info.PV[1], logger
 end
 
