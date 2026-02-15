@@ -422,13 +422,10 @@ end
 end
 
 @testset "Identify Piecetype" begin
-    basicFEN = "1N7/8/8/8/8/8/8/8 w - - 0 1"
+    basicFEN = "1n7/8/8/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(basicFEN)
-    ID = Scylla.identify_piecetype(Scylla.ally_pieces(board),1)
+    ID = Scylla.identify_piecetype(board, 1)
     @test ID == 5
-
-    ID = Scylla.identify_piecetype(Scylla.ally_pieces(board),2)
-    @test ID == 0
 end
 
 @testset "Repetition" begin

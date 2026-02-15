@@ -5,23 +5,34 @@
 "pre-allocated array of moves"
 mutable struct MoveVec
     moves::Vector{Move}
-    ind::UInt8
+    ind::UInt16
+    cur_move_len::UInt16
 end
 
-"255 is aproximately max theoretical number of moves in a boardstate"
-MoveVec(len = 255) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
+"max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in recursive call"
+MoveVec(len = 4096) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX, FIRST_MOVE_INDEX)
 
 "append move to move vec, increment index by one"
 function append!(m::MoveVec, move::Move)
     m.ind += 1
+    m.cur_move_len += 1
     @inbounds m.moves[m.ind] = move
 end
 
 "reset index of movevec, but don't actually wipe data"
 clear!(m::MoveVec) = m.ind = FIRST_MOVE_INDEX
 
+"push pointer back to before current set of moves were generated"
+clear_current_moves!(m::MoveVec, move_length) = m.ind -= move_length
+
+"reset current move count to zero for next recursive call"
+reset_movecount!(m::MoveVec) = m.cur_move_len = FIRST_MOVE_INDEX
+
+"helper function to find length of current move vector"
+current_movecount(m::MoveVec) = m.cur_move_len
+
 "return a view into the current moves in move vec"
-current_moves(m::MoveVec) = @view m.moves[1:m.ind]
+current_moves(m::MoveVec) = @view m.moves[m.ind - m.cur_move_len:m.ind]
 
 "Positive or negative for White/Black respectively"
 sgn(colour::UInt8) = ifelse(colour==0, +1, -1)
@@ -217,4 +228,16 @@ function GUIposition(board::BoardState)
         end
     end
     return position
+end
+
+"loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
+function identify_piecetype(board::BoardState, location::Integer)::UInt8
+    ID = NULL_PIECE
+    for (pieceID, pieceBB) in enumerate(board.pieces)
+        if pieceBB & (BitBoard(1) << location) != 0
+            ID = pieceID
+            break
+        end
+    end
+    return ID - opposite(board.colour)
 end

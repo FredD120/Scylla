@@ -174,7 +174,7 @@ end
         attacked_pieceID = NULL_PIECE
         if isattack
             #move struct needs info on piece being attacked
-            attacked_pieceID = identify_piecetype(board.pieces, loc) - opposite(board.colour)
+            attacked_pieceID = identify_piecetype(board, loc)
         end
         append!(board.move_vector, Move(type, origin, loc, attacked_pieceID, NOFLAG))
     end
@@ -307,15 +307,21 @@ end
     unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
     pinned_bb = pinned_rook(piece_bb, info.rookpins)
 
-    for (bitboard, rpins) in zip([pinned_bb, unpinned_bb],[info.rookpins, BitBoard_full()])
-        for loc in bitboard
-            legal = legal_rook_moves(loc, all_pcs, rpins, info)
-            quiets,attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
+    for loc in pinned_bb
+        legal = legal_rook_moves(loc, all_pcs, info.rookpins, info)
+        quiets, attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
 
-            moves_from_location!(Rook, board, quiets, loc, false)
-            moves_from_location!(Rook, board, attacks, loc, true)
-        end
+        moves_from_location!(Rook, board, quiets, loc, false)
+        moves_from_location!(Rook, board, attacks, loc, true)
     end
+
+    for loc in unpinned_bb
+        legal = legal_rook_moves(loc, all_pcs, BitBoard_full(), info)
+        quiets, attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
+
+        moves_from_location!(Rook, board, quiets, loc, false)
+        moves_from_location!(Rook, board, attacks, loc, true)
+    end   
 end
 
 "Returns true if any rook moves exist"
@@ -336,17 +342,22 @@ end
 @inline function get_bishop_moves!(board::BoardState, enemy_pcs, all_pcs, MODE, info::LegalInfo)
     piece_bb = ally_piece(board, Bishop)
     #split into pinned and unpinned pieces, then run movegetter seperately on each
-    unpinnedBB = piece_bb & ~(info.rookpins | info.bishoppins)
-    pinnedBB = pinned_bishop(piece_bb, info.bishoppins)
+    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
+    pinned_bb = pinned_bishop(piece_bb, info.bishoppins)
 
-    for (BB, bpins) in zip([pinnedBB, unpinnedBB], [info.bishoppins, BitBoard_full()])
-        for loc in BB
-            legal = legal_bishop_moves(loc, all_pcs, bpins, info)
-            quiets, attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
+    for loc in pinned_bb
+        legal = legal_bishop_moves(loc, all_pcs, info.bishoppins, info)
+        quiets, attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
 
-            moves_from_location!(Bishop, board, quiets, loc, false)
-            moves_from_location!(Bishop, board, attacks, loc, true)
-        end
+        moves_from_location!(Bishop, board, quiets, loc, false)
+        moves_from_location!(Bishop, board, attacks, loc, true)
+    end
+    for loc in unpinned_bb
+        legal = legal_bishop_moves(loc, all_pcs, BitBoard_full(), info)
+        quiets, attacks = QAtt(legal, all_pcs, enemy_pcs, MODE)
+
+        moves_from_location!(Bishop, board, quiets, loc, false)
+        moves_from_location!(Bishop, board, attacks, loc, true)
     end
 end
 
@@ -405,12 +416,12 @@ end
     if info.attack_num == 0 && MODE == ALLMOVES
         #index into lookup table containing squares that must be free/not in check to castle
         #must mask out opponent's castle rights
-        for castleID in identify_locations(get_Crights(castlrts, (colID + 1) % 2, 0))
+        for castleID in BitBoard(get_Crights(castlrts, (colID + 1) % 2, 0))
             castleattack = moveset.castleCheck[castleID + 1]
             blockId = castleID % 2 # only queenside castle (=1) has extra block squares
             #white queen blockers are at index 5, black queen blockers are at index 6
             castleblock = moveset.castleCheck[castleID + blockId * (2 + (castleID % 3)) + 1]
-            if (castleblock & all_pcs == 0) & (castleattack & info.attack_sqs == 0)
+            if (castleblock & all_pcs == 0) && (castleattack & info.attack_sqs == 0)
                 append!(board.move_vector, create_castle(UInt8(castleID % 2), colID))
             end
         end
@@ -476,11 +487,11 @@ end
 "Create list of pawn capture moves with a given flag"
 function capture_moves!(board::BoardState, leftattack, rightattack, promotemask, shift, enemy_pcs, checks, flag)
     for la in (leftattack & enemy_pcs & promotemask & checks)
-        attack_pcID = identify_piecetype(board.pieces, la) - opposite(board.colour)
+        attack_pcID = identify_piecetype(board, la)
         append_moves!(board, Pawn, UInt8(la + shift + 1), la, attack_pcID, flag)
     end
     for ra in (rightattack & enemy_pcs & promotemask & checks)
-        attack_pcID = identify_piecetype(board.pieces, ra) - opposite(board.colour)
+        attack_pcID = identify_piecetype(board, ra)
         append_moves!(board, Pawn, UInt8(ra + shift - 1), ra, attack_pcID, flag)
     end
 end
@@ -621,9 +632,7 @@ function draw_state(board::BoardState)::Bool
 end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
-function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)::Vector{Move}
-    clear!(board.move_vector)
-
+function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)
     enemy_pcsBB = board.piece_union[colour_id(opposite(board.colour)) + 1] 
     all_pcsBB = board.piece_union[end]
     
@@ -646,11 +655,15 @@ function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(boa
         get_pawn_moves!(board, enemy_pcsBB, all_pcsBB, board.enpassant_bb,
         whitesmove(board.colour), kingpos, MODE, legal_info)
     end
-    return current_moves(board.move_vector)
+
+    move_view = current_moves(board.move_vector)
+    move_count = current_movecount(board.move_vector)
+    reset_movecount!(board.move_vector)
+    return move_view, move_count
 end
 
 "helper function that used generate moves create a movelist of all attacking moves (no quiets)"
-function generate_attacks(board::BoardState, legal_info::LegalInfo=attack_info(board))::Vector{Move}
+function generate_attacks(board::BoardState, legal_info::LegalInfo=attack_info(board))
     return generate_moves(board, legal_info, ATTACKONLY)
 end
 

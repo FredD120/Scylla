@@ -196,7 +196,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     #in check, must search all legal moves (check extension)
     else
-        moves = generate_moves(engine.board, legal_info)
+        moves, move_length = generate_moves(engine.board, legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
@@ -209,11 +209,13 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
             if score > α
                 if score >= β
+                    clear_current_moves!(engine.board.move_vector, move_length)
                     return β
                 end
                 α = score
             end
         end
+        clear_current_moves!(engine.board.move_vector, move_length)
         return α
     end
 end
@@ -305,7 +307,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
     node_type = ALPHA
     cur_best_move = NULLMOVE   
 
-    moves = generate_moves(engine.board, legal_info)
+    moves, move_length = generate_moves(engine.board, legal_info)
     score_moves!(moves, engine.info.Killers[ply+1], best_move)
 
     for i in eachindex(moves)
@@ -325,14 +327,14 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
             if score >= β
                 #update killers if exceed β
                 if !iscapture(move)
-                    new_killer!(engine.info.Killers,ply,move)
+                    new_killer!(engine.info.Killers, ply, move)
                 end
 
                 if move == best_move
                     logger.TT_cut += 1
                 end
 
-                TT_store!(engine,engine.board.zobrist_hash,depth,score,BETA,move)
+                TT_store!(engine, engine.board.zobrist_hash, depth, score, BETA, move)
                 return β
             end
             node_type = EXACT
@@ -344,6 +346,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
     end
 
     TT_store!(engine, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
+    clear_current_moves!(engine.board.move_vector, move_length)
     return α
 end
 
@@ -393,7 +396,7 @@ end
 
 "Run minimax search to fixed depth then increase depth until time runs out"
 function iterative_deepening(engine::EngineState)
-    moves = generate_moves(engine.board)
+    moves, move_length = generate_moves(engine.board)
     depth = 0
     logger = Logger(num_entries(engine.TT))
     bestscore = 0
@@ -418,6 +421,7 @@ function iterative_deepening(engine::EngineState)
             logger.best_score = bestscore
         end
     end
+    clear_current_moves!(engine.board.move_vector, move_length)
     return engine.info.PV[1], logger
 end
 

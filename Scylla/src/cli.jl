@@ -230,7 +230,7 @@ end
 
 "try to match given UCI move to a legal move. return null move otherwise"
 function identify_UCImove(B::BoardState, UCImove::AbstractString)
-    moves = generate_moves(B)
+    moves, move_len = generate_moves(B)
     num_from = algebraic_to_numeric(UCImove[1:2])
     num_to = algebraic_to_numeric(UCImove[3:4])
     num_promote = NOFLAG
