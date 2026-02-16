@@ -85,7 +85,7 @@ end
     board = Scylla.BoardState(simpleFEN)
     Scylla.moves_from_location!(Scylla.King, board, BitBoard(3), UInt8(2), false)
     
-    moves = Scylla.current_moves(board.move_vector)
+    moves = Scylla.current_moves(board.move_vector, board.move_vector.ind)
     @test board.move_vector.ind == 2
     @test Scylla.cap_type(moves[1]) == 0
     @test Scylla.from(moves[2]) == 2
@@ -552,9 +552,9 @@ end
 end
 
 function Testing_perft(board::BoardState, depth)
-    move_ind = board.move_vector.ind
     #could also test incremental Zhash updates here
-    moves, move_count = Scylla.generate_moves(board)
+    legal = Scylla.gameover!(board)
+    moves, move_count = Scylla.generate_moves(board, legal)
 
     if board.state == Scylla.Neutral()
         @assert move_count > 0
@@ -562,12 +562,10 @@ function Testing_perft(board::BoardState, depth)
         @assert move_count == 0
     end
     
-    #=
     attacks, attack_count = Scylla.generate_attacks(board)
     num_attacks = count(m->Scylla.cap_type(m) > 0, moves)
     @assert attack_count == num_attacks "Wrong number of attacks generated. Should be $(num_attacks), got $(attack_count)."
     Scylla.clear_current_moves!(board.move_vector, attack_count)
-    =#
 
     if depth > 1
         for move in moves
@@ -579,8 +577,7 @@ function Testing_perft(board::BoardState, depth)
             Scylla.unmake_move!(board)
         end
     end
-    #Scylla.clear_current_moves!(board.move_vector, move_count)
-    board.move_vector.ind = move_ind
+    Scylla.clear_current_moves!(board.move_vector, move_count)
 end
 
 function test_with_perft()
@@ -606,8 +603,8 @@ function test_speed()
     "bbbqknbq/8/8/8/8/8/8/QNNNKBBQ w - - 0 1",
     "r3k2r/4q1b1/bn3n2/4N3/8/2N2Q2/3BB3/R3K2R w KQkq - 0 1",
     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"]
-    Depths = [5,4,4,4]
-    Targets = [11813050,7466475,7960855,4085603]
+    Depths = [5, 4, 4, 4]
+    Targets = [11813050, 7466475, 7960855, 4085603]
     Δt = 0
     leaves = 0
 
@@ -633,7 +630,7 @@ end
 
 if perft_extra::Bool
     test_with_perft()
-    leaves,Δt = test_speed()
+    leaves, Δt = test_speed()
     println("Leaves: $leaves. NPS = $(leaves/Δt) nodes/second")
 end
 

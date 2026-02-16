@@ -4,18 +4,11 @@ using Revise
 
 engine = Scylla.EngineState(control = Time(10))
 
-moves = Scylla.generate_moves(engine.board)
-
-println(typeof(moves))
-
-for (i, move) in enumerate(moves)
-    println(typeof(move), i)
-end
-
 #@time move, logger = best_move(engine)
 #Scylla.print_log(logger)
 
-#@profview Scylla.perft(engine.board, 6) #49.003617 seconds (986.96 M allocations: 48.943 GiB)
+@profview Scylla.best_move(engine) 
+#@time Scylla.perft(engine.board, 7) #28.84 seconds (7 allocations: 416 bytes)
 
 #=
 board = Scylla.Boardstate(Scylla.startFEN)
@@ -29,8 +22,3 @@ end
 
 println("Allocations: $(allocs/count) bytes")
 =#
-#generate moves allocates 400 bytes
-#make/unmake allocates 48 bytes
-
-###NOT###
-#EP edge case

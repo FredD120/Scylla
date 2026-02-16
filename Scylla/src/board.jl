@@ -8,23 +8,20 @@ const MAXMOVES = 4096
 mutable struct MoveVec
     moves::Vector{Move}
     ind::UInt16
-    cur_move_len::UInt16
 end
 
 "max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in recursive call"
-MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX, FIRST_MOVE_INDEX)
+MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
 
 "append move to move vec, increment index by one"
 function append!(m::MoveVec, move::Move)
     m.ind += 1
-    m.cur_move_len += 1
     #=@inbounds=# m.moves[m.ind] = move
 end
 
 "reset index of movevec, but don't actually wipe data"
 function clear!(m::MoveVec)
     m.ind = FIRST_MOVE_INDEX
-    m.cur_move_len = FIRST_MOVE_INDEX
 end
 
 "push pointer back to before current set of moves were generated. must do this at the end of every recursive call"
@@ -32,16 +29,8 @@ function clear_current_moves!(m::MoveVec, move_length)
     m.ind -= move_length
 end
 
-"reset current move count to zero after generating moves "
-function reset_movecount!(m::MoveVec)
-    m.cur_move_len = FIRST_MOVE_INDEX
-end
-
-"helper function to find length of current move vector"
-current_movecount(m::MoveVec) = m.cur_move_len
-
 "return a view into the current moves in move vec"
-current_moves(m::MoveVec) = @view m.moves[m.ind - m.cur_move_len + 1:m.ind]
+current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m.ind]
 
 "Positive or negative for White/Black respectively"
 sgn(colour::UInt8) = ifelse(colour==0, +1, -1)

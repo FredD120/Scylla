@@ -633,7 +633,7 @@ end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
 function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(board), MODE::UInt64=ALLMOVES)
-    reset_movecount!(board.move_vector)
+    prev_move_index = board.move_vector.ind
     enemy_pcsBB = board.piece_union[colour_id(opposite(board.colour)) + 1] 
     all_pcsBB = board.piece_union[end]
     
@@ -657,8 +657,8 @@ function generate_moves(board::BoardState, legal_info::LegalInfo=attack_info(boa
         whitesmove(board.colour), kingpos, MODE, legal_info)
     end
 
-    move_view = current_moves(board.move_vector)
-    move_count = current_movecount(board.move_vector)
+    move_count = board.move_vector.ind - prev_move_index
+    move_view = current_moves(board.move_vector, move_count)
     return move_view, move_count
 end
 
