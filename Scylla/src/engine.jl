@@ -4,7 +4,7 @@ const INF::Int16 = typemax(Int16)
 const MATE::Int16 = INF - MAXMATEDEPTH
 
 "different configurations the engine can run in"
-mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}} 
+mutable struct Config{C<:Control, Q<:Union{Channel,Nothing}}
     forcequit::Q
     control::C
     starttime::Float64
@@ -14,8 +14,8 @@ mutable struct Config{C <:Control, Q <:Union{Channel,Nothing}}
     debug::Bool
 end
 
-function Config(quit::Union{Channel,Nothing},control::Control,debug)
-    Config(quit,control,time(),UInt32(0),false,true,debug)
+function Config(quit::Union{Channel,Nothing}, control::Control, debug)
+    Config(quit, control, time(), UInt32(0), false, true, debug)
 end
 
 mutable struct SearchInfo
@@ -32,12 +32,12 @@ function SearchInfo(depth)
     SearchInfo(triangular_PV, 0, killers)
 end
 
-#holds all information the engine needs to calculate
-mutable struct EngineState
+"holds all information the engine needs to calculate"
+mutable struct EngineState{T<:Union{TranspositionTable, Nothing}, C<:Control, Q<:Union{Channel,Nothing}}
     board::BoardState
-    TT::Union{TranspositionTable, Nothing}
+    TT::T
     TT_HashFull::UInt32
-    config::Config
+    config::Config{C, Q}
     info::SearchInfo
 end
 
@@ -55,59 +55,84 @@ function EngineState(FEN::AbstractString=startFEN, verbose=false;
     return EngineState(board, TT, UInt32(0), config, info)
 end
 
-"assign a TT to an engine"
-function assign_TT!(E::EngineState;
-    sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE)
+"return a new engine with a transposition table"
+function assign_TT(E::EngineState{Nothing, C, Q};
+    sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where{C, Q}
+
+    TT = TranspositionTable(E.config.debug,
+    sizeMb=sizeMb, size=sizePO2, type=TT_type)
+
+    return EngineState(E.board, TT, UInt32(0), E.config, E.info)
+end
+
+"modify transposition table if it already exists"
+function assign_TT(E::EngineState{<:TranspositionTable, C, Q};
+    sizeMb = TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where{C, Q}
+
     E.TT = TranspositionTable(E.config.debug,
     sizeMb=sizeMb, size=sizePO2, type=TT_type)
-    E.TT_HashFull = UInt32(0)
+    return E
 end
 
 "Reset entries of engine's TT to default value"
-function reset_TT!(E::EngineState)
+function reset_TT!(E::EngineState{<:TranspositionTable, C, Q}) where{C, Q}
     reset_TT!(E.TT)
     E.TT_HashFull = UInt32(0)
 end
 
+"fallback if transposition table doesn't exist"
+reset_TT!(::EngineState{Nothing, C, Q}) where{C, Q} = nothing
+
 "Reset engine to default boardstate and empty TT"
-function reset_engine!(E::EngineState)
+function reset_engine!(E::EngineState{<:TranspositionTable, C, Q}) where{C, Q}
     reset_TT!(E)
     E.board = BoardState(startFEN)
 end
 
-"update entry in TT. either greater depth or always replace"
-function TT_store!(engine::EngineState, zobrist_hash, depth, score, node_type, best_move)
-    if !isnothing(engine.TT)
-        TT_view = view_entry(engine.TT, zobrist_hash)
-        #correct mate scores in TT
-        score = correct_score(score, depth,-1)
-        new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
-        if depth >= TT_view[].Depth.depth
-            if TT_view[].Depth.type == NONE
-              engine.TT_HashFull += 1
-            end  
-            TT_view[].Depth = new_data
-        else
-            if TT_view[].Always.type == NONE
-              engine.TT_HashFull += 1
-            end
-            TT_view[].Always = new_data
-        end
-    end
+"fallback if transposition table doesn't exist"
+function reset_engine!(E::EngineState{Nothing, C, Q}) where{C, Q}
+    E.board = BoardState(startFEN)
 end
 
-"retrieve TT entry and corrected score, also returning true if retrieval successful"
-function TT_retrieve!(engine::EngineState, zobrist_hash, cur_depth)
-    bucket = get_entry(engine.TT, zobrist_hash)
+"update entry in transposition table. either greater depth or always replace. return true if successfull"
+function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, node_type, best_move)::Bool
+    TT_view = view_entry(table, zobrist_hash)
+    store_success = false
+    #correct mate scores in TT
+    score = correct_score(score, depth, -1)
+    new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
+    if depth >= TT_view[].Depth.depth
+        if TT_view[].Depth.type == NONE
+            store_success = true
+        end  
+        TT_view[].Depth = new_data
+    else
+        if TT_view[].Always.type == NONE
+            store_success = true
+        end
+        TT_view[].Always = new_data
+    end
+    return store_success
+end
+
+"fallback for transposition table store if table doesn't exist"
+store!(::Nothing, _, _, _, _, _)::Bool = false
+
+"retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
+function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_depth)
+    bucket = get_entry(table, zobrist_hash)
     #no point using TT if hash collision
     if bucket.Depth.zobrist_hash == zobrist_hash
-        return bucket.Depth, correct_score(bucket.Depth.score, cur_depth,+1)
+        return bucket.Depth, correct_score(bucket.Depth.score, cur_depth, +1)
     elseif bucket.Always.zobrist_hash == zobrist_hash
-        return bucket.Always, correct_score(bucket.Always.score, cur_depth,+1)
+        return bucket.Always, correct_score(bucket.Always.score, cur_depth, +1)
     else
         return nothing, nothing
     end
 end
+
+"retrieve function barrier in case transposition table doesn't exist, returning nothing"
+retrieve(::Nothing, _, _) = (nothing, nothing)
 
 "return PV as vector of strings"
 PV_string(PV::Vector{Move})::Vector{String} = map(m->LONGmove(m), PV)
@@ -171,7 +196,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
             end
             α = best_score
         end
-        moves, move_count = generate_attacks(engine.board, legal_info)
+        moves, attack_count = generate_attacks(engine.board, legal_info)
         score_moves!(moves)
 
         for i in eachindex(moves)
@@ -184,6 +209,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
             if score > α
                 if score >= β
+                    clear_current_moves!(engine.board.move_vector, attack_count)
                     return β
                 end
                 α = score
@@ -192,6 +218,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
                 best_score = score
             end
         end
+        clear_current_moves!(engine.board.move_vector, attack_count)
         return best_score
 
     #in check, must search all legal moves (check extension)
@@ -282,24 +309,24 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
     if onPV
         best_move = engine.info.PV[ply+1]
     elseif !isnothing(engine.TT)
-        TT_data, TT_score = TT_retrieve!(engine, engine.board.zobrist_hash, depth)
-        if !isnothing(TT_data)
+        transposition_data, transposition_score = retrieve(engine.TT, engine.board.zobrist_hash, depth)
+        if !isnothing(transposition_data)
             #don't try to cutoff if depth of TT entry is too low
-            if TT_data.depth >= depth 
-                if TT_data.type == EXACT
+            if transposition_data.depth >= depth 
+                if transposition_data.type == EXACT
                     logger.TT_cut += 1
-                    return TT_score
-                elseif TT_data.type == BETA && TT_score >= β
+                    return transposition_score
+                elseif transposition_data.type == BETA && transposition_score >= β
                     logger.TT_cut += 1
                     return β
-                elseif TT_data.type == ALPHA && TT_score <= α 
+                elseif transposition_data.type == ALPHA && transposition_score <= α 
                     logger.TT_cut += 1
                     return α
                 end
             end
             #we can only use the move stored if we found BETA or EXACT node
             #otherwise it will be a NULLMOVE so won't match in move scoring
-            best_move = TT_data.move
+            best_move = transposition_data.move
         end
     end
 
@@ -334,7 +361,10 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
                     logger.TT_cut += 1
                 end
 
-                TT_store!(engine, engine.board.zobrist_hash, depth, score, BETA, move)
+                success = store!(engine.TT, engine.board.zobrist_hash, depth, score, BETA, move)
+                if success
+                    engine.TT_HashFull += 1
+                end
                 clear_current_moves!(engine.board.move_vector, move_length)
                 return β
             end
@@ -346,7 +376,10 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, onPV::Bo
         end
     end
 
-    TT_store!(engine, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
+    success = store!(engine.TT, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
+    if success
+        engine.TT_HashFull += 1
+    end
     clear_current_moves!(engine.board.move_vector, move_length)
     return α
 end
@@ -435,7 +468,7 @@ function print_log(logger::Logger)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
         end
 
-        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut).\
+        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut). \
          Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
 
         println("Best = $(LONGmove(logger.PV[1])). \

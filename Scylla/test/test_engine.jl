@@ -69,27 +69,28 @@ end
 end
 
 @testset "Easy Best Move" begin
+    engine = Scylla.EngineState()
 
     @testset "Bxq" begin
         eFEN = "K6Q/8/8/8/8/8/8/b6k b - - 0 1"
-        engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine)
+        engine.board = BoardState(eFEN)
+        best, log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
 
     @testset "bxQ" begin
         eFEN = "k6q/8/8/8/8/8/8/B6K w - - 0 1"
-        engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine)
+        engine.board = BoardState(eFEN)
+        best, log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Ba1xh8"
     end
 
     @testset "Queen Evade Capture" begin
         eFEN = "k7/8/8/8/8/8/5K2/7q b - - 0 1"
-        engine = Scylla.EngineState(eFEN)
-        best,log = Scylla.best_move(engine)
+        engine.board = BoardState(eFEN)
+        best, log = Scylla.best_move(engine)
 
         @test Scylla.LONGmove(best) == "Qh1-e4"
     end

@@ -1,5 +1,9 @@
 const NAME = "Scylla"
 
+mutable struct EngineWrapper
+    engine::EngineState
+end
+
 mutable struct CLI_state
     QUIT::Bool
     TT_SET::Bool
@@ -29,18 +33,18 @@ function listen(st::CLI_state)
 end
 
 "parse OPTION command from CLI, dispatch on requests"
-function set_option!(engine::EngineState, cli_state, msg_vec)::Union{Nothing, String}
+function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing, String}
     if msg_vec[1] == "CLEAR" && msg_vec[2] == "HASH"
-        reset_TT!(engine)
+        reset_TT!(wrapper.engine)
 
     elseif msg_vec[1] == "HASH"
         ind = findfirst(x->x=="VALUE", msg_vec)
         if !isnothing(ind) && length(msg_vec) > ind
-            assign_TT!(engine, sizeMb=tryparse(Int64, msg_vec[ind+1]))
+            wrapper.engine = assign_TT(wrapper.engine, sizeMb = tryparse(Int64, msg_vec[ind+1]))
             cli_state.TT_SET = true
         end
 
-    elseif engine.config.debug
+    elseif wrapper.engine.config.debug
         return "info option not recognised"
     end
     return nothing
@@ -97,14 +101,14 @@ send_quit_msg!(::Nothing) = nothing
 get_msg_index(msg_array, substr) = findfirst(x->x==substr, msg_array)
 
 "can modify either the engine state or the CLI state and launch new worker threads"
-function parse_msg!(engine, cli_st, msg)::Union{Nothing, String}
+function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     msg_in = split(uppercase(msg))
     if "QUIT" in msg_in
-        send_quit_msg!(engine.config.forcequit)
+        send_quit_msg!(wrapper.engine.config.forcequit)
         cli_st.QUIT = true
 
     elseif "UCINEWGAME" in msg_in
-        reset_engine!(engine)
+        reset_engine!(wrapper.engine)
 
     elseif "UCI" in msg_in
         return string("id name ", NAME, "\n",
@@ -124,51 +128,51 @@ function parse_msg!(engine, cli_st, msg)::Union{Nothing, String}
     elseif "SETOPTION" in msg_in
         ind = get_msg_index(msg_in, "NAME")
         if !isnothing(ind) && length(msg_in) > ind
-            return set_option!(engine, cli_st, msg_in[ind+1:end])
+            return set_option!(wrapper, cli_st, msg_in[ind+1:end])
         end
 
     elseif "DEBUG" in msg_in
         ind = get_msg_index(msg_in, "DEBUG")
         if !isnothing(ind) && length(msg_in) > ind
             if msg_in[ind+1] == "ON"
-                engine.config.debug = true
+                wrapper.engine.config.debug = true
                 return "info debug on"
             elseif msg_in[ind+1] == "OFF"
-                engine.config.debug = false
+                wrapper.engine.config.debug = false
             end
         end
 
     elseif "GO" in msg_in
         ind = get_msg_index(msg_in, "GO")
         if !isnothing(ind) && length(msg_in) > ind + 1
-            if msg_in[ind+1] == "MOVETIME" && (engine.config.control isa Time)
+            if msg_in[ind+1] == "MOVETIME" && (wrapper.engine.config.control isa Time)
                 newtime = parse(Float64, msg_in[ind+2]) / 1000
-                engine.config.control = Time(newtime, engine.config.control.maxdepth)
+                wrapper.engine.config.control = Time(newtime, wrapper.engine.config.control.maxdepth)
             
             elseif msg_in[ind+1] == "WTIME"
-                newtime = estimate_movetime(engine, get_time_control(engine, msg_in)...)
-                engine.config.control = Time(newtime, engine.config.control.maxdepth)
+                newtime = estimate_movetime(wrapper.engine, get_time_control(wrapper.engine, msg_in)...)
+                wrapper.engine.config.control = Time(newtime, wrapper.engine.config.control.maxdepth)
            
             end
         end
         
         cli_st.chnnlOUT = Channel{Tuple{Move, Logger}}(1)
-        cli_st.worker = Threads.@spawn run_engine(engine, cli_st.chnnlOUT)
+        cli_st.worker = Threads.@spawn run_engine(wrapper.engine, cli_st.chnnlOUT)
 
-        if engine.config.debug
+        if wrapper.engine.config.debug
             return "info calculating best move"
         end
 
     elseif "POSITION" in msg_in
         ind = get_msg_index(msg_in, "POSITION")
         if !isnothing(ind) && length(msg_in) > ind
-            set_position!(engine, split(msg)[ind+1:end])
+            set_position!(wrapper.engine, split(msg)[ind+1:end])
         end
 
     elseif "STOP" in msg_in && !isnothing(cli_st.worker)
-        send_quit_msg!(engine.config.forcequit)
+        send_quit_msg!(wrapper.engine.config.forcequit)
 
-    elseif engine.config.debug
+    elseif wrapper.engine.config.debug
         return "info command not recognised"
     end
     return nothing
@@ -178,23 +182,21 @@ end
 function run_cli()
     cli_state = CLI_state()
     listener = Threads.@spawn listen(cli_state)
-    engine = EngineState(
-        comms = Channel{FORCEQUIT}(1), control = Time(5), sizeMb = 0)
+    wrapper = EngineWrapper(EngineState(
+        comms = Channel{FORCEQUIT}(1), control = Time(5), sizeMb = 0))
 
     while !cli_state.QUIT
         if isready(cli_state.listen)
-            msg = parse_msg!(engine, cli_state, take!(cli_state.listen))
+            msg = parse_msg!(wrapper, cli_state, take!(cli_state.listen))
             if msg isa String
                 println(msg)
             end
         end
         if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
             output = take!(cli_state.chnnlOUT)
-            UCI_log(output[2], engine.board)
+            UCI_log(output[2], wrapper.engine.board)
             println("bestmove ", UCImove(engine.board, output[1]))
             reset_worker!(cli_state)
-            #not required by UCI to make a move, usually a GUI will overwrite with a new FEN
-            #make_move!(output[1], engine.board)
         end
         flush(stdout)
         sleep(0.05)
@@ -230,7 +232,7 @@ end
 
 "try to match given UCI move to a legal move. return null move otherwise"
 function identify_UCImove(B::BoardState, UCImove::AbstractString)
-    moves, move_len = generate_moves(B)
+    moves, _ = generate_moves(B)
     num_from = algebraic_to_numeric(UCImove[1:2])
     num_to = algebraic_to_numeric(UCImove[3:4])
     num_promote = NOFLAG

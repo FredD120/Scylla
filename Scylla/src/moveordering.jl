@@ -11,11 +11,13 @@ end
 "Construct killers with null moves"
 Killer() = Killer(NULLMOVE, NULLMOVE)
 
+const DEFAULT_KILLER = Killer()
+
 "Check that new move does not match second best killer, then push first to second and replace first"
-function new_killer!(KV::Vector{Killer}, ply, move)
-    if move != KV[ply + 1].First
-        @inbounds KV[ply + 1].Second = KV[ply + 1].First 
-        @inbounds KV[ply + 1].First = move 
+function new_killer!(killer_vec::Vector{Killer}, ply, move)
+    if move != killer_vec[ply + 1].First
+        @inbounds killer_vec[ply + 1].Second = killer_vec[ply + 1].First 
+        @inbounds killer_vec[ply + 1].First = move 
     end
 end
 
@@ -86,7 +88,7 @@ function next_best!(moves, cur_ind)
 end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
-function score_moves!(moves::AbstractArray, killers::Killer=Killer(), best_move::Move=NULLMOVE)
+function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best_move::Move=NULLMOVE)
     @inbounds for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move, MAXMOVESCORE)

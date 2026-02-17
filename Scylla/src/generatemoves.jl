@@ -325,14 +325,19 @@ end
 end
 
 "Returns true if any rook moves exist"
-@inline function any_rook_moves(piece_bb, all_pcs, ally_pcsBB,info::LegalInfo)::Bool
-    unpinnedBB = piece_bb & ~(info.rookpins | info.bishoppins)
-    pinnedBB = pinned_rook(piece_bb, info.rookpins)
-      for (BB, rpins) in zip([pinnedBB, unpinnedBB], [info.rookpins, BitBoard_full()])
-        for loc in BB
-            if (legal_rook_moves(loc, all_pcs, rpins, info) & ~ally_pcsBB) > 0
-                return true
-            end
+@inline function any_rook_moves(piece_bb, all_pcs, ally_pcsBB, info::LegalInfo)::Bool
+    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
+    pinned_bb = pinned_rook(piece_bb, info.rookpins)
+
+    for loc in pinned_bb
+        if (legal_rook_moves(loc, all_pcs, info.rookpins, info) & ~ally_pcsBB) > 0
+            return true
+        end
+    end
+
+    for loc in unpinned_bb
+        if (legal_rook_moves(loc, all_pcs, BitBoard_full(), info) & ~ally_pcsBB) > 0
+            return true
         end
     end
     return false
@@ -363,14 +368,18 @@ end
 
 "Returns true if any bishop moves exist"
 @inline function any_bishop_moves(piece_bb, all_pcs, ally_pcsBB, info::LegalInfo)::Bool
-    unpinnedBB = piece_bb & ~(info.rookpins | info.bishoppins)
-    pinnedBB = pinned_bishop(piece_bb, info.bishoppins)
+    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
+    pinned_bb = pinned_bishop(piece_bb, info.bishoppins)
 
-    for (BB, bpins) in zip([pinnedBB,unpinnedBB],[info.bishoppins,BitBoard_full()])
-        for loc in BB
-            if (legal_bishop_moves(loc, all_pcs, bpins, info) & ~ally_pcsBB) > 0
-                return true
-            end
+    for loc in pinned_bb
+        if (legal_bishop_moves(loc, all_pcs, info.bishoppins, info) & ~ally_pcsBB) > 0
+            return true
+        end
+    end
+
+    for loc in unpinned_bb
+        if (legal_bishop_moves(loc, all_pcs, BitBoard_full(), info) & ~ally_pcsBB) > 0
+            return true
         end
     end
     return false
