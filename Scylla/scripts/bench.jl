@@ -2,8 +2,7 @@ using Scylla
 using Profile
 using Revise
  
-engine = Scylla.EngineState(control = Time(10), sizeMb = 0)
-println(typeof(engine.TT))
+engine = Scylla.EngineState(verbose = true, control = Time(10), sizeMb = 0)
 
 @time move, logger = best_move(engine)
 Scylla.print_log(logger)

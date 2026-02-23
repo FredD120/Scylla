@@ -27,16 +27,12 @@ TO-DO (general)
  - Enable searching to depth/mate/nodes
  - Print log at intermediate stages in computation
 -> Convert all files to HDF5
--> Check type stability of mutable structs such as EngineState (TT could be nothing)
--> Reduce allocations (currently 3.8 Gb for a single 10 second search)
- - Create 64 length vector containing information about locations of pieces 
-   for identify_piecetype (avoid allocating enemy_pcs in generate moves)
- - Search for allocations in engine.jl
 
 Code Clarity
 -> Consistent naming conventions of variables, functions, constants
 -> Separate out make_move and unmake_move into more functions
 -> Put all constants in one place
+-> Separate out functionality in cli.jl
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply

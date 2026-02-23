@@ -6,7 +6,7 @@
 #What (if any) piece it is capturing - capture_type (3 bits)
 #Any flag for pawns/castling - flag (4 bits)
 #Score of move from heuristic - score (8 bits)
-#This can be packed into a UInt32
+#This is packed into a UInt32
 
 const PIECEMASK = 0x7
 const LOCMASK   = 0x3F
@@ -65,55 +65,6 @@ function Move(pc_type::UInt8, from::UInt8, to::UInt8, cap_type::UInt8, flag::UIn
 end
 
 const NULLMOVE = Move(UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
-
-"convert a move to long algebraic notation for clarity"
-function LONGmove(move::Move)
-    flg = flag(move)
-    if flg == KCASTLE
-        return "O-O"
-    elseif flg == QCASTLE
-        return "O-O-O"
-    else
-        F = UCIpos(from(move))
-        T = UCIpos(to(move))
-        P = piece_letter(pc_type(move))
-        mid = "-"
-        if cap_type(move) > 0
-            mid = "x"
-        end
-
-        promote = piece_letter(promote_type(flg))
-        return P * F * mid * T * promote
-    end
-end
-
-"convert a move to short algebraic notation for comparison/communication"
-function SHORTmove(move::Move)
-    flg = flag(move)
-    if flg == KCASTLE
-        return "O-O"
-    elseif flg == QCASTLE
-        return "O-O-O"
-    else
-        T = UCIpos(to(move))
-        P = piece_letter(pc_type(move))
-        mid = "x"
-
-        if cap_type(move) == 0
-            mid = ""
-        end
-        if pc_type(move) == Pawn
-            if cap_type(move) == 0
-                P = ""
-            else
-                P = 'a' + (from(move) % 8)
-            end
-        end
-
-        promote = piece_letter(promote_type(flg))
-        return P * mid * T * promote
-    end
-end
 
 struct Move_BB
     king::SVector{64, BitBoard}

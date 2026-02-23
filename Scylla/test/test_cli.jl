@@ -13,10 +13,10 @@ using Scylla
     @test cli_state.QUIT == true
 
     Scylla.parse_msg!(wrapper, cli_state, "Debug on")
-    @test engine.config.debug == true
+    @test wrapper.debug == true
 
     Scylla.parse_msg!(wrapper, cli_state, "Debug off")
-    @test engine.config.debug == false
+    @test wrapper.debug == false
 
     @test cli_state.TT_SET == false
     msg = Scylla.parse_msg!(wrapper, cli_state, "isready")

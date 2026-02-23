@@ -2,7 +2,10 @@ const NAME = "Scylla"
 
 mutable struct EngineWrapper
     engine::EngineState
+    debug::Bool
 end
+
+EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
 
 mutable struct CLI_state
     QUIT::Bool
@@ -22,7 +25,7 @@ end
 "task to run best_move and put outputs in channel"
 function run_engine(E::EngineState, ch_out::Channel)
     best, logger = best_move(E)
-    put!(ch_out, (best,logger))
+    put!(ch_out, (best, logger))
 end
 
 "task to continually listen for input and put into listen channel"
@@ -44,7 +47,7 @@ function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing,
             cli_state.TT_SET = true
         end
 
-    elseif wrapper.engine.config.debug
+    elseif wrapper.debug
         return "info option not recognised"
     end
     return nothing
@@ -120,7 +123,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     elseif "ISREADY" in msg_in
         if !cli_st.TT_SET
             #assign default TT if not previously set
-            engine.TT = TranspositionTable(engine.config.debug)
+            engine.TT = TranspositionTable(engine.config.verbose)
             cli_st.TT_SET = true
         end
         return "readyok"
@@ -135,10 +138,10 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
         ind = get_msg_index(msg_in, "DEBUG")
         if !isnothing(ind) && length(msg_in) > ind
             if msg_in[ind+1] == "ON"
-                wrapper.engine.config.debug = true
+                wrapper.debug = true
                 return "info debug on"
             elseif msg_in[ind+1] == "OFF"
-                wrapper.engine.config.debug = false
+                wrapper.debug = false
             end
         end
 
@@ -159,7 +162,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
         cli_st.chnnlOUT = Channel{Tuple{Move, Logger}}(1)
         cli_st.worker = Threads.@spawn run_engine(wrapper.engine, cli_st.chnnlOUT)
 
-        if wrapper.engine.config.debug
+        if wrapper.debug
             return "info calculating best move"
         end
 
@@ -172,7 +175,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     elseif "STOP" in msg_in && !isnothing(cli_st.worker)
         send_quit_msg!(wrapper.engine.config.forcequit)
 
-    elseif wrapper.engine.config.debug
+    elseif wrapper.debug
         return "info command not recognised"
     end
     return nothing
@@ -182,8 +185,10 @@ end
 function run_cli()
     cli_state = CLI_state()
     listener = Threads.@spawn listen(cli_state)
-    wrapper = EngineWrapper(EngineState(
-        comms = Channel{FORCEQUIT}(1), control = Time(5), sizeMb = 0))
+    wrapper = EngineWrapper(
+        EngineState(comms = Channel{FORCEQUIT}(1), 
+        control = Time(5), sizeMb = 0, verbose = true),
+        debug = false)
 
     while !cli_state.QUIT
         if isready(cli_state.listen)
@@ -194,7 +199,6 @@ function run_cli()
         end
         if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
             output = take!(cli_state.chnnlOUT)
-            UCI_log(output[2], wrapper.engine.board)
             println("bestmove ", UCImove(engine.board, output[1]))
             reset_worker!(cli_state)
         end
@@ -203,31 +207,6 @@ function run_cli()
     end
     reset_worker!(cli_state)
     listener = nothing
-end
-
-"convert a position from number 0-63 to rank/file notation"
-UCIpos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
-
-"convert a move to UCI notation"
-function UCImove(B::BoardState, move::Move)
-    flg = flag(move)
-    F = from(move)
-    T = to(move)
-
-    if flg == KCASTLE || flg == QCASTLE
-        F = locate_king(B, B.colour)
-        T = F + 2
-        if flg == QCASTLE
-            T = F -2
-        end
-    end
-
-    p = ""
-    prom_type = promote_type(flg)
-    if  prom_type != NULL_PIECE
-        p = lowercase(piece_letter(prom_type))
-    end
-    return UCIpos(F) * UCIpos(T) * p
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"
@@ -258,7 +237,6 @@ function identify_UCImove(B::BoardState, UCImove::AbstractString)
     end
     return NULLMOVE
 end
-
 
 function test_args()
     s = ArgParseSettings(description="Run chess engine tests with optional extra tests.")

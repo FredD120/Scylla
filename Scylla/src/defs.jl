@@ -84,7 +84,7 @@ setone(num::Integer, index::Integer) = num | (UInt64(1) << index)
 setzero(num::Integer, index::Integer) = num & ~(UInt64(1) << index)
 
 "Least significant bit of an integer, returned as a UInt8"
-LSB(BB::Integer) = UInt8(trailing_zeros(BB))
+LSB(int::Integer) = UInt8(trailing_zeros(int))
 
 "Get a rank from a 0-63 index"
 rank(ind) = 7 - (ind >> 3)
@@ -119,6 +119,9 @@ function identify_locations(int::Integer)::Vector{UInt8}
     end
     return locations
 end
+
+"convert a position from number 0-63 to rank/file notation"
+UCIpos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 
 #maximum search depth
 const MAXDEPTH::UInt8 = UInt8(32)

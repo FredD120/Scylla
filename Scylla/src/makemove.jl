@@ -1,4 +1,3 @@
-
 "utilises setzero to remove a piece from a position"
 function destroy_piece!(B::BoardState, colour::UInt8, pieceID, pos)
     CpieceID = colour_piece_id(colour, pieceID)

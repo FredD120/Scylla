@@ -3,19 +3,24 @@ const MAXMATEDEPTH::Int16 = Int16(100)
 const INF::Int16 = typemax(Int16)
 const MATE::Int16 = INF - MAXMATEDEPTH
 
+"channel for passing info to and from CLI"
+mutable struct Channels
+    quit::Channel{Symbol}
+    info::Channel{String}
+end
+
 "different configurations the engine can run in"
-mutable struct Config{C<:Control, Q<:Union{Channel,Nothing}}
-    forcequit::Q
+mutable struct Config{C<:Control}
     control::C
     starttime::Float64
     nodes_since_time::UInt32
     quit_now::Bool
-    quiescence::Bool 
-    debug::Bool
+    quiescence::Bool
+    verbose::Bool
 end
 
-function Config(quit::Union{Channel,Nothing}, control::Control, debug)
-    Config(quit, control, time(), UInt32(0), false, true, debug)
+function Config(control::Control, verbose)
+    Config(control, time(), UInt32(0), false, true, verbose)
 end
 
 mutable struct SearchInfo
@@ -33,33 +38,34 @@ function SearchInfo(depth)
 end
 
 "holds all information the engine needs to calculate"
-mutable struct EngineState{T<:Union{TranspositionTable, Nothing}, C<:Control, Q<:Union{Channel,Nothing}}
+mutable struct EngineState{T<:Union{TranspositionTable, Nothing}, C<:Control, Q<:Union{Channels, Nothing}}
     board::BoardState
     TT::T
     TT_HashFull::UInt32
-    config::Config{C, Q}
+    config::Config{C}
+    channel::Q
     info::SearchInfo
 end
 
 max_depth(e::EngineState) = e.config.control.maxdepth
 
 "Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString=startFEN, verbose=false;
+function EngineState(FEN::AbstractString=startFEN; verbose=false,
         sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
-        comms::Union{Channel,Nothing}=nothing, control::Control=Time()) 
+        comms::Union{Channels, Nothing}=nothing, control::Control=Time()) 
 
     board = BoardState(FEN)
     TT = TranspositionTable(verbose; size=sizePO2, sizeMb=sizeMb, type=TT_type)
-    config = Config(comms, control, verbose)
+    config = Config(control, verbose)
     info = SearchInfo(config.control.maxdepth)
-    return EngineState(board, TT, UInt32(0), config, info)
+    return EngineState(board, TT, UInt32(0), config, comms, info)
 end
 
 "return a new engine with a transposition table"
 function assign_TT(E::EngineState{Nothing, C, Q};
     sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where{C, Q}
 
-    TT = TranspositionTable(E.config.debug,
+    TT = TranspositionTable(E.config.verbose,
     sizeMb=sizeMb, size=sizePO2, type=TT_type)
 
     return EngineState(E.board, TT, UInt32(0), E.config, E.info)
@@ -69,7 +75,7 @@ end
 function assign_TT(E::EngineState{<:TranspositionTable, C, Q};
     sizeMb = TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where{C, Q}
 
-    E.TT = TranspositionTable(E.config.debug,
+    E.TT = TranspositionTable(E.config.verbose,
     sizeMb=sizeMb, size=sizePO2, type=TT_type)
     return E
 end
@@ -140,7 +146,7 @@ PV_string(PV::Vector{Move})::Vector{String} = map(m->LONGmove(m), PV)
 mutable struct Logger
     best_score::Int16
     pos_eval::Int32
-    cum_nodes::Int32
+    cumulative_nodes::Int32
     nodes::Int32
     Qnodes::Int32
     cur_depth::UInt8
@@ -251,11 +257,11 @@ end
 check_time(config,safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
 
 "return true if channel contains FORCEQUIT message"
-check_quit(config::Config{C,Q}) where {C<:Control,Q<:Channel} = 
-    isready(config.forcequit) && take!(config.forcequit) == FORCEQUIT()
+check_quit(config::Config{C, Channel}) where {C} = 
+    isready(config.channel) && take!(config.channel) == FORCEQUIT()
 
 "return false if channel doesn't exist"
-check_quit(::Config{C,Q}) where {C<:Control,Q<:Nothing} = false
+check_quit(::Config{C, Nothing}) where {C} = false
 
 function stop_early(config::Config{C}, safety_factor=0.98; bypass_check=false) where C<:Time
     if config.quit_now
@@ -420,14 +426,6 @@ function root(engine::EngineState, moves, depth, logger::Logger)
     return α
 end
 
-function report_progress(engine::EngineState, logger::Logger)
-    if engine.config.debug && (time() - engine.config.starttime > 0.05)
-        println("Searched depth $(logger.cur_depth) in $(round(time()-engine.config.starttime,sigdigits=4))s. ",
-        "Current maxdepth = $(logger.seldepth). ",
-        "PV so far: ", PV_string(logger.PV))
-    end
-end
-
 "Run minimax search to fixed depth then increase depth until time runs out"
 function iterative_deepening(engine::EngineState)
     moves, move_length = generate_moves(engine.board)
@@ -446,17 +444,70 @@ function iterative_deepening(engine::EngineState)
         bestscore = root(engine, moves, depth, logger)
 
         logger.PV = engine.info.PV[1:engine.info.PV_len]
-        report_progress(engine, logger)
+        if engine.config.verbose && (time() - engine.config.starttime > 0.05)
+            report_progress(engine, logger)
+        end
         
         #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
         if !logger.stopmidsearch
-            logger.cum_nodes += logger.pos_eval
+            logger.cumulative_nodes += logger.pos_eval
             logger.pos_eval = 0 
             logger.best_score = bestscore
         end
     end
     clear!(engine.board.move_vector)
     return engine.info.PV[1], logger
+end
+
+"report state of engine at current depth if verbose"
+function report_progress(engine::EngineState{T, C, Nothing}, logger::Logger) where{T, C}
+    println("Searched depth $(logger.cur_depth) in $(round(time() - engine.config.starttime,sigdigits=4))s. ",
+    "Current maxdepth = $(logger.seldepth). ",
+    "PV so far: ", PV_string(logger.PV))
+    flush(stdout)
+end
+
+"report state of engine at current depth if using UCI protocol in verbose mode"
+function report_progress(engine::EngineState{T, C, Channel}, logger::Logger) where{T, C}
+    if length(logger.PV) > 0 
+        best = begin score = logger.best_score
+            if mate_found(score)
+                dist = Int((INF - abs(score))÷2)
+                score > 0 ? "mate $dist" : "mate -$dist"
+            else
+                "cp $score"
+            end
+        end
+
+        TT_msg = begin
+            if logger.hashfull == 0 
+                "" 
+            else
+                hashfull = round(Int64, logger.hashfull*1000 / logger.TT_total)
+                "tthits $(logger.TT_cut) hashfull $(hashfull) "
+            end
+        end
+
+        msg = "info score " * best * " " *
+        "nodes $(logger.nodes) " *
+        "nps $(round(Int64, logger.nodes/logger.δt)) " *
+        "qnodes $(logger.Qnodes) " *
+        "depth $(logger.cur_depth) " *
+        "seldepth $(logger.seldepth) " *
+        TT_msg *
+        "time $(round(Int64, logger.δt * 1000)) " *
+        "pv "
+
+        #TODO: something faster than string concat eg. IObuffer?
+        for move in logger.PV
+            msg *= (UCImove(engine.board, move) * " ")
+        end
+
+        msg *= "\n"
+        put!(engine.config.)
+    else
+        println("info no move found")
+    end
 end
 
 "print all logging info to StdOut"
@@ -486,47 +537,6 @@ function print_log(logger::Logger)
         println("#"^100)
     else 
         println("Failed to find move better than null move")
-    end
-end
-
-"print results of search, formatted for UCI protocol"
-function UCI_log(logger::Logger, board::BoardState)
-    if length(logger.PV) > 0
-        best = begin score = logger.best_score
-            if mate_found(score)
-                dist = Int((INF - abs(score))÷2)
-                score > 0 ? "mate $dist" : "mate -$dist"
-            else
-                "cp $score"
-            end
-        end
-
-        TT_msg = begin
-            if logger.hashfull == 0 
-                "" 
-            else
-                hashfull = round(Int64, logger.hashfull*1000 / logger.TT_total)
-                "tthits $(logger.TT_cut) hashfull $(hashfull) "
-            end
-        end
-
-        print("info score " * best * " ",
-        "nodes $(logger.nodes) ",
-        "nps $(round(Int64, logger.nodes/logger.δt)) ",
-        "qnodes $(logger.Qnodes) ",
-        "depth $(logger.cur_depth) ",
-        "seldepth $(logger.seldepth) ",
-        TT_msg,
-        "time $(round(Int64, logger.δt * 1000)) ",
-        "pv ")
-
-        for move in logger.PV
-            print(UCImove(board, move), " ")
-        end
-
-        println("")
-    else
-        error("Failed to find move")
     end
 end
 

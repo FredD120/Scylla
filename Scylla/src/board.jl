@@ -239,3 +239,75 @@ function identify_piecetype(board::BoardState, location::Integer)::UInt8
     end
     return ID - opposite(board.colour)
 end
+
+
+"convert a move to UCI notation"
+function UCImove(board::BoardState, move::Move)
+    flg = flag(move)
+    F = from(move)
+    T = to(move)
+
+    if flg == KCASTLE || flg == QCASTLE
+        F = locate_king(board, board.colour)
+        T = F + 2
+        if flg == QCASTLE
+            T = F -2
+        end
+    end
+
+    p = ""
+    prom_type = promote_type(flg)
+    if  prom_type != NULL_PIECE
+        p = lowercase(piece_letter(prom_type))
+    end
+    return UCIpos(F) * UCIpos(T) * p
+end
+
+"convert a move to long algebraic notation for clarity"
+function LONGmove(move::Move)
+    flg = flag(move)
+    if flg == KCASTLE
+        return "O-O"
+    elseif flg == QCASTLE
+        return "O-O-O"
+    else
+        F = UCIpos(from(move))
+        T = UCIpos(to(move))
+        P = piece_letter(pc_type(move))
+        mid = "-"
+        if cap_type(move) > 0
+            mid = "x"
+        end
+
+        promote = piece_letter(promote_type(flg))
+        return P * F * mid * T * promote
+    end
+end
+
+"convert a move to short algebraic notation for comparison/communication"
+function SHORTmove(move::Move)
+    flg = flag(move)
+    if flg == KCASTLE
+        return "O-O"
+    elseif flg == QCASTLE
+        return "O-O-O"
+    else
+        T = UCIpos(to(move))
+        P = piece_letter(pc_type(move))
+        mid = "x"
+
+        if cap_type(move) == 0
+            mid = ""
+        end
+        if pc_type(move) == Pawn
+            if cap_type(move) == 0
+                P = ""
+            else
+                P = 'a' + (from(move) % 8)
+            end
+        end
+
+        promote = piece_letter(promote_type(flg))
+        return P * mid * T * promote
+    end
+end
