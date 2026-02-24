@@ -7,25 +7,27 @@ end
 
 EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
 
+"listen waits for user (CLI) input, worker is a task to run the engine"
 mutable struct CLI_state
     QUIT::Bool
     TT_SET::Bool
-    listen::Channel
-    worker::Union{Task,Nothing}
-    chnnlOUT::Union{Channel,Nothing}
+    listen::Channel{String}
+    listener::Union{Task, Nothing}
+    worker::Union{Task, Nothing}
 end
-CLI_state() = CLI_state(false, false, Channel{String}(1), nothing, nothing)
+CLI_state() = CLI_state(false, false, Channel{String}(10), nothing, nothing)
 
-"reset worker thread and associated channels"
-function reset_worker!(st::CLI_state)
-    st.worker = nothing
-    st.chnnlOUT = nothing
+"reset worker thread by deleting it"
+function reset_worker!(state::CLI_state)
+    state.worker = nothing
 end
 
-"task to run best_move and put outputs in channel"
-function run_engine(E::EngineState, ch_out::Channel)
-    best, logger = best_move(E)
-    put!(ch_out, (best, logger))
+"task to run best_move and put outputs in channel, then close the task"
+function run_engine(engine::EngineState, state::CLI_state)
+    best, _ = best_move(engine)
+    move_str = "bestmove " * UCImove(engine.board, best)
+    put!(engine.channel.info, move_str)
+    reset_worker!(state)
 end
 
 "task to continually listen for input and put into listen channel"
@@ -41,7 +43,7 @@ function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing,
         reset_TT!(wrapper.engine)
 
     elseif msg_vec[1] == "HASH"
-        ind = findfirst(x->x=="VALUE", msg_vec)
+        ind = findfirst(x -> x=="VALUE", msg_vec)
         if !isnothing(ind) && length(msg_vec) > ind
             wrapper.engine = assign_TT(wrapper.engine, sizeMb = tryparse(Int64, msg_vec[ind+1]))
             cli_state.TT_SET = true
@@ -97,7 +99,7 @@ function estimate_movetime(::EngineState, time, increment)
 end
 
 "send quit message to engine if there is a channel to do so"
-send_quit_msg!(channel::Channel) = put!(channel, FORCEQUIT())
+send_quit_msg!(channel::Channels) = put!(channel.quit, :quit)
 send_quit_msg!(::Nothing) = nothing
 
 "find relevant string within message to look for variables on the right"
@@ -107,7 +109,7 @@ get_msg_index(msg_array, substr) = findfirst(x->x==substr, msg_array)
 function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     msg_in = split(uppercase(msg))
     if "QUIT" in msg_in
-        send_quit_msg!(wrapper.engine.config.forcequit)
+        send_quit_msg!(wrapper.engine.channel)
         cli_st.QUIT = true
 
     elseif "UCINEWGAME" in msg_in
@@ -123,7 +125,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     elseif "ISREADY" in msg_in
         if !cli_st.TT_SET
             #assign default TT if not previously set
-            engine.TT = TranspositionTable(engine.config.verbose)
+            wrapper.engine = assign_TT(wrapper.engine, wrapper.debug)
             cli_st.TT_SET = true
         end
         return "readyok"
@@ -159,8 +161,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
             end
         end
         
-        cli_st.chnnlOUT = Channel{Tuple{Move, Logger}}(1)
-        cli_st.worker = Threads.@spawn run_engine(wrapper.engine, cli_st.chnnlOUT)
+        cli_st.worker = Threads.@spawn run_engine(wrapper.engine, cli_st)
 
         if wrapper.debug
             return "info calculating best move"
@@ -173,7 +174,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
         end
 
     elseif "STOP" in msg_in && !isnothing(cli_st.worker)
-        send_quit_msg!(wrapper.engine.config.forcequit)
+        send_quit_msg!(wrapper.engine.channel)
 
     elseif wrapper.debug
         return "info command not recognised"
@@ -184,29 +185,28 @@ end
 "entry point for CLI, uses UCI protocol"
 function run_cli()
     cli_state = CLI_state()
-    listener = Threads.@spawn listen(cli_state)
+    cli_state.listener = Threads.@spawn listen(cli_state)
     wrapper = EngineWrapper(
-        EngineState(comms = Channel{FORCEQUIT}(1), 
+        EngineState(comms = Channels(), 
         control = Time(5), sizeMb = 0, verbose = true),
         debug = false)
 
     while !cli_state.QUIT
         if isready(cli_state.listen)
-            msg = parse_msg!(wrapper, cli_state, take!(cli_state.listen))
-            if msg isa String
-                println(msg)
+            instruction = take!(cli_state.listen)
+            return_msg = parse_msg!(wrapper, cli_state, instruction)
+            if return_msg isa String
+                println(return_msg)
             end
         end
-        if !isnothing(cli_state.worker) && isready(cli_state.chnnlOUT)
-            output = take!(cli_state.chnnlOUT)
-            println("bestmove ", UCImove(engine.board, output[1]))
-            reset_worker!(cli_state)
+        if isready(wrapper.engine.channel.quit)
+            info_str = take!(wrapper.engine.channel.info)
+            println(info_str)
         end
         flush(stdout)
         sleep(0.05)
     end
-    reset_worker!(cli_state)
-    listener = nothing
+    cli_state.listener = nothing
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"

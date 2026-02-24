@@ -133,7 +133,6 @@ const DEFAULTNODES::UInt32 = UInt32(1e8)
 const CHECKNODES::UInt32 = UInt32(1000)
 
 abstract type Control end
-struct FORCEQUIT end
 
 "Time control for engine, where time is in seconds"
 struct Time <: Control
