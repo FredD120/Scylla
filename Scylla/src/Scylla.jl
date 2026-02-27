@@ -23,9 +23,9 @@ TO-DO (engine)
 TO-DO (general)
 -> UCI protocol
  - Improve time estimate for time controls
- - Fix issue with inconsistant quitting
  - Enable searching to depth/mate/nodes
  - Print log at intermediate stages in computation
+ - Better time estimation - use movestogo if provided
 -> Convert all files to HDF5
 
 Code Clarity

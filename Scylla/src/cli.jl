@@ -1,9 +1,22 @@
 const NAME = "Scylla"
 
+const uci_ok_message = string(
+    "id name ", NAME, "\n",
+    "pid author FD\n",
+    "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n",
+    "option name Clear Hash type button\n",
+    "uciok")
+
 mutable struct EngineWrapper
     engine::EngineState
     debug::Bool
 end
+
+"default constructor for EngineWrapper, assumes no transposition table and engine time restricted"
+EngineWrapper() = 
+    EngineWrapper(EngineState(comms = Channels(), 
+    control = Time(5), sizeMb = 0, verbose = true),
+    debug = false)
 
 EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
 
@@ -23,11 +36,10 @@ function reset_worker!(state::CLI_state)
 end
 
 "task to run best_move and put outputs in channel, then close the task"
-function run_engine(engine::EngineState, state::CLI_state)
+function run_engine(engine::EngineState)
     best, _ = best_move(engine)
     move_str = "bestmove " * UCImove(engine.board, best)
     put!(engine.channel.info, move_str)
-    reset_worker!(state)
 end
 
 "task to continually listen for input and put into listen channel"
@@ -103,7 +115,7 @@ send_quit_msg!(channel::Channels) = put!(channel.quit, :quit)
 send_quit_msg!(::Nothing) = nothing
 
 "find relevant string within message to look for variables on the right"
-get_msg_index(msg_array, substr) = findfirst(x->x==substr, msg_array)
+get_msg_index(msg_array, substr) = findfirst(x -> x==substr, msg_array)
 
 "can modify either the engine state or the CLI state and launch new worker threads"
 function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
@@ -116,11 +128,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
         reset_engine!(wrapper.engine)
 
     elseif "UCI" in msg_in
-        return string("id name ", NAME, "\n",
-        "pid author FD\n",
-        "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n",
-        "option name Clear Hash type button\n",
-        "uciok")
+        return uci_ok_message
 
     elseif "ISREADY" in msg_in
         if !cli_st.TT_SET
@@ -161,7 +169,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
             end
         end
         
-        cli_st.worker = Threads.@spawn run_engine(wrapper.engine, cli_st)
+        cli_st.worker = Threads.@spawn run_engine(wrapper.engine)
 
         if wrapper.debug
             return "info calculating best move"
@@ -182,29 +190,51 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     return nothing
 end
 
+"check if there is a command from the GUI and execute"
+function fetch_command!(wrapper::EngineWrapper, cli::CLI_state)
+    if isready(cli.listen)
+        instruction = take!(cli.listen)
+        return_msg = parse_msg!(wrapper, cli, instruction)
+        if return_msg isa String
+            println(return_msg)
+        end
+    end
+end
+
+"check if engine progress info is in buffer and dump to stdout"
+function fetch_engine_info!(info_channel::Channel{String})
+    while isready(info_channel)
+        info_str = take!(info_channel)
+        println(info_str)
+    end
+end
+
+"check for crashed engine and print error message"
+function fetch_error!(cli::CLI_state)
+    if !isnothing(cli.worker) && istaskfailed(cli.worker)
+        try
+            fetch(cli.worker)
+        catch e
+            showerror(stdout, e, catch_backtrace())
+            println()
+        end
+        cli.worker = nothing
+    end
+end
+
 "entry point for CLI, uses UCI protocol"
 function run_cli()
     cli_state = CLI_state()
     cli_state.listener = Threads.@spawn listen(cli_state)
-    wrapper = EngineWrapper(
-        EngineState(comms = Channels(), 
-        control = Time(5), sizeMb = 0, verbose = true),
-        debug = false)
+    wrapper = EngineWrapper()
 
     while !cli_state.QUIT
-        if isready(cli_state.listen)
-            instruction = take!(cli_state.listen)
-            return_msg = parse_msg!(wrapper, cli_state, instruction)
-            if return_msg isa String
-                println(return_msg)
-            end
-        end
-        if isready(wrapper.engine.channel.quit)
-            info_str = take!(wrapper.engine.channel.info)
-            println(info_str)
-        end
+        fetch_command!(wrapper, cli_state)
+        fetch_engine_info!(wrapper.engine.channel.info)
+        fetch_error!(cli_state)
+
         flush(stdout)
-        sleep(0.05)
+        sleep(0.001)
     end
     cli_state.listener = nothing
 end

@@ -10,7 +10,7 @@ struct Channels
 end
 
 "default constructor for Channels, quit channel is smaller as it doesn't need to buffer any data"
-Channels() = Channels(Channel{Symbol}(1), Channel{String}(10))
+Channels() = Channels(Channel{Symbol}(1), Channel{String}(100))
 
 "different configurations the engine can run in"
 mutable struct Config{C<:Control}
@@ -443,20 +443,28 @@ function iterative_deepening(engine::EngineState)
         engine.info.PV_len = depth
         bestscore = root(engine, moves, depth, logger)
 
-        logger.PV = engine.info.PV[1:engine.info.PV_len]
+        update_logger!(engine, logger, bestscore)
+
         if engine.config.verbose && (time() - engine.config.starttime > 0.05)
             report_progress(engine, logger)
-        end
-        
-        #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
-        if !logger.stopmidsearch
-            logger.cumulative_nodes += logger.pos_eval
-            logger.pos_eval = 0 
-            logger.best_score = bestscore
         end
     end
     clear!(engine.board.move_vector)
     return engine.info.PV[1], logger
+end
+
+"calculate logging values that are not automatically updated during minimax"
+function update_logger!(engine::EngineState, logger::Logger, bestscore)
+    logger.PV = engine.info.PV[1:engine.info.PV_len]
+    logger.δt = time() - engine.config.starttime
+    logger.hashfull = engine.TT_HashFull
+    
+    #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
+    if !logger.stopmidsearch
+        logger.cumulative_nodes += logger.pos_eval
+        logger.pos_eval = 0 
+        logger.best_score = bestscore
+    end
 end
 
 "report state of engine at current depth if verbose"
@@ -469,15 +477,18 @@ end
 "report state of engine at current depth if using UCI protocol in verbose mode"
 function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) where {T, C}
     if length(logger.PV) > 0 
+        buffer = IOBuffer()
+
         best = begin score = logger.best_score
             if mate_found(score)
-                dist = Int((INF - abs(score))÷2)
+                dist = Int((INF - abs(score)) ÷ 2)
                 score > 0 ? "mate $dist" : "mate -$dist"
             else
                 "cp $score"
             end
         end
-
+        print(buffer, "info score ", best, " ")
+        
         TT_msg = begin
             if logger.hashfull == 0 
                 "" 
@@ -487,26 +498,25 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
             end
         end
 
-        msg = "info score " * best * " " *
-        "nodes $(logger.nodes) " *
-        "nps $(round(Int64, logger.nodes/logger.δt)) " *
-        "qnodes $(logger.Qnodes) " *
-        "depth $(logger.cur_depth) " *
-        "seldepth $(logger.seldepth) " *
-        TT_msg *
-        "time $(round(Int64, logger.δt * 1000)) " *
-        "pv "
+        print(buffer, 
+        "nodes $(logger.nodes) ",
+        "nps $(round(Int64, logger.nodes/logger.δt)) ",
+        "qnodes $(logger.Qnodes) ",
+        "depth $(logger.cur_depth) ",
+        "seldepth $(logger.seldepth) ",
+        TT_msg,
+        "time $(round(Int64, logger.δt * 1000)) ",
+        "pv ")
 
-        #TODO: something faster than string concat eg. IObuffer?
         for move in logger.PV
-            msg *= (UCImove(engine.board, move) * " ")
+            print(buffer, UCImove(engine.board, move), " ")
         end
 
-        msg *= "\n"
-        put!(engine.channel.info, msg)
+        put!(engine.channel.info, String(take!(buffer)))
     else
-        println("info no move found")
+        put!(engine.channel.info, "info no move found")
     end
+    yield()
 end
 
 "print all logging info to StdOut"
@@ -519,7 +529,7 @@ function print_log(logger::Logger)
         end
 
         TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.TT_cut). \
-         Hash full = $(round(logger.hashfull*100/logger.TT_total,sigdigits=3))%."
+         Hash full = $(round(logger.hashfull*100/logger.TT_total, sigdigits=3))%."
 
         println("Best = $(LONGmove(logger.PV[1])). \
         Score = "*best*". \
@@ -543,9 +553,6 @@ end
 function best_move(engine::EngineState)
     engine.config.starttime = time()
     best_move, logger = iterative_deepening(engine)
-
-    logger.δt = time() - engine.config.starttime
-    logger.hashfull = engine.TT_HashFull
 
     engine.config.quit_now = false
     engine.config.nodes_since_time = UInt32(0)
