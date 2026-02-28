@@ -5,19 +5,19 @@ using Test
     
     @testset "Unit" begin
         TT = Scylla.TranspositionTable(verbose, type=Scylla.SearchData)
-        sz = Scylla.TT_size(TT)
+        sz = Scylla.tt_size(TT)
         @test sz <= Scylla.TT_DEFAULT_MB
         @test sz > Scylla.TT_DEFAULT_MB / 2
 
         size = 16
         TT = Scylla.TranspositionTable(verbose, type=Scylla.SearchData, size=size)
-        @test length(TT.HashTable) == 2 ^ size
+        @test length(TT.hash_table) == 2 ^ size
     end
 
     @testset "Use TT" begin
         TT = Scylla.TranspositionTable(verbose, size=4, type=Scylla.PerftData)
         @testset "Initialise" begin
-            for Data in TT.HashTable
+            for Data in TT.hash_table
                 @test Data.zobrist_hash == 0
                 @test Data.depth == 0
                 @test Data.leaves == 0

@@ -6,7 +6,7 @@ end
 "default constructor for EngineWrapper, assumes no transposition table and engine time restricted"
 EngineWrapper() = 
     EngineWrapper(EngineState(comms = Channels(), 
-    control = Time(5), sizeMb = 0, verbose = true),
+    control = Time(5), size_mb = 0, verbose = true),
     debug = false)
 
 EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
@@ -48,7 +48,7 @@ function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing,
     elseif msg_vec[1] == "HASH"
         ind = findfirst(x -> x=="VALUE", msg_vec)
         if !isnothing(ind) && length(msg_vec) > ind
-            wrapper.engine = assign_TT(wrapper.engine, sizeMb = tryparse(Int64, msg_vec[ind+1]))
+            wrapper.engine = assign_TT(wrapper.engine, size_mb = tryparse(Int64, msg_vec[ind+1]))
             cli_state.TT_SET = true
         end
 
@@ -62,7 +62,7 @@ end
 function set_position!(engine, position_moves)
     ind = get_msg_index(uppercase.(position_moves), "MOVES")
     if uppercase(position_moves[1]) == "STARTPOS"
-        engine.board = BoardState(startFEN)
+        engine.board = BoardState(START_FEN)
     else
         last_ind = length(position_moves)
         #set last index to index of "MOVES" keyword if it exists
@@ -119,7 +119,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
         reset_engine!(wrapper.engine)
 
     elseif "UCI" in msg_in
-        return uci_ok_message
+        return UCI_OK_MESSAGE
 
     elseif "ISREADY" in msg_in
         if !cli_st.TT_SET

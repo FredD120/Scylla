@@ -64,4 +64,4 @@ function Move_BB()
     return Move_BB(king_mvs, knight_mvs, castle_rights, castle_check)
 end
 
-const moveset = Move_BB()
+const MOVESET = Move_BB()

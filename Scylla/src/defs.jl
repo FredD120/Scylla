@@ -9,31 +9,31 @@ const rng = Xoshiro(2955)
 
 const NULL_PIECE = UInt8(0)
 "Index associated with piecetype"
-const King = UInt8(1)
-const Queen = UInt8(2)
-const Rook = UInt8(3)
-const Bishop = UInt8(4)
-const Knight = UInt8(5)
-const Pawn = UInt8(6)
+const KING = UInt8(1)
+const QUEEN = UInt8(2)
+const ROOK = UInt8(3)
+const BISHOP = UInt8(4)
+const KNIGHT = UInt8(5)
+const PAWN = UInt8(6)
 
-const FEN_DICT = Dict('K' => King, 'Q' => Queen, 'R' => Rook, 
-                     'B' => Bishop, 'N' => Knight, 'P' => Pawn)
+const FEN_DICT = Dict('K' => KING, 'Q' => QUEEN, 'R' => ROOK, 
+                     'B' => BISHOP, 'N' => KNIGHT, 'P' => PAWN)
 
-const startFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 "return letter associated with piecetype index"
 function piece_letter(p::UInt8)
-    for (k,v) in FEN_DICT
-        if p==v
-            return k
+    for (key, value) in FEN_DICT
+        if p == value
+            return key
         end
     end
     return ""
 end
 
 "Colour ID used in movegen/boardstate"
-const white = UInt8(0)
-const black = UInt8(6)
+const WHITE = UInt8(0)
+const BLACK = UInt8(6)
 
 "instruction to move generator"
 const ATTACKONLY = UInt64(0)
@@ -53,7 +53,7 @@ const PROMROOK = UInt8(6)
 const PROMBISHOP = UInt8(7)
 const PROMKNIGHT = UInt8(8)
 
-const PROMSHIFT = PROMQUEEN - Queen
+const PROMSHIFT = PROMQUEEN - QUEEN
 
 "decide which piecetype to promote to"
 function promote_type(flag)
@@ -110,16 +110,6 @@ const SCORESHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE + FLAGSIZE
 
 ### Move Generator Features ###
 
-"take in all possible moves as a bitboard for a given piece from a txt file"
-function read_txt(type, filename)
-    data = Vector{type}()
-    data_str = readlines("$(dirname(@__DIR__))/src/move_BBs/$(filename).txt")
-    for d in data_str
-        push!(data, parse(type, d))
-    end   
-    return data
-end
-
 "read masks for checking castling rights and legality"
 function get_castle_masks()
     h5open("$(dirname(@__DIR__))/src/move_bitboards/castle.h5", "r") do fid
@@ -150,19 +140,19 @@ end
 
 "bitboard masks for pawn double push and promotion legality
 shift to define whether pawn moves forwards or backwards from white's perspective"
-const white_masks = (
+const WHITE_MASKS = (
         doublepush = BitBoard(0xFF0000000000),
         promote = BitBoard(0xFF),
         shift =  8
 )
 
-const black_masks = (
+const BLACK_MASKS = (
         doublepush = BitBoard(0xFF0000),
         promote = BitBoard(0xFF00000000000000),
         shift =  -8
 )
 
-const promote_types = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
+const PROMOTE_TYPES = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
 
 "max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in move heap"
 const MAXMOVES = 4096
@@ -232,7 +222,7 @@ const ALPHA = UInt8(1)
 const BETA = UInt8(2)
 const EXACT = UInt8(3)
 
-const Mb = 1048576 #size of a Mb in bytes
+const MB_SIZE = 1048576 #size of a Mb in bytes
 const TT_DEFAULT_MB = 32
 const TT_MIN_MB = 0
 const TT_MAX_MB = 64
@@ -274,7 +264,7 @@ const MV_LV = UInt8[
 
 const NAME = "Scylla"
 
-const uci_ok_message = string(
+const UCI_OK_MESSAGE = string(
     "id name ", NAME, "\n",
     "pid author FD\n",
     "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n",

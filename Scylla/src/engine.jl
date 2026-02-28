@@ -48,12 +48,12 @@ end
 max_depth(e::EngineState) = e.config.control.maxdepth
 
 "Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString=startFEN; verbose=false,
-        sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
+function EngineState(FEN::AbstractString=START_FEN; verbose=false,
+        size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
         comms::Union{Channels, Nothing}=nothing, control::Control=Time()) 
 
     board = BoardState(FEN)
-    TT = TranspositionTable(verbose; size=sizePO2, sizeMb=sizeMb, type=TT_type)
+    TT = TranspositionTable(verbose; size=sizePO2, size_mb=size_mb, type=TT_type)
     config = Config(control, verbose)
     info = SearchInfo(config.control.maxdepth)
     return EngineState(board, TT, UInt32(0), config, comms, info)
@@ -61,10 +61,10 @@ end
 
 "return a new engine with a transposition table"
 function assign_TT(engine::EngineState{Nothing, C, Q}, debug=false;
-    sizeMb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
+    size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
 
     TT = TranspositionTable(debug,
-    sizeMb=sizeMb, size=sizePO2, type=TT_type)
+    size_mb=size_mb, size=sizePO2, type=TT_type)
 
     return EngineState(engine.board, TT, UInt32(0), 
            engine.config, engine.channel, engine.info)
@@ -72,10 +72,10 @@ end
 
 "modify transposition table if it already exists"
 function assign_TT(engine::EngineState{<:TranspositionTable, C, Q}, debug=false;
-    sizeMb = TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
+    size_mb = TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
 
     engine.TT = TranspositionTable(debug,
-    sizeMb=sizeMb, size=sizePO2, type=TT_type)
+    size_mb=size_mb, size=sizePO2, type=TT_type)
     return engine
 end
 
@@ -91,48 +91,8 @@ reset_TT!(::EngineState{Nothing, C, Q}) where {C, Q} = nothing
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(engine::EngineState)
     reset_TT!(engine)
-    engine.board = BoardState(startFEN)
+    engine.board = BoardState(START_FEN)
 end
-
-"update entry in transposition table. either greater depth or always replace. return true if successfull"
-function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, node_type, best_move)::Bool
-    TT_view = view_entry(table, zobrist_hash)
-    store_success = false
-    #correct mate scores in TT
-    score = correct_score(score, depth, -1)
-    new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
-    if depth >= TT_view[].Depth.depth
-        if TT_view[].Depth.type == NONE
-            store_success = true
-        end  
-        TT_view[].Depth = new_data
-    else
-        if TT_view[].Always.type == NONE
-            store_success = true
-        end
-        TT_view[].Always = new_data
-    end
-    return store_success
-end
-
-"fallback for transposition table store if table doesn't exist"
-store!(::Nothing, _, _, _, _, _)::Bool = false
-
-"retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
-function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_depth)
-    bucket = get_entry(table, zobrist_hash)
-    #no point using TT if hash collision
-    if bucket.Depth.zobrist_hash == zobrist_hash
-        return bucket.Depth, correct_score(bucket.Depth.score, cur_depth, +1)
-    elseif bucket.Always.zobrist_hash == zobrist_hash
-        return bucket.Always, correct_score(bucket.Always.score, cur_depth, +1)
-    else
-        return nothing, nothing
-    end
-end
-
-"retrieve function barrier in case transposition table doesn't exist, returning nothing"
-retrieve(::Nothing, _, _) = (nothing, nothing)
 
 "return PV as vector of strings"
 PV_string(PV::Vector{Move})::Vector{String} = map(m -> LONGmove(m), PV)

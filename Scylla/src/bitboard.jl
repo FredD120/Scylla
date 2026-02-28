@@ -6,22 +6,24 @@ struct BitBoard
 end
 
 BitBoard() = BitBoard(UInt64(0))
-
 BitBoard_full() = BitBoard(typemax(UInt64))
 
+const BITBOARD_EMPTY = BitBoard()
+const BITBOARD_FULL = BitBoard_full()
+
 "Define start of iterator through locations in a bitboard"
-function Base.iterate(BB::BitBoard) 
-    if BB == 0
+function Base.iterate(bb::BitBoard) 
+    if bb == 0
         return nothing
     else
-        next_state = BB & (BB-1)
-        first_item = LSB(BB)
+        next_state = bb & (bb - 1)
+        first_item = LSB(bb)
         return first_item, next_state
     end
 end
 
 "Returns next (item, state) in iterator through locations in a bitboard"
-function Base.iterate(BB::BitBoard, state::BitBoard) 
+function Base.iterate(bb::BitBoard, state::BitBoard) 
     if state == 0
         return nothing
     else
@@ -91,32 +93,32 @@ Base.promote_rule(::Type{BitBoard}, ::Type{<:Integer}) = BitBoard
 
 Base.parse(::Type{BitBoard},s::String) = BitBoard(parse(UInt64,s))
 
-"Define length of occupied positions in BB"
-Base.length(BB::BitBoard) = count_ones(BB)
+"Define length of occupied positions in bb"
+Base.length(bb::BitBoard) = count_ones(bb)
 
-Base.count_ones(BB::BitBoard) = count_ones(BB.n)
+Base.count_ones(bb::BitBoard) = count_ones(bb.n)
 
-@inline setone(BB::BitBoard,index::Integer) = BitBoard(setone(BB.n, index))
+@inline setone(bb::BitBoard,index::Integer) = BitBoard(setone(bb.n, index))
 
-@inline setzero(BB::BitBoard,index::Integer) = BitBoard(setzero(BB.n, index))
+@inline setzero(bb::BitBoard,index::Integer) = BitBoard(setzero(bb.n, index))
 
 "Least significant bit of a bitboard, returned as a UInt8"
-@inline LSB(BB::BitBoard) = LSB(BB.n)
+@inline LSB(bb::BitBoard) = LSB(bb.n)
 
 "Returns a single bitboard representing the positions of an array of pieces"
 @inline function bb_union(piece_vec::AbstractArray{BitBoard})
-    BB = BitBoard()
+    bb = BitBoard()
     for piece in piece_vec
-        BB |= piece
+        bb |= piece
     end
-    return BB
+    return bb
 end
 
 "Count the total number of pieces in a vector of bitboards"
 function count_pieces(pieces::AbstractArray{BitBoard})
     count = 0
-    for BB in pieces
-        count += length(BB)
+    for bb in pieces
+        count += length(bb)
     end
     return count
 end

@@ -3,11 +3,11 @@ using Scylla
 
 @testset "Initialise and Quit" begin
     cli_state = Scylla.CLI_state()
-    wrapper = Scylla.EngineWrapper(EngineState("K7/8/8/8/8/8/8/7k w - - 0 1", sizeMb=0))
+    wrapper = Scylla.EngineWrapper(EngineState("K7/8/8/8/8/8/8/7k w - - 0 1", size_mb=0))
     engine = wrapper.engine
 
     Scylla.parse_msg!(wrapper, cli_state, "  ucinewgame  ")
-    @test engine.board.pieces == BoardState(Scylla.startFEN).pieces
+    @test engine.board.pieces == BoardState(Scylla.START_FEN).pieces
 
     Scylla.parse_msg!(wrapper, cli_state, "qqq QUIT")
     @test cli_state.QUIT == true
@@ -26,22 +26,22 @@ end
 
 @testset "Set TranspositionTable" begin
     cli_state = Scylla.CLI_state()
-    wrapper = Scylla.EngineWrapper(EngineState(sizeMb=0))
+    wrapper = Scylla.EngineWrapper(EngineState(size_mb=0))
 
     Scylla.parse_msg!(wrapper, cli_state, "setoption name hash value 32")
-    @test Scylla.TT_size(wrapper.engine.TT) < 32
-    @test Scylla.TT_size(wrapper.engine.TT) > 16
+    @test Scylla.tt_size(wrapper.engine.TT) < 32
+    @test Scylla.tt_size(wrapper.engine.TT) > 16
 
     Scylla.parse_msg!(wrapper, cli_state, "setoption name hash value 1")
-    wrapper.engine.TT.HashTable[1].Always = Scylla.SearchData(BitBoard(),UInt8(1),Int16(0),Scylla.NONE,Scylla.NULLMOVE)
-    @test wrapper.engine.TT.HashTable[1].Always.depth == UInt8(1)
+    wrapper.engine.TT.hash_table[1].always = Scylla.SearchData(BitBoard(),UInt8(1),Int16(0),Scylla.NONE,Scylla.NULLMOVE)
+    @test wrapper.engine.TT.hash_table[1].always.depth == UInt8(1)
     Scylla.parse_msg!(wrapper, cli_state, "setoption name clear hash")
-    @test wrapper.engine.TT.HashTable[1].Always.depth == UInt8(0)
+    @test wrapper.engine.TT.hash_table[1].always.depth == UInt8(0)
 end
 
 @testset "Set board position" begin
     cli_state = Scylla.CLI_state()
-    wrapper = Scylla.EngineWrapper(EngineState(sizeMb=0))
+    wrapper = Scylla.EngineWrapper(EngineState(size_mb=0))
     engine = wrapper.engine
     newFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
 
@@ -62,7 +62,7 @@ end
 
 @testset "Time Controls" begin
     msg_array = ["WTIME", "10000", "BTIME", "20000", "WINC", "1000", "BINC", "1000"]
-    engine = EngineState(sizeMb=0)
+    engine = EngineState(size_mb=0)
 
     time, increment = Scylla.get_time_control(engine, msg_array)
     @test time == 10.0

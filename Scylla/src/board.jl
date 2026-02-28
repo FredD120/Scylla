@@ -73,18 +73,18 @@ mutable struct BoardState
 end
 
 "Find position of king on bitboard"
-king_pos(board::BoardState, side_index) = LSB(board.pieces[side_index + King])
+king_pos(board::BoardState, side_index) = LSB(board.pieces[side_index + KING])
 
 function pc_unions(pieces)::Vector{BitBoard}
-    white_pc_BB = bb_union(pieces[1:6]) 
-    black_pc_BB = bb_union(pieces[7:12]) 
-    all_pc_BB = white_pc_BB | black_pc_BB
-    [white_pc_BB,black_pc_BB,all_pc_BB]
+    white_pc_bb = bb_union(pieces[1:6]) 
+    black_pc_bb = bb_union(pieces[7:12]) 
+    all_pc_bb = white_pc_bb | black_pc_bb
+    [white_pc_bb, black_pc_bb, all_pc_bb]
 end
 
 "Helper function when constructing a boardstate"
-function place_piece!(pieces::AbstractArray{BitBoard},pieceID,pos)
-    pieces[pieceID] = setone(pieces[pieceID],pos)
+function place_piece!(pieces::AbstractArray{BitBoard}, pieceID, pos)
+    pieces[pieceID] = setone(pieces[pieceID], pos)
 end
 
 "Helper function to modify zobrist based on castle rights"
@@ -113,8 +113,8 @@ zobrist_colour() = ZOBRIST_KEYS[end]
 "Generate Zobrist hash of a boardstate"
 function generate_hash(pieces, colour::UInt8, castling, enpassant)
     zobrist_hash = BitBoard()
-    for (pieceID,pieceBB) in enumerate(pieces)
-        for loc in pieceBB
+    for (pieceID, piece_bb) in enumerate(pieces)
+        for loc in piece_bb
             zobrist_hash ⊻= zobrist_piece(pieceID, loc)
         end
     end
@@ -139,7 +139,7 @@ function BoardState(FEN)
     castling = UInt8(0)
     half_moves = UInt8(0)
     enpassant = BitBoard()
-    colour = white
+    colour = WHITE
     PSTscore = zeros(Int32,2)
     move_historyory = Vector{Move}()
 
@@ -151,7 +151,7 @@ function BoardState(FEN)
     for char in FENvec[1]
         if isletter(char)
             upper_letter = uppercase(char)
-            piece_colour = char == upper_letter ? white : black
+            piece_colour = char == upper_letter ? WHITE : BLACK
             place_piece!(pieces, FEN_DICT[upper_letter] + piece_colour, i)
             i += 1
         elseif isnumeric(char)
@@ -161,7 +161,7 @@ function BoardState(FEN)
   
     #Determine whose turn it is
     if FENvec[2] == "b"
-        colour = black
+        colour = BLACK
     end
 
     #castling rights
@@ -229,8 +229,8 @@ end
 "loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
 function identify_piecetype(board::BoardState, location::Integer)::UInt8
     ID = NULL_PIECE
-    for (pieceID, pieceBB) in enumerate(board.pieces)
-        if pieceBB & (BitBoard(1) << location) != 0
+    for (pieceID, piece_bb) in enumerate(board.pieces)
+        if piece_bb & (BitBoard(1) << location) != 0
             ID = pieceID
             break
         end
@@ -297,7 +297,7 @@ function SHORTmove(move::Move)
         if cap_type(move) == 0
             mid = ""
         end
-        if pc_type(move) == Pawn
+        if pc_type(move) == PAWN
             if cap_type(move) == 0
                 P = ""
             else

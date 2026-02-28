@@ -43,13 +43,13 @@ Qcastle_shift(pos::Integer) = pos - 2
 "make a kingside castle"
 function Kcastle!(B::BoardState, colour)
     kingpos = locate_king(B, colour)
-    move_piece!(B, colour, King, kingpos, Kcastle_shift(kingpos))
+    move_piece!(B, colour, KING, kingpos, Kcastle_shift(kingpos))
 end 
 
 "make a queenside castle"
 function Qcastle!(B::BoardState, colour)
     kingpos = locate_king(B, colour)
-    move_piece!(B, colour, King, kingpos, Qcastle_shift(kingpos))
+    move_piece!(B, colour, KING, kingpos, Qcastle_shift(kingpos))
 end
 
 "update castling rights and zobrist hash"
@@ -80,7 +80,7 @@ function make_move!(move::Move, board::BoardState)
 
     #deal with castling
     if (mv_flag == KCASTLE) || (mv_flag == QCASTLE)
-        move_piece!(board, board.colour, Rook, mv_from, mv_to)
+        move_piece!(board, board.colour, ROOK, mv_from, mv_to)
         updateCrights!(board,ColId,0)
         if mv_flag == KCASTLE
             Kcastle!(board,board.colour)
@@ -93,7 +93,7 @@ function make_move!(move::Move, board::BoardState)
     #update castling rights if not castling    
     else
         if board.castle > 0
-            if mv_pc_type == King
+            if mv_pc_type == KING
                 updateCrights!(board,ColId,0)
             else
                 #lose self castle rights
@@ -130,7 +130,7 @@ function make_move!(move::Move, board::BoardState)
                 end
                 destroy_piece!(board, opposite(board.colour), mv_cap_type, destroy_loc)
                 push!(board.Data.half_moves, 0)
-            elseif mv_pc_type == Pawn
+            elseif mv_pc_type == PAWN
                 push!(board.Data.half_moves, 0)
             else
                 board.Data.half_moves[end] += 1
@@ -179,7 +179,7 @@ function unmake_move!(board::BoardState)
         mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
 
         if (mv_flag == KCASTLE) || (mv_flag == QCASTLE)
-            move_piece!(board, OppCol, Rook, mv_to, mv_from)
+            move_piece!(board, OppCol, ROOK, mv_to, mv_from)
             #unmaking a kingside castle is the same as a queenside castle and vice-versa
             if mv_flag == KCASTLE
                 Qcastle!(board, OppCol)

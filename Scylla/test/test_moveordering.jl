@@ -22,7 +22,7 @@ end
     Scylla.score_moves!(moves)
     
     for move in moves
-        if Scylla.cap_type(move) == Scylla.Queen
+        if Scylla.cap_type(move) == Scylla.QUEEN
             @test Scylla.score(move) == maximum(scores)
             @test Scylla.score(move) > Scylla.MINCAPSCORE
         elseif Scylla.cap_type(move) == Scylla.NULL_PIECE

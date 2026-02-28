@@ -41,8 +41,8 @@ end
 
 "Returns score of current position from whites perspective. used when initialising boardstate"
 function set_PST!(score::Vector{Int32},pieces::AbstractArray{BitBoard})
-    for type in [King, Queen, Rook, Bishop, Knight, Pawn]
-        for colour in [white,black]
+    for type in [KING, QUEEN, ROOK, BISHOP, KNIGHT, PAWN]
+        for colour in [WHITE, BLACK]
             for pos in pieces[colour_piece_id(colour, type)]
                 update_PST_score!(score, colour, type, pos, +1)
             end
