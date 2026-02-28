@@ -24,12 +24,13 @@ TO-DO (general)
 -> UCI protocol
  - Enable searching to depth/mate/nodes
  - Better time estimation - use movestogo if provided
--> Convert all files to HDF5
 
 Code Clarity
 -> Consistent naming conventions of variables, functions, constants
--> Separate out make_move and unmake_move into more functions
--> Separate out functionality in cli.jl
+-> Separate out functions for readability in:
+    -> makemove.jl
+    -> cli.jl
+    -> engine.jl
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply

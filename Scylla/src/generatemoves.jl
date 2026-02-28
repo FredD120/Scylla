@@ -20,15 +20,19 @@ struct LegalInfo
 end
 
 "All pseudolegal King moves"
-possible_king_moves(location) = moveset.king[location+1]
+possible_king_moves(location) = moveset.king[location + 1]
 "All pseudolegal Knight moves"
-possible_knight_moves(location) = moveset.knight[location+1]
+possible_knight_moves(location) = moveset.knight[location + 1]
 "All pseudolegal Rook moves"
-possible_rook_moves(location, all_pcs) = sliding_attacks(RookMagics[location+1], all_pcs)
+possible_rook_moves(location, all_pcs) = sliding_attacks(ROOK_MAGICS[location + 1], all_pcs, ROOK_ATTACKS)
 "All pseudolegal Bishop moves"
-possible_bishop_moves(location, all_pcs) = sliding_attacks(BishopMagics[location+1], all_pcs)
+possible_bishop_moves(location, all_pcs) = sliding_attacks(BISHOP_MAGICS[location + 1], all_pcs, BISHOP_ATTACKS)
 "All pseudolegal Queen moves"
-possible_queen_moves(location, all_pcs) = sliding_attacks(RookMagics[location + 1], all_pcs) | sliding_attacks(BishopMagics[location + 1], all_pcs)
+function possible_queen_moves(location, all_pcs)
+    rook_attacks = sliding_attacks(ROOK_MAGICS[location + 1], all_pcs, ROOK_ATTACKS)
+    bishop_attacks = sliding_attacks(BISHOP_MAGICS[location + 1], all_pcs, BISHOP_ATTACKS)
+    return rook_attacks | bishop_attacks
+end
 
 "Returns BB containing attacking moves assuming all pieces in BB are pawns"
 function possible_pawn_moves(pawnBB, colour::Bool)
