@@ -2,11 +2,6 @@
 #Initialise TT, define objects that go into TT
 #Retrieve and store entries
 
-const Mb = 1048576 #size of a Mb in bytes
-const TT_DEFAULT_MB = 32
-const TT_MIN_MB = 0
-const TT_MAX_MB = 64
-
 "hold hash table and bitshift to get index from zobrist hash"
 struct TranspositionTable{T}
     Key::BitBoard

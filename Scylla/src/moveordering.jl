@@ -36,29 +36,6 @@ function copy_PV!(triangle_PV, ply, PV_len, maxdepth, move)
     end
 end
 
-#Score of PV/TT move = 255
-const MAXMOVESCORE::UInt8 = typemax(UInt8)
-#Minimum capture score = 199
-const MINCAPSCORE::UInt8 = MAXMOVESCORE - 56
-
-"""
-Attackers
-↓ Q  R  B  N  P <- Victims
-K 50 40 30 30 10
-Q 51 41 31 31 11
-R 52 42 32 32 12
-B 53 43 33 33 13
-N 53 43 33 33 13
-P 55 45 35 35 15
-"""
-const MV_LV = UInt8[
-    50, 40, 30, 30, 10,
-    51, 41, 31, 31, 11,
-    52, 42, 32, 32, 12,
-    53, 43, 33, 33, 13,
-    53, 43, 33, 33, 13,
-    55, 45, 35, 35, 15]
-
 "lookup value of capture in MVV_LVA table"
 MVV_LVA(victim, attacker)::UInt8 = MINCAPSCORE + MV_LV[5 * (attacker - 1) + victim - 1]
 

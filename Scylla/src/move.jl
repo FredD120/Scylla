@@ -1,5 +1,4 @@
-#Define move struct and make/unmake move
-#Also utilities for incrementally updating boardstate
+#Define move struct
 #Move is defined by the piece moving - piece_type (3 bits)
 #Where it is moving from - from (6 bits)
 #Where it is moving to - to (6 bits)
@@ -7,23 +6,6 @@
 #Any flag for pawns/castling - flag (4 bits)
 #Score of move from heuristic - score (8 bits)
 #This is packed into a UInt32
-
-const PIECEMASK = 0x7
-const LOCMASK   = 0x3F
-const FLAGMASK = 0xF
-const SCOREMASK = 0xFF
-
-const TYPESIZE = 3
-const FROMSIZE = 6
-const TOSIZE   = 6
-const CAPSIZE  = 3
-const FLAGSIZE = 4
-
-const FROMSHIFT = TYPESIZE
-const TOSHIFT   = TYPESIZE + FROMSIZE
-const CAPSHIFT  = TYPESIZE + FROMSIZE + TOSIZE
-const FLAGSHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE
-const SCORESHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE + FLAGSIZE
 
 struct Move
     n::UInt32
@@ -75,11 +57,11 @@ end
 
 "constructor for Move_BB that reads all moves from txt files"
 function Move_BB()
-    king_mvs = read_txt(BitBoard, "king")
-    knight_mvs = read_txt(BitBoard, "knight")
-    Crights = [0b1100, 0b1110, 0b1101, 0b0011, 0b1011, 0b0111]
-    castle_check = read_txt(BitBoard, "castleCheck")
-    return Move_BB(king_mvs, knight_mvs, Crights, castle_check)
+    king_mvs = get_normal_masks("king")
+    knight_mvs = get_normal_masks("knight")
+    castle_rights, castle_check = get_castle_masks()
+
+    return Move_BB(king_mvs, knight_mvs, castle_rights, castle_check)
 end
 
 const moveset = Move_BB()

@@ -1,3 +1,6 @@
+# Define make and unmake move functions
+# Define all helper functions to ensure zobrist hash, board position and PST scores are preserved
+
 "utilises setzero to remove a piece from a position"
 function destroy_piece!(B::BoardState, colour::UInt8, pieceID, pos)
     CpieceID = colour_piece_id(colour, pieceID)

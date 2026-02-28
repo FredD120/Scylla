@@ -449,23 +449,9 @@ end
 "use bitshifts to push all white/black pawns at once"
 cond_push(colour::Bool, pawnBB) = ifelse(colour, pawnBB >> 8, pawnBB << 8)
 
-const white_masks = (
-        doublepush = BitBoard(0xFF0000000000),
-        promote = BitBoard(0xFF),
-        shift =  8
-)
-
-const black_masks = (
-        doublepush = BitBoard(0xFF0000),
-        promote = BitBoard(0xFF00000000000000),
-        shift =  -8
-)
-
 attack_left(piece_bb) = (piece_bb >> 1) & BitBoard(0x7F7F7F7F7F7F7F7F)
 
 attack_right(piece_bb) = (piece_bb << 1) & BitBoard(0xFEFEFEFEFEFEFEFE)
-
-const promote_types = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
 
 "appends 4 promotion moves"
 function append_moves!(board::BoardState, piece_type, from, to, capture_type,::Promote)

@@ -1,8 +1,3 @@
-#define evaluation constants
-const MAXMATEDEPTH::Int16 = Int16(100)
-const INF::Int16 = typemax(Int16)
-const MATE::Int16 = INF - MAXMATEDEPTH
-
 "channel for passing info to and from CLI"
 struct Channels
     quit::Channel{Symbol}

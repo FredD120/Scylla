@@ -22,16 +22,13 @@ TO-DO (engine)
 
 TO-DO (general)
 -> UCI protocol
- - Improve time estimate for time controls
  - Enable searching to depth/mate/nodes
- - Print log at intermediate stages in computation
  - Better time estimation - use movestogo if provided
 -> Convert all files to HDF5
 
 Code Clarity
 -> Consistent naming conventions of variables, functions, constants
 -> Separate out make_move and unmake_move into more functions
--> Put all constants in one place
 -> Separate out functionality in cli.jl
 
 TO THINK ABOUT

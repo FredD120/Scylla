@@ -2,15 +2,13 @@
 #define helper functions to construct the boardstate
 #define utility functions to fetch data from boardstate
 
-const MAXMOVES = 4096
-
 "pre-allocated array of moves"
 mutable struct MoveVec
     moves::Vector{Move}
     ind::UInt16
 end
 
-"max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in recursive call"
+"create array of moves with default length, avoids allocating memory in tight loops"
 MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
 
 "append move to move vec, increment index by one"
