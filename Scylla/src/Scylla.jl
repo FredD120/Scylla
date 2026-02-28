@@ -65,7 +65,7 @@ export BitBoard, BoardState,
        generate_moves, gameover!,
        best_move, Move, perft,
        Logger, print_log,
-       run_cli, assign_TT!, reset_engine!,
+       run_cli, assign_tt!, reset_engine!,
        Control, Time, Depth, Nodes, Mate,
        FORCEQUIT, estimate_movetime,
        EngineState, Config

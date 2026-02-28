@@ -30,7 +30,7 @@ using Test
 
             new_data = Scylla.PerftData(Z1,UInt8(5),UInt128(1))
 
-            Scylla.set_entry!(TT,new_data)
+            Scylla.set_entry!(TT, new_data)
             TT_entry1 = Scylla.get_entry(TT,Z1)
             TT_entry2 = Scylla.get_entry(TT,Z2)
 

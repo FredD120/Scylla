@@ -44,10 +44,10 @@ const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
 const FIRST_MOVE_INDEX = 0
 
 const NOFLAG = UInt8(0)
-const KCASTLE = UInt8(1)
-const QCASTLE = UInt8(2)
-const EPFLAG = UInt8(3)
-const DPUSH = UInt8(4)
+const KING_CASTLE = UInt8(1)
+const QUEEN_CASTLE = UInt8(2)
+const ENPASSANT = UInt8(3)
+const DOUBLE_PUSH = UInt8(4)
 const PROMQUEEN = UInt8(5)
 const PROMROOK = UInt8(6)
 const PROMBISHOP = UInt8(7)
@@ -172,7 +172,7 @@ function algebraic_to_numeric(pos::AbstractString)
 end
 
 "convert a position from number 0-63 to rank/file notation"
-UCIpos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
+uci_pos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 
 
 ### Engine Features ###
@@ -251,7 +251,7 @@ B 53 43 33 33 13
 N 53 43 33 33 13
 P 55 45 35 35 15
 """
-const MV_LV = UInt8[
+const MVV_LVA = UInt8[
     50, 40, 30, 30, 10,
     51, 41, 31, 31, 11,
     52, 42, 32, 32, 12,
@@ -259,6 +259,15 @@ const MV_LV = UInt8[
     53, 43, 33, 33, 13,
     55, 45, 35, 35, 15]
 
+
+### PST Features ###
+
+"number of pieces left when endgame begins"
+const EG_BEGIN = 12
+
+const MG_GRADIENT = -1 / (EG_BEGIN+2)
+
+const EG_GRADIENT = -1 / EG_BEGIN
 
 ### CLI Features ###
 

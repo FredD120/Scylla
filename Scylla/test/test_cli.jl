@@ -29,14 +29,19 @@ end
     wrapper = Scylla.EngineWrapper(EngineState(size_mb=0))
 
     Scylla.parse_msg!(wrapper, cli_state, "setoption name hash value 32")
-    @test Scylla.tt_size(wrapper.engine.TT) < 32
-    @test Scylla.tt_size(wrapper.engine.TT) > 16
+    @test Scylla.tt_size(wrapper.engine.table) < 32
+    @test Scylla.tt_size(wrapper.engine.table) > 16
 
     Scylla.parse_msg!(wrapper, cli_state, "setoption name hash value 1")
-    wrapper.engine.TT.hash_table[1].always = Scylla.SearchData(BitBoard(),UInt8(1),Int16(0),Scylla.NONE,Scylla.NULLMOVE)
-    @test wrapper.engine.TT.hash_table[1].always.depth == UInt8(1)
+
+    table = wrapper.engine.table.hash_table
+
+    table[1] = Scylla.Bucket(table[1].depth,
+        Scylla.SearchData(BitBoard(), UInt8(1), Int16(0), Scylla.NONE, Scylla.NULLMOVE))
+
+    @test table[1].always.depth == UInt8(1)
     Scylla.parse_msg!(wrapper, cli_state, "setoption name clear hash")
-    @test wrapper.engine.TT.hash_table[1].always.depth == UInt8(0)
+    @test table[1].always.depth == UInt8(0)
 end
 
 @testset "Set board position" begin

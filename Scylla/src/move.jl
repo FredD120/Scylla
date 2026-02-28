@@ -51,8 +51,8 @@ const NULLMOVE = Move(UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
 struct Move_BB
     king::SVector{64, BitBoard}
     knight::SVector{64, BitBoard}
-    CRightsMask::SVector{6, UInt8}
-    castleCheck::SVector{6, BitBoard}
+    castle_rights_mask::SVector{6, UInt8}
+    castle_check::SVector{6, BitBoard}
 end
 
 "constructor for Move_BB that reads all moves from txt files"

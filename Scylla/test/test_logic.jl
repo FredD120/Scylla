@@ -19,12 +19,12 @@ end
 @testset "Board Initialise" begin
     board = Scylla.BoardState(FEN)
     @test Scylla.whitesmove(board.colour) == true
-    @test board.Data.enpassant[end] == UInt64(0)
+    @test board.data.enpassant[end] == UInt64(0)
     @test Scylla.ally_pieces(board)[3] != UInt64(0)
     @test Scylla.enemy_pieces(board)[3] != UInt64(0)
     @test Scylla.enemy_pieces(board)[1] == UInt64(1) << 4
     @test Scylla.ally_pieces(board)[1] == UInt64(1) << 60
-    @test board.Data.half_moves[end] == 0
+    @test board.data.half_moves[end] == 0
 end
 
 @testset "GUI from Board" begin
@@ -147,9 +147,9 @@ end
     Kcount = 0
     Qcount = 0
     for m in moves 
-        if Scylla.flag(m) == Scylla.KCASTLE
+        if Scylla.flag(m) == Scylla.KING_CASTLE
             Kcount +=1
-        elseif Scylla.flag(m) == Scylla.QCASTLE
+        elseif Scylla.flag(m) == Scylla.QUEEN_CASTLE
             Qcount +=1
         elseif (Scylla.from(m) == 63) & (Scylla.cap_type(m) == Scylla.ROOK)
             Scylla.make_move!(m,board)
@@ -166,9 +166,9 @@ end
     Kcount = 0
     Qcount = 0
     for m in bmoves 
-        if Scylla.flag(m) == Scylla.KCASTLE
+        if Scylla.flag(m) == Scylla.KING_CASTLE
             Kcount +=1
-        elseif Scylla.flag(m) == Scylla.QCASTLE
+        elseif Scylla.flag(m) == Scylla.QUEEN_CASTLE
             Qcount +=1
         elseif Scylla.to(m) == 12
             Scylla.make_move!(m,board)
@@ -183,9 +183,9 @@ end
     Kcount = 0
     Qcount = 0
     for m in moves 
-        if Scylla.flag(m) == Scylla.KCASTLE
+        if Scylla.flag(m) == Scylla.KING_CASTLE
             Kcount +=1
-        elseif Scylla.flag(m) == Scylla.QCASTLE
+        elseif Scylla.flag(m) == Scylla.QUEEN_CASTLE
             Qcount +=1
         end
     end
@@ -193,14 +193,14 @@ end
     @testset "Only Queenside" begin
         @test Kcount == 0
         @test Qcount == 1
-        @test length(board.Data.castling) == 3
+        @test length(board.data.castling) == 3
     end
 
     @testset "Castling Blocked" begin
         cFEN = "r3k2r/8/8/8/8/8/8/RB2K2R w KQkq - 0 1"
         board = Scylla.BoardState(cFEN)
         moves, move_count = Scylla.generate_moves(board)
-        @test all(i -> (Scylla.flag(i) != Scylla.QCASTLE), moves) 
+        @test all(i -> (Scylla.flag(i) != Scylla.QUEEN_CASTLE), moves) 
     end
 end
 
@@ -260,7 +260,7 @@ end
             moves, move_count = Scylla.generate_moves(board)
 
             @test length(moves) == 1
-            @test Scylla.flag(moves[1]) == Scylla.DPUSH
+            @test Scylla.flag(moves[1]) == Scylla.DOUBLE_PUSH
 
             Scylla.make_move!(moves[1], board)
             @test board.enpassant_bb == UInt64(1) << 19
@@ -270,7 +270,7 @@ end
             EPfen = "8/8/7k/8/Pp6/8/8/K b - a3 0 1"
             board = Scylla.BoardState(EPfen)
             moves, move_count = Scylla.generate_moves(board)
-            @test length(findall(i -> Scylla.flag(i)==Scylla.EPFLAG, moves)) == 1
+            @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
             kingmv = findfirst(i -> Scylla.pc_type(i)==Scylla.KING, moves)
             Scylla.make_move!(moves[kingmv], board)
             @test board.enpassant_bb == 0
@@ -281,7 +281,7 @@ end
             board = Scylla.BoardState(newFEN)
             moves, move_count = Scylla.generate_moves(board)
             @test length(moves) == 6
-            @test length(findall(i -> Scylla.flag(i)==Scylla.EPFLAG, moves)) == 1
+            @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
         end
 
         @testset "Bishop Pin" begin
@@ -289,7 +289,7 @@ end
             board = Scylla.BoardState(newFEN)
             moves, move_count = Scylla.generate_moves(board)
             @test length(moves) == 4
-            @test length(findall(i -> Scylla.flag(i)==Scylla.EPFLAG, moves)) == 1
+            @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
         end
 
         @testset "Illegal due to Check" begin
@@ -303,7 +303,7 @@ end
             newFEN = "8/8/8/K1pPr/8/8/8/8 w - c6 1 1"
             board = Scylla.BoardState(newFEN)
             moves, move_count = Scylla.generate_moves(board)
-            @test length(findall(i -> Scylla.flag(i)==Scylla.EPFLAG, moves)) == 0
+            @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 0
         end
     end
 end
@@ -348,7 +348,7 @@ end
 @testset "Game Over" begin
     simpleFEN = "8/8/4nK2/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(simpleFEN)
-    board.Data.half_moves[end] = 100
+    board.data.half_moves[end] = 100
     legal = Scylla.gameover!(board)
     @test board.state == Scylla.Draw()
 
@@ -521,7 +521,7 @@ end
         Scylla.make_move!(move,board)
        end
     end
-    @test board.zobrist_hash == board.Data.zobrist_hash_history[1]
+    @test board.zobrist_hash == board.data.zobrist_hash_history[1]
 
     Scylla.unmake_move!(board)
     Scylla.unmake_move!(board)
@@ -533,13 +533,13 @@ end
     nFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     board = Scylla.BoardState(nFEN)
 
-    @test board.PSTscore == [0,0]
+    @test board.pst_score == [0,0]
 
     nFEN = "8/P6k/K7/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(nFEN)
     
-    @test board.PSTscore[1] >= 100
-    @test board.PSTscore[2] >= 100
+    @test board.pst_score[1] >= 100
+    @test board.pst_score[2] >= 100
 end
 
 
@@ -571,8 +571,8 @@ function Testing_perft(board::BoardState, depth)
         for move in moves
             Scylla.make_move!(move, board)
             static_eval = zeros(Int32, 2)
-            Scylla.set_PST!(static_eval, board.pieces)
-            @assert board.PSTscore == static_eval "Score doesn't match. Dynamic = $(board.PSTscore), static = $(static_eval). Found on move $(Scylla.LONGmove(move))"
+            Scylla.set_pst!(static_eval, board.pieces)
+            @assert board.pst_score == static_eval "Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found on move $(Scylla.long_move(move))"
             Testing_perft(board, depth - 1)
             Scylla.unmake_move!(board)
         end
@@ -637,9 +637,9 @@ end
 function test_TT_perft()
     #best speed = 220 Mnps
     board = Scylla.BoardState(FEN)
-    TT = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
+    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
     t = time()
-    @test Scylla.perft(board, 7, TT, verbose) == 3195901860
+    @test Scylla.perft(board, 7, table, verbose) == 3195901860
     δt = time()-t
     println("Successfully determined perft 7 in $(round(δt,sigdigits=4))s. $(round(3195901860 / (δt * 1e6), sigdigits=6)) Mnps")
 end

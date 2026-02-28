@@ -35,7 +35,7 @@ function perft(board::BoardState, depth, TT::Union{TranspositionTable,Nothing}=n
         nodecount = perft(board, depth - 1, TT, TT_enabled=TT_enabled)
         
         if verbose == true
-            println(LONGmove(move) * ": " * string(nodecount))
+            println(long_move(move) * ": " * string(nodecount))
         end
         
         leaf_nodes += nodecount

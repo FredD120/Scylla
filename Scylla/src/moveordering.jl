@@ -4,8 +4,8 @@
 
 "Store two best quiet moves for a given ply"
 mutable struct Killer
-    First::Move
-    Second::Move
+    first::Move
+    second::Move
 end
 
 "Construct killers with null moves"
@@ -15,9 +15,9 @@ const DEFAULT_KILLER = Killer()
 
 "Check that new move does not match second best killer, then push first to second and replace first"
 function new_killer!(killer_vec::Vector{Killer}, ply, move)
-    if move != killer_vec[ply + 1].First
-        @inbounds killer_vec[ply + 1].Second = killer_vec[ply + 1].First 
-        @inbounds killer_vec[ply + 1].First = move 
+    if move != killer_vec[ply + 1].first
+        @inbounds killer_vec[ply + 1].second = killer_vec[ply + 1].first 
+        @inbounds killer_vec[ply + 1].first = move 
     end
 end
 
@@ -25,19 +25,19 @@ end
 triangle_number(x) = Int(0.5 * x * (x + 1))
 
 "find index of PV move at current ply"
-PV_ind(ply,maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
+pv_ind(ply, maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
 
 "Copies line below in triangular PV table"
-function copy_PV!(triangle_PV, ply, PV_len, maxdepth, move)
-    cur_ind = PV_ind(ply, maxdepth)
-    @inbounds triangle_PV[cur_ind + 1] = move
-    for i in (cur_ind + 1):(cur_ind + PV_len - ply - 1)
-        @inbounds triangle_PV[i + 1] = triangle_PV[i + maxdepth - ply]
+function copy_pv!(triangle_pv, ply, pv_len, maxdepth, move)
+    cur_ind = pv_ind(ply, maxdepth)
+    @inbounds triangle_pv[cur_ind + 1] = move
+    for i in (cur_ind + 1):(cur_ind + pv_len - ply - 1)
+        @inbounds triangle_pv[i + 1] = triangle_pv[i + maxdepth - ply]
     end
 end
 
 "lookup value of capture in MVV_LVA table"
-MVV_LVA(victim, attacker)::UInt8 = MINCAPSCORE + MV_LV[5 * (attacker - 1) + victim - 1]
+most_least_value(victim, attacker)::UInt8 = MINCAPSCORE + MVV_LVA[5 * (attacker - 1) + victim - 1]
 
 "swap the positions of two entries in a vector"
 function swap!(list, ind1, ind2)
@@ -72,13 +72,13 @@ function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best
 
         #sort captures
         elseif iscapture(move)
-            moves[i] = set_score(move, MVV_LVA(cap_type(move), pc_type(move)))
+            moves[i] = set_score(move, most_least_value(cap_type(move), pc_type(move)))
 
         #sort quiet moves
         else
-            if move == killers.First
+            if move == killers.first
                 moves[i] = set_score(move, MINCAPSCORE - UInt8(1))
-            elseif move == killers.Second
+            elseif move == killers.second
                 moves[i] = set_score(move, MINCAPSCORE - UInt8(2))
             end
         end

@@ -14,7 +14,7 @@ MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
 "append move to move vec, increment index by one"
 function append!(m::MoveVec, move::Move)
     m.ind += 1
-    #=@inbounds=# m.moves[m.ind] = move
+    @inbounds m.moves[m.ind] = move
 end
 
 "reset index of movevec, but don't actually wipe data"
@@ -65,10 +65,10 @@ mutable struct BoardState
     castle::UInt8
     enpassant_bb::BitBoard
     state::GAME_STATE
-    PSTscore::Vector{Int32}
+    pst_score::Vector{Int32}
     zobrist_hash::BitBoard
     move_history::Vector{Move}
-    Data::BoardData
+    data::BoardData
     move_vector::MoveVec
 end
 
@@ -83,8 +83,8 @@ function pc_unions(pieces)::Vector{BitBoard}
 end
 
 "Helper function when constructing a boardstate"
-function place_piece!(pieces::AbstractArray{BitBoard}, pieceID, pos)
-    pieces[pieceID] = setone(pieces[pieceID], pos)
+function place_piece!(pieces::AbstractArray{BitBoard}, piece_id, pos)
+    pieces[piece_id] = setone(pieces[piece_id], pos)
 end
 
 "Helper function to modify zobrist based on castle rights"
@@ -113,9 +113,9 @@ zobrist_colour() = ZOBRIST_KEYS[end]
 "Generate Zobrist hash of a boardstate"
 function generate_hash(pieces, colour::UInt8, castling, enpassant)
     zobrist_hash = BitBoard()
-    for (pieceID, piece_bb) in enumerate(pieces)
+    for (piece_id, piece_bb) in enumerate(pieces)
         for loc in piece_bb
-            zobrist_hash ⊻= zobrist_piece(pieceID, loc)
+            zobrist_hash ⊻= zobrist_piece(piece_id, loc)
         end
     end
 
@@ -140,15 +140,15 @@ function BoardState(FEN)
     half_moves = UInt8(0)
     enpassant = BitBoard()
     colour = WHITE
-    PSTscore = zeros(Int32,2)
-    move_historyory = Vector{Move}()
+    pst_score = zeros(Int32,2)
+    move_history = Vector{Move}()
 
     #Keep track of where we are on chessboard
     i = UInt32(0)           
-    FENvec = split(FEN)
+    fen_vec = split(FEN)
 
     #Positions of  pieces
-    for char in FENvec[1]
+    for char in fen_vec[1]
         if isletter(char)
             upper_letter = uppercase(char)
             piece_colour = char == upper_letter ? WHITE : BLACK
@@ -160,12 +160,12 @@ function BoardState(FEN)
     end
   
     #Determine whose turn it is
-    if FENvec[2] == "b"
+    if fen_vec[2] == "b"
         colour = BLACK
     end
 
     #castling rights
-    for c in FENvec[3]
+    for c in fen_vec[3]
         if c == 'K'
             castling = setone(castling,0)
         elseif c == 'Q'
@@ -178,24 +178,24 @@ function BoardState(FEN)
     end
 
     #en-passant
-    if length(FENvec[4]) == 2
-        enpassant = setone(enpassant, algebraic_to_numeric(FENvec[4]))
+    if length(fen_vec[4]) == 2
+        enpassant = setone(enpassant, algebraic_to_numeric(fen_vec[4]))
     end
 
-    if length(FENvec) > 4
-        half_moves = parse(UInt8,FENvec[5])
+    if length(fen_vec) > 4
+        half_moves = parse(UInt8, fen_vec[5])
     end
 
-    Zobrist = generate_hash(pieces, colour, castling, enpassant)
+    zobrist = generate_hash(pieces, colour, castling, enpassant)
     data = BoardData(Vector{UInt8}([half_moves]),
                      Vector{UInt8}([castling]),Vector{UInt8}([0]),
                      Vector{BitBoard}([enpassant]),Vector{UInt8}([0]),
-                     Vector{BitBoard}([Zobrist]))
+                     Vector{BitBoard}([zobrist]))
 
-    set_PST!(PSTscore, pieces)
+    set_pst!(pst_score, pieces)
 
     BoardState(pieces, pc_unions(pieces), colour, castling, enpassant,
-    Neutral(), PSTscore, Zobrist, move_historyory, data, MoveVec())
+    Neutral(), pst_score, zobrist, move_history, data, MoveVec())
 end
 
 "helper function to obtain vector of ally bitboards"
@@ -213,13 +213,13 @@ ally_piece(b::BoardState, piece) = b.pieces[b.colour + piece]
 "helper function to obtain bitboard of enemy piece"
 enemy_piece(b::BoardState, piece) = b.pieces[opposite(b.colour) + piece]
 
-"tells GUI where pieces are on the board"
+"create a 64-length vector of where pieces are on the board, useful for a GUI"
 function GUIposition(board::BoardState)
     position = zeros(UInt8, 64)
-    for (pieceID, piece) in enumerate(board.pieces)
+    for (piece_id, piece) in enumerate(board.pieces)
         for i in 0:63
             if piece & BitBoard(1) << i > 0
-                position[i + 1] = pieceID
+                position[i + 1] = piece_id
             end
         end
     end
@@ -228,27 +228,27 @@ end
 
 "loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
 function identify_piecetype(board::BoardState, location::Integer)::UInt8
-    ID = NULL_PIECE
-    for (pieceID, piece_bb) in enumerate(board.pieces)
+    id = NULL_PIECE
+    for (piece_id, piece_bb) in enumerate(board.pieces)
         if piece_bb & (BitBoard(1) << location) != 0
-            ID = pieceID
+            id = piece_id
             break
         end
     end
-    return ID - opposite(board.colour)
+    return id - opposite(board.colour)
 end
 
 
 "convert a move to UCI notation"
-function UCImove(board::BoardState, move::Move)
+function uci_move(board::BoardState, move::Move)
     flg = flag(move)
     F = from(move)
     T = to(move)
 
-    if flg == KCASTLE || flg == QCASTLE
-        F = locate_king(board, board.colour)
+    if flg == KING_CASTLE || flg == QUEEN_CASTLE
+        F = locate_king(board)
         T = F + 2
-        if flg == QCASTLE
+        if flg == QUEEN_CASTLE
             T = F -2
         end
     end
@@ -258,19 +258,19 @@ function UCImove(board::BoardState, move::Move)
     if  prom_type != NULL_PIECE
         p = lowercase(piece_letter(prom_type))
     end
-    return UCIpos(F) * UCIpos(T) * p
+    return uci_pos(F) * uci_pos(T) * p
 end
 
 "convert a move to long algebraic notation for clarity"
-function LONGmove(move::Move)
+function long_move(move::Move)
     flg = flag(move)
-    if flg == KCASTLE
+    if flg == KING_CASTLE
         return "O-O"
-    elseif flg == QCASTLE
+    elseif flg == QUEEN_CASTLE
         return "O-O-O"
     else
-        F = UCIpos(from(move))
-        T = UCIpos(to(move))
+        F = uci_pos(from(move))
+        T = uci_pos(to(move))
         P = piece_letter(pc_type(move))
         mid = "-"
         if cap_type(move) > 0
@@ -283,14 +283,14 @@ function LONGmove(move::Move)
 end
 
 "convert a move to short algebraic notation for comparison/communication"
-function SHORTmove(move::Move)
+function short_move(move::Move)
     flg = flag(move)
-    if flg == KCASTLE
+    if flg == KING_CASTLE
         return "O-O"
-    elseif flg == QCASTLE
+    elseif flg == QUEEN_CASTLE
         return "O-O-O"
     else
-        T = UCIpos(to(move))
+        T = uci_pos(to(move))
         P = piece_letter(pc_type(move))
         mid = "x"
 

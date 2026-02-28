@@ -24,10 +24,10 @@ end
     board = Scylla.BoardState(eFEN)
     num_pcs = Scylla.count_pieces(board.pieces)
 
-    @test Scylla.MGweighting(num_pcs) > Scylla.EGweighting(num_pcs)
+    @test Scylla.midgame_weighting(num_pcs) > Scylla.endgame_weighting(num_pcs)
 
     num_pcs = 10
-    @test Scylla.MGweighting(num_pcs) < Scylla.EGweighting(num_pcs)
+    @test Scylla.midgame_weighting(num_pcs) < Scylla.endgame_weighting(num_pcs)
 end
 
 @testset "Positional Evaluation" begin
@@ -76,7 +76,7 @@ end
         engine.board = BoardState(eFEN)
         best, log = Scylla.best_move(engine)
 
-        @test Scylla.LONGmove(best) == "Ba1xh8"
+        @test Scylla.long_move(best) == "Ba1xh8"
     end
 
     @testset "bxQ" begin
@@ -84,7 +84,7 @@ end
         engine.board = BoardState(eFEN)
         best, log = Scylla.best_move(engine)
 
-        @test Scylla.LONGmove(best) == "Ba1xh8"
+        @test Scylla.long_move(best) == "Ba1xh8"
     end
 
     @testset "Queen Evade Capture" begin
@@ -92,7 +92,7 @@ end
         engine.board = BoardState(eFEN)
         best, log = Scylla.best_move(engine)
 
-        @test Scylla.LONGmove(best) == "Qh1-e4"
+        @test Scylla.long_move(best) == "Qh1-e4"
     end
 end
 
@@ -136,26 +136,28 @@ function test_positions()
 
     for pos in positions
         FEN_move = split(split(pos,";")[1],"- bm ")
-        eFEN = FEN_move[1]*"0"
-        board = BoardState(eFEN)
+        eFEN = FEN_move[1] * "0"
+
+        engine = EngineState(eFEN; control = Time(2))
         correct_mv = FEN_move[2]
 
         if verbose
             println("Testing FEN: $eFEN")
         end
-        best,log = best_move(board,MAXTIME)
+        best, log = best_move(engine)
 
-        if Scylla.SHORTmove(best) == correct_mv
+        if Scylla.short_move(best) == correct_mv
             @test true
-            printstyled("Pass \n";color=:green)
+            printstyled("Pass \n"; color=:green)
         else
             @test_broken false
             if verbose
-                println("Fail. Found: $(Scylla.SHORTmove(best)) - Best: $correct_mv")
+                println("Fail. Found: $(Scylla.short_move(best)) - Best: $correct_mv")
             end
         end
     end
 end
+
 if engine_hard::Bool
     result = @testset "Difficult Engine Tests" begin
         test_positions()

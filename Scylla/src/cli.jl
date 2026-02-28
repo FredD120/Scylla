@@ -29,7 +29,7 @@ end
 "task to run best_move and put outputs in channel, then close the task"
 function run_engine(engine::EngineState)
     best, _ = best_move(engine)
-    move_str = "bestmove " * UCImove(engine.board, best)
+    move_str = "bestmove " * uci_move(engine.board, best)
     put!(engine.channel.info, move_str)
 end
 
@@ -43,12 +43,12 @@ end
 "parse OPTION command from CLI, dispatch on requests"
 function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing, String}
     if msg_vec[1] == "CLEAR" && msg_vec[2] == "HASH"
-        reset_TT!(wrapper.engine)
+        reset_tt!(wrapper.engine)
 
     elseif msg_vec[1] == "HASH"
         ind = findfirst(x -> x=="VALUE", msg_vec)
         if !isnothing(ind) && length(msg_vec) > ind
-            wrapper.engine = assign_TT(wrapper.engine, size_mb = tryparse(Int64, msg_vec[ind+1]))
+            wrapper.engine = assign_tt(wrapper.engine, size_mb = tryparse(Int64, msg_vec[ind+1]))
             cli_state.TT_SET = true
         end
 
@@ -75,7 +75,7 @@ function set_position!(engine, position_moves)
     #play moves if provided
     if !isnothing(ind)
         for move_str in position_moves[ind + 1:end]
-            move = identify_UCImove(engine.board, move_str)
+            move = identify_uci_move(engine.board, move_str)
             make_move!(move, engine.board)
         end
     end
@@ -124,7 +124,7 @@ function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
     elseif "ISREADY" in msg_in
         if !cli_st.TT_SET
             #assign default TT if not previously set
-            wrapper.engine = assign_TT(wrapper.engine, wrapper.debug)
+            wrapper.engine = assign_tt(wrapper.engine, wrapper.debug)
             cli_st.TT_SET = true
         end
         return "readyok"
@@ -231,15 +231,15 @@ function run_cli()
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"
-function identify_UCImove(B::BoardState, UCImove::AbstractString)
-    moves, _ = generate_moves(B)
-    num_from = algebraic_to_numeric(UCImove[1:2])
-    num_to = algebraic_to_numeric(UCImove[3:4])
+function identify_uci_move(board::BoardState, uci_move::AbstractString)
+    moves, _ = generate_moves(board)
+    num_from = algebraic_to_numeric(uci_move[1:2])
+    num_to = algebraic_to_numeric(uci_move[3:4])
     num_promote = NOFLAG
-    kingsmove = num_from == locate_king(B, B.colour)
+    kingsmove = num_from == locate_king(board)
 
-    if length(UCImove) > 4
-        num_promote = promote_id(Char(UCImove[5]))
+    if length(uci_move) > 4
+        num_promote = promote_id(Char(uci_move[5]))
     end
 
     for move in moves
@@ -250,8 +250,8 @@ function identify_UCImove(B::BoardState, UCImove::AbstractString)
             end
         #check for castling if the king is moving
         elseif kingsmove
-            if (flg == KCASTLE && num_to == Kcastle_shift(num_from)) ||
-                (flg == QCASTLE && num_to == Qcastle_shift(num_from))
+            if (flg == KING_CASTLE && num_to == king_castle_shift(num_from)) ||
+                (flg == QUEEN_CASTLE && num_to == queen_castle_shift(num_from))
                 return move 
             end
         end

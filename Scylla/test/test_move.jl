@@ -9,38 +9,38 @@ using Test
         moves, move_count = generate_moves(board)
 
         move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
-        @test Scylla.UCImove(board, move) == "c8g2"
+        @test Scylla.uci_move(board, move) == "c8g2"
 
-        kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KCASTLE, moves)]
-        @test Scylla.UCImove(board, kcastle) == "e1g1"
+        kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KING_CASTLE, moves)]
+        @test Scylla.uci_move(board, kcastle) == "e1g1"
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
         moves, move_count = generate_moves(board)
         move = moves[findfirst(m->Scylla.flag(m)==Scylla.PROMQUEEN, moves)]
-        @test Scylla.UCImove(board, move) == "f7e8q"
+        @test Scylla.uci_move(board, move) == "f7e8q"
     end
 
     @testset "Convert Algebraic <--> Numeric" begin
         @test Scylla.algebraic_to_numeric("a8") == 0
         @test Scylla.algebraic_to_numeric("h1") == 63
 
-        @test Scylla.UCIpos(0) == "a8"
-        @test Scylla.UCIpos(63) == "h1"
+        @test Scylla.uci_pos(0) == "a8"
+        @test Scylla.uci_pos(63) == "h1"
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
         moves, move_count = generate_moves(board)
 
         for move in moves 
-            uci = Scylla.UCImove(board,move)
-            @test Scylla.identify_UCImove(board,uci) == move
+            uci = Scylla.uci_move(board,move)
+            @test Scylla.identify_uci_move(board,uci) == move
         end
     end
 
     @testset "Long UCI Move" begin 
         move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(2),UInt8(0))
-        mvstr = Scylla.LONGmove(move)
+        mvstr = Scylla.long_move(move)
         @test mvstr == "Kc8xg2"
     end
 
@@ -83,7 +83,7 @@ end
         end
 
         @test Scylla.whitesmove(board.colour) == false
-        @test board.Data.half_moves[end] == UInt8(1)
+        @test board.data.half_moves[end] == UInt8(1)
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
     end
 
@@ -179,7 +179,7 @@ end
             end
         end
         @test Scylla.ally_pieces(board)[5] == 0
-        @test length(board.Data.half_moves) == 2
+        @test length(board.data.half_moves) == 2
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
@@ -187,6 +187,6 @@ end
         @test Scylla.whitesmove(board.colour) == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
-        @test length(board.Data.half_moves) == 1
+        @test length(board.data.half_moves) == 1
     end
 end

@@ -2,15 +2,15 @@ using Scylla
 using Test
 
 @testset "Triangular Table" begin
-    PVtable = zeros(Scylla.triangle_number(Scylla.MAXDEPTH))
-    PV_len = Scylla.MAXDEPTH
+    pv_table = zeros(Scylla.triangle_number(Scylla.MAXDEPTH))
+    pv_len = Scylla.MAXDEPTH
     new_move = 1
     tri_count = 0
 
     for ply in Scylla.MAXDEPTH-1:-1:0
         tri_count += 1
-        Scylla.copy_PV!(PVtable,ply,PV_len,Scylla.MAXDEPTH,new_move)
-        @test sum(PVtable) == Scylla.triangle_number(tri_count)
+        Scylla.copy_pv!(pv_table,ply,pv_len,Scylla.MAXDEPTH,new_move)
+        @test sum(pv_table) == Scylla.triangle_number(tri_count)
     end
 end
 
@@ -65,9 +65,9 @@ end
         move = Move(i)
         Scylla.new_killer!(killer_vec, ply, move)
     end
-    @test killer_vec[ply+1].First == Move(10) 
-    @test killer_vec[ply+1].Second == Move(9) 
+    @test killer_vec[ply+1].first == Move(10) 
+    @test killer_vec[ply+1].second == Move(9) 
 
     Scylla.new_killer!(killer_vec, ply, Move(10))
-    @test killer_vec[ply+1].First != killer_vec[ply+1].Second
+    @test killer_vec[ply+1].first != killer_vec[ply+1].second
 end
