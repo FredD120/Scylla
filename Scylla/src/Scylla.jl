@@ -14,7 +14,7 @@ CURRENT CAPABILITIES
 TO-DO (engine)
 -> Null move pruning
 -> Delta/futility pruning
--> PVS
+-> PVS/aspiration windows
 -> Texel tuned PSTs
 -> SEE move ordering
 -> LMR + history
@@ -26,11 +26,12 @@ TO-DO (general)
  - Better time estimation - use movestogo if provided
 
 Code Clarity
--> Consistent naming conventions of variables, functions, constants
 -> Separate out functions for readability in:
+    -> generatemoves.jl
     -> makemove.jl
     -> cli.jl
     -> engine.jl
+-> Unify white/black distinction, ensuring same speed
 
 TO THINK ABOUT
 #When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
@@ -62,7 +63,7 @@ include("cli.jl")
 
 export BitBoard, BoardState,
        make_move!, unmake_move!,
-       generate_moves, gameover!,
+       generate_legal_moves, gameover!,
        best_move, Move, perft,
        Logger, print_log,
        run_cli, assign_tt!, reset_engine!,

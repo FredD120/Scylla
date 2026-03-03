@@ -96,34 +96,34 @@ end
     @testset "King Checked by Queen" begin
         simpleFEN = "K7/R7/8/8/8/8/8/r6q w - - 0 1"
         board = Scylla.BoardState(simpleFEN)    
-        info = Scylla.attack_info(board)
+        info = Scylla.LegalInfo(board)
 
-        @test info.checks == (UInt64(1)<<63)
+        @test info.attackers == (UInt64(1)<<63)
         @test info.attack_num == 1
-        @test Scylla.length(info.blocks) == 6
+        @test Scylla.length(info.evasion_mask) == 6
     end
 
     @testset "Block Queen" begin
         simpleFEN = "K7/7R/8/8/8/8/8/qqk5 w - - 0 1"
         board = Scylla.BoardState(simpleFEN)  
-        info = Scylla.attack_info(board)
+        info = Scylla.LegalInfo(board)
 
-        @test Scylla.length(info.blocks) == 6
+        @test Scylla.length(info.evasion_mask) == 6
     end
 
     @testset "Bishop Pinned" begin
         simpleFEN = "4k3/8/8/8/4q3/8/4B3/1Q2K3 w - 0 1"
         board = Scylla.BoardState(simpleFEN)  
-        info = Scylla.attack_info(board)
+        info = Scylla.LegalInfo(board)
 
-        @test info.blocks == typemax(UInt64)
-        @test info.checks == typemax(UInt64)
+        @test info.evasion_mask == typemax(UInt64)
+        @test info.attackers == typemax(UInt64)
     end
 
     @testset "Double Pin" begin
         simpleFEN = "K7/R7/8/8/8/8/8/r6b w - - 0 1"
         board = Scylla.BoardState(simpleFEN)    
-        pinfo = Scylla.attack_info(board)
+        pinfo = Scylla.LegalInfo(board)
     
         @test Scylla.length(pinfo.rookpins) == 7
         @test pinfo.bishoppins == 0
@@ -132,7 +132,7 @@ end
     @testset "No Pin" begin
         simpleFEN = "4k3/8/8/8/4b3/8/4B3/1Q2K3 w - 0 1"
         board = Scylla.BoardState(simpleFEN)    
-        pinfo = Scylla.attack_info(board)
+        pinfo = Scylla.LegalInfo(board)
 
         @test pinfo.rookpins == 0
         @test pinfo.bishoppins == 0
@@ -142,7 +142,7 @@ end
 @testset "Castling Rights" begin
     cFEN = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
     board = Scylla.BoardState(cFEN)
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
 
     Kcount = 0
     Qcount = 0
@@ -162,7 +162,7 @@ end
         @test board.castle == Int(0b1010)
     end
 
-    bmoves, move_count = Scylla.generate_moves(board)
+    bmoves, move_count = Scylla.generate_legal_moves(board)
     Kcount = 0
     Qcount = 0
     for m in bmoves 
@@ -179,7 +179,7 @@ end
         @test Kcount + Qcount == 0
     end
 
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     Kcount = 0
     Qcount = 0
     for m in moves 
@@ -199,7 +199,7 @@ end
     @testset "Castling Blocked" begin
         cFEN = "r3k2r/8/8/8/8/8/8/RB2K2R w KQkq - 0 1"
         board = Scylla.BoardState(cFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test all(i -> (Scylla.flag(i) != Scylla.QUEEN_CASTLE), moves) 
     end
 end
@@ -207,13 +207,13 @@ end
 @testset "Move Heap" begin
     board = Scylla.BoardState(FEN)
 
-    moves, move_count = generate_moves(board)
+    moves, move_count = generate_legal_moves(board)
     @test move_count == 20
     @test length(moves) == 20
     @test board.move_vector.ind == 20
 
     make_move!(moves[1], board)
-    new_moves, new_move_count = generate_moves(board)
+    new_moves, new_move_count = generate_legal_moves(board)
     @test new_move_count == 20
     @test length(new_moves) == 20
     @test board.move_vector.ind == 40
@@ -228,7 +228,7 @@ end
     @testset "Pinned Pawns" begin
         pFEN = "8/8/8/8/8/2b5/PPP5/K7 w - - 0 1"
         board = Scylla.BoardState(pFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
 
         @test count(i -> (Scylla.pc_type(i)==Scylla.PAWN), moves) == 3
         @test count(i -> (Scylla.cap_type(i)==Scylla.BISHOP), moves) == 1
@@ -237,7 +237,7 @@ end
     @testset "Forced Promotion" begin
         promFEN = "K3r4/1r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(findall(i -> Scylla.flag(i)==Scylla.PROMQUEEN, moves)) == 1
         @test length(findall(i -> Scylla.flag(i)==Scylla.PROMROOK, moves)) == 1
         @test length(findall(i -> Scylla.flag(i)==Scylla.PROMBISHOP, moves)) == 1
@@ -248,7 +248,7 @@ end
     @testset "Forced Capture" begin
         checkFEN = "8/8/R7/pppppppk/5R1R/8/8/7K b - - 1 1"
         board = Scylla.BoardState(checkFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
         @test Scylla.pc_type(moves[1]) == Scylla.PAWN
     end
@@ -257,7 +257,7 @@ end
         @testset "Double Push" begin
             EPfen = "8/3p4/7R/k6R/P6R/8/8/8 b - a3 0 1"
             board = Scylla.BoardState(EPfen)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
 
             @test length(moves) == 1
             @test Scylla.flag(moves[1]) == Scylla.DOUBLE_PUSH
@@ -269,7 +269,7 @@ end
         @testset "Rules" begin
             EPfen = "8/8/7k/8/Pp6/8/8/K b - a3 0 1"
             board = Scylla.BoardState(EPfen)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
             @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
             kingmv = findfirst(i -> Scylla.pc_type(i)==Scylla.KING, moves)
             Scylla.make_move!(moves[kingmv], board)
@@ -279,7 +279,7 @@ end
         @testset "Out of Check" begin
             newFEN = "8/8/8/7k/ppppppP1/8/8/7K b - g3 1 1"
             board = Scylla.BoardState(newFEN)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
             @test length(moves) == 6
             @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
         end
@@ -287,7 +287,7 @@ end
         @testset "Bishop Pin" begin
             newFEN = "K7/8/8/2pP4/8/8/8/7b w - c6 1 1"
             board = Scylla.BoardState(newFEN)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
             @test length(moves) == 4
             @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
         end
@@ -295,14 +295,14 @@ end
         @testset "Illegal due to Check" begin
             newFEN = "k6R/8/8/8/ppppppP1/8/8/7K b - g3 1 1"
             board = Scylla.BoardState(newFEN)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
             @test length(findall(i -> Scylla.pc_type(i)==Scylla.PAWN, moves)) == 0 
         end
 
         @testset "Illegal due to Pin" begin
             newFEN = "8/8/8/K1pPr/8/8/8/8 w - c6 1 1"
             board = Scylla.BoardState(newFEN)
-            moves, move_count = Scylla.generate_moves(board)
+            moves, move_count = Scylla.generate_legal_moves(board)
             @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 0
         end
     end
@@ -314,7 +314,7 @@ end
     all_pcs = Scylla.bb_union(board.pieces)
     kingpos = Scylla.LSB(board.pieces[Scylla.KING])
 
-    checkers = Scylla.attack_pcs(board, all_pcs, kingpos,true)
+    checkers = Scylla.king_attackers(board, all_pcs, kingpos)
     @test checkers == (UInt64(1)<<8) | (UInt64(1)<<11) | (UInt64(1)<<23) | (UInt64(1)<<62)
 end
 
@@ -322,7 +322,7 @@ end
     simpleFEN = "R1R1R1R1/8/8/8/8/8/8/1R1R1R1R b - - 0 1"
     board = Scylla.BoardState(simpleFEN) 
     all_pcs = Scylla.bb_union(board.pieces)  
-    attk_bb = Scylla.all_poss_moves(board, all_pcs, Scylla.whitesmove(board.colour))
+    attk_bb = Scylla.enemy_attacks(board, all_pcs)
 
     @test attk_bb == typemax(UInt64)
 end
@@ -330,7 +330,7 @@ end
 @testset "Move Getters" begin
     simpleFEN = "8/8/4nK2/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(simpleFEN)
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
 
     attks = 0
     quiets = 0
@@ -349,27 +349,27 @@ end
     simpleFEN = "8/8/4nK2/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(simpleFEN)
     board.data.half_moves[end] = 100
-    legal = Scylla.gameover!(board)
+    Scylla.gameover!(board)
     @test board.state == Scylla.Draw()
 
     @testset "Stalemate" begin
         slidingFEN = "K7/7r/8/8/8/8/8/1r4k1 w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        legal = Scylla.gameover!(board)
+        Scylla.gameover!(board)
         @test board.state == Scylla.Draw()
     end
 
     @testset "King X-ray" begin
         slidingFEN = "1R4B1/RK6/7r/8/8/8/8/r1r3kq w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        legal = Scylla.gameover!(board)
+        Scylla.gameover!(board)
         @test board.state == Scylla.Neutral()
     end
 
     @testset "Blocked and Pinned" begin
         slidingFEN = "K5Nr/8/8/3B4/8/8/r7/1r5q w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        legal = Scylla.gameover!(board)
+        Scylla.gameover!(board)
         @test board.state == Scylla.Loss()
     end
 end
@@ -378,7 +378,7 @@ end
     @testset "King Takes Knight" begin
         basicFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
         board = Scylla.BoardState(basicFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
 
         @test sum(Scylla.enemy_pieces(board)) > 0
 
@@ -391,7 +391,7 @@ end
         @test sum(Scylla.ally_pieces(board)[2:end]) == 0
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
 
-        @test length(generate_moves(board)[1]) == 3
+        @test length(generate_legal_moves(board)[1]) == 3
 
         GUI = Scylla.GUIposition(board)
         @test GUI[2] == 1
@@ -404,7 +404,7 @@ end
         knightFEN = "K7/8/1nnn4/8/N7/8/8/8 w - 0 1"
         board = Scylla.BoardState(knightFEN)
 
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
         @test Scylla.cap_type(moves[1]) > 0
         @test Scylla.pc_type(moves[1]) == Scylla.KNIGHT
@@ -413,14 +413,14 @@ end
     @testset "Stalemate" begin
         slidingFEN = "K7/7r/8/8/8/8/8/1r4k1 w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 0
     end
 
     @testset "Bishop Must Block" begin
         slidingFEN = "1R4B1/RK6/7r/8/8/8/8/r1r3kq w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
         @test Scylla.pc_type(moves[1]) == Scylla.BISHOP 
     end
@@ -428,7 +428,7 @@ end
     @testset "Checkmate" begin
         slidingFEN = "K5Nr/8/8/3B4/8/8/r7/1r5q w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 0
     end
 
@@ -436,7 +436,7 @@ end
     @testset "Rook Must Block" begin
         slidingFEN = "K5Nr/8/8/3B4/7R/8/q7/1r5q w - 0 1"
         board = Scylla.BoardState(slidingFEN)
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
     end
 end
@@ -453,7 +453,7 @@ end
     board = Scylla.BoardState(basicFEN)
 
     for i in 1:8
-        moves, move_count = Scylla.generate_moves(board)
+        moves, move_count = Scylla.generate_legal_moves(board)
         for m in moves
             pos = -1
             if i % 2 == 1
@@ -475,7 +475,7 @@ end
     slidingFEN = "Q6r/8/2K5/8/8/8/8/b2k3 w - 0 1"
     board = Scylla.BoardState(slidingFEN)
 
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     @test length(moves) == 23
     @test count(i->(Scylla.cap_type(i) > 0),moves) == 2
 
@@ -484,14 +484,14 @@ end
             Scylla.make_move!(m,board)
         end
     end
-    newmoves, move_count = Scylla.generate_moves(board)
+    newmoves, move_count = Scylla.generate_legal_moves(board)
     @test length(newmoves) == 12
     @test count(i->(Scylla.cap_type(i) == Scylla.QUEEN),newmoves) == 1
 end
 
 @testset "Zobrist" begin
     board = Scylla.BoardState(FEN)
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     for move in moves
        if (Scylla.from(move) == 57) & (Scylla.to(move) == 40)
         Scylla.make_move!(move,board)
@@ -503,19 +503,19 @@ end
     @test board.zobrist_hash == newboard.zobrist_hash
 
     #should end up back at start position
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     for move in moves
        if (Scylla.from(move) == 1) & (Scylla.to(move) == 16)
         Scylla.make_move!(move,board)
        end
     end
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     for move in moves
        if (Scylla.from(move) == 40) & (Scylla.to(move) == 57)
         Scylla.make_move!(move,board)
        end
     end
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
     for move in moves
        if (Scylla.from(move) == 16) & (Scylla.to(move) == 1)
         Scylla.make_move!(move,board)
@@ -553,8 +553,10 @@ end
 
 function Testing_perft(board::BoardState, depth)
     #could also test incremental Zhash updates here
-    legal = Scylla.gameover!(board)
-    moves, move_count = Scylla.generate_moves(board, legal)
+    legal = Scylla.LegalInfo(board)
+    gameover!(board, legal)
+
+    moves, move_count = Scylla.generate_legal_moves(board, legal)
 
     if board.state == Scylla.Neutral()
         @assert move_count > 0
@@ -562,7 +564,7 @@ function Testing_perft(board::BoardState, depth)
         @assert move_count == 0
     end
     
-    attacks, attack_count = Scylla.generate_attacks(board)
+    attacks, attack_count = Scylla.generate_legal_attacks(board)
     num_attacks = count(m->Scylla.cap_type(m) > 0, moves)
     @assert attack_count == num_attacks "Wrong number of attacks generated. Should be $(num_attacks), got $(attack_count)."
     Scylla.clear_current_moves!(board.move_vector, attack_count)
@@ -582,7 +584,7 @@ end
 
 function test_with_perft()
     #Test that PST values from incremental update are not different from static evaluation
-    #Also that number of attacks from generate_attacks is the same as from Scylla.generate_moves(all)
+    #Also that number of attacks from generate_legal_attacks is the same as from Scylla.generate_legal_moves(all)
     #Also that we can identify terminal nodes without running movegen
 
     FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"

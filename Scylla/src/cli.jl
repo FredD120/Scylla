@@ -232,7 +232,7 @@ end
 
 "try to match given UCI move to a legal move. return null move otherwise"
 function identify_uci_move(board::BoardState, uci_move::AbstractString)
-    moves, _ = generate_moves(board)
+    moves, _ = generate_legal_moves(board)
     num_from = algebraic_to_numeric(uci_move[1:2])
     num_to = algebraic_to_numeric(uci_move[3:4])
     num_promote = NOFLAG
@@ -256,5 +256,5 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
             end
         end
     end
-    return NULLMOVE
+    error("Movelist given is not legal")
 end

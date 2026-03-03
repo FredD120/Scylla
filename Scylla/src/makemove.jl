@@ -8,7 +8,7 @@ function destroy_piece!(board::BoardState, colour::UInt8, piece_type, pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, -1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
 
-    union_id = colour_id(colour) + 1
+    union_id = piece_union_index(colour)
     board.piece_union[union_id] = setzero(board.piece_union[union_id], pos)
 end
 
@@ -19,7 +19,7 @@ function create_piece!(board::BoardState, colour::UInt8, piece_type, pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, +1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
 
-    union_id = colour_id(colour)+1
+    union_id = piece_union_index(colour) 
     board.piece_union[union_id] = setone(board.piece_union[union_id], pos)
 end
 
@@ -157,7 +157,7 @@ function make_move!(move::Move, board::BoardState)
     swap_player!(board)
     push!(board.move_history, move)
     push!(board.data.zobrist_hash_history, board.zobrist_hash)
-    board.piece_union[end] = board.piece_union[1] | board.piece_union[2]
+    update_piece_union!(board)
 
     #check if castling rights have changed
     if board.castle == board.data.castling[end]
@@ -215,7 +215,7 @@ function unmake_move!(board::BoardState)
         #update data struct with halfmoves, en-passant, hash and castling
         pop!(board.data.zobrist_hash_history)
         board.zobrist_hash = board.data.zobrist_hash_history[end]
-        board.piece_union[end] = board.piece_union[1] | board.piece_union[2]
+        update_piece_union!(board)
 
         if board.data.half_moves[end] > 0 
             board.data.half_moves[end] -= 1

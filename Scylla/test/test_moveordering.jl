@@ -17,7 +17,7 @@ end
 @testset "MVV-LVA Scoring" begin
     eFEN = "8/8/8/8/8/8/q1r5/1K6 w - - 0 1"
     board = Scylla.BoardState(eFEN)
-    moves, move_count = Scylla.generate_moves(board)
+    moves, move_count = Scylla.generate_legal_moves(board)
 
     Scylla.score_moves!(moves)
     

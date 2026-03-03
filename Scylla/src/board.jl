@@ -33,12 +33,15 @@ current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m
 "Positive or negative for White/Black respectively"
 sgn(colour::UInt8) = ifelse(colour==0, +1, -1)
 
+#white = true, black = false
 "Boolean representing whose turn it is, chosen based on value on UInt8"
 whitesmove(colour_index::UInt8) = ifelse(colour_index == 0, true, false)
 
+#white = 0, black = 1
 "Colour ID from value stored in board representation"
 colour_id(colour_index::UInt8)::UInt8 = colour_index % 5
 
+#white = 0, black = 6
 "Helper functions to return opposite colour index"
 opposite(colour_index::UInt8)::UInt8 = (colour_index + 6) % 12
 opposite(colour::Bool) = !colour
@@ -75,11 +78,26 @@ end
 "Find position of king on bitboard"
 king_pos(board::BoardState, side_index) = LSB(board.pieces[side_index + KING])
 
+"generate bitboards representing positions of white, black and all pieces"
 function pc_unions(pieces)::Vector{BitBoard}
     white_pc_bb = bb_union(pieces[1:6]) 
     black_pc_bb = bb_union(pieces[7:12]) 
     all_pc_bb = white_pc_bb | black_pc_bb
-    [white_pc_bb, black_pc_bb, all_pc_bb]
+    return [white_pc_bb, black_pc_bb, all_pc_bb]
+end
+
+"index of bitboard representing union of all pieces of a given colour"
+piece_union_index(colour::UInt8) = colour_id(colour) + 1
+
+all_ally_pieces(board::BoardState) = board.piece_union[piece_union_index(board.colour)]
+
+all_enemy_pieces(board::BoardState) = board.piece_union[piece_union_index(opposite(board.colour))]
+
+all_pieces(board::BoardState) = board.piece_union[end]
+
+"recalculate piece union after pieces have moved"
+function update_piece_union!(board::BoardState)
+    board.piece_union[end] = board.piece_union[1] | board.piece_union[2]
 end
 
 "Helper function when constructing a boardstate"
