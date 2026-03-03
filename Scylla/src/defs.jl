@@ -152,6 +152,10 @@ const BLACK_MASKS = (
         shift =  -8
 )
 
+const PAWN_LEFT_ATTACK_MASK = BitBoard(0x7F7F7F7F7F7F7F7F)
+
+const PAWN_RIGHT_ATTACK_MASK = BitBoard(0xFEFEFEFEFEFEFEFE)
+
 const PROMOTE_TYPES = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
 
 "max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in move heap"

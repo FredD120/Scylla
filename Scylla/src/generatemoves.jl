@@ -46,15 +46,15 @@ function LegalInfo(board::BoardState)
         #if only a single sliding piece is attacking the king, it can be blocked
         if attacker_num == 1
             kingmoves = pseudolegal_rook_moves(position, all_pcs)
-            slide_attckers = kingmoves & (enemy_piece(board, ROOK) | enemy_piece(board, QUEEN))
-            for attack_pos in slide_attckers
+            slide_attackers = kingmoves & (enemy_piece(board, ROOK) | enemy_piece(board, QUEEN))
+            for attack_pos in slide_attackers
                 attackmoves = pseudolegal_rook_moves(attack_pos, all_pcs)
                 evasions |= attackmoves & kingmoves
             end
 
             kingmoves = pseudolegal_bishop_moves(position, all_pcs)
-            slide_attckers = kingmoves & (enemy_piece(board, BISHOP) | enemy_piece(board, QUEEN))
-            for attack_pos in slide_attckers
+            slide_attackers = kingmoves & (enemy_piece(board, BISHOP) | enemy_piece(board, QUEEN))
+            for attack_pos in slide_attackers
                 attackmoves = pseudolegal_bishop_moves(attack_pos, all_pcs)
                 evasions |= attackmoves & kingmoves
             end
@@ -139,7 +139,7 @@ function rook_pinlines(board::BoardState, king_pos, blocks_removed, slide_attack
     rook_no_blocks = pseudolegal_rook_moves(king_pos, blocks_removed) 
     #only want moves found after removing blockers
     rpin_attacks = rook_no_blocks & ~slide_attacks
-    #start by adding attacker to pin line
+    #start by adding attackers to pin line
     rook_pins = rpin_attacks & (enemy_piece(board, ROOK) | enemy_piece(board, QUEEN))
     #iterate through rooks/queens pinning king
     for loc in rook_pins
@@ -180,8 +180,8 @@ end
 function create_castle(king_or_queen, white_or_black)
     #king_or_queen is 0 if kingside, 1 if queenside 
     #white_or_black is 0 if white, 1 if black
-    from = UInt8(63 - 7*king_or_queen - white_or_black*56)
-    to = UInt8(from - 2 + 5*king_or_queen)
+    from = UInt8(63 - 7 * king_or_queen - white_or_black * 56)
+    to = UInt8(from - 2 + 5 * king_or_queen)
     return Move(KING, from, to, NULL_PIECE, KING_CASTLE + king_or_queen)
 end
 
@@ -207,8 +207,16 @@ function quiet_moves(move_bb, all_pcs)
     return move_bb & ~all_pcs
 end
 
+"bitboard logic to get attacks and quiets from a set of moves"
+function quiets_and_attacks(moves, all_bb, enemy_bb, MODE::UInt64)
+    attacks = attack_moves(moves, enemy_bb)
+    #set quiets to zero if only generating attacks
+    quiets = quiet_moves(moves, all_bb) * MODE
+    return quiets, attacks
+end
+
 "Filter pseudolegal moves for legality for king"
-function legal_king_moves(loc,info::LegalInfo)
+function legal_king_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_king_moves(loc)
     #Filter out moves that put king in check
     legal_moves = poss_moves & ~info.attack_sqs
@@ -216,7 +224,7 @@ function legal_king_moves(loc,info::LegalInfo)
 end
 
 "Filter pseudolegal moves for legality for knight"
-function legal_knight_moves(loc,info::LegalInfo)
+function legal_knight_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_knight_moves(loc)
     #Filter out knight moves that don't block/capture if in check
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) 
@@ -224,7 +232,7 @@ function legal_knight_moves(loc,info::LegalInfo)
 end
 
 "Filter pseudolegal moves for legality for bishop"
-function legal_bishop_moves(loc,all_pcs,bishoppins,info::LegalInfo)
+function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
     poss_moves = pseudolegal_bishop_moves(loc,all_pcs)
     #Filter out bishop moves that don't block/capture if in check/pinned
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) & bishoppins
@@ -246,13 +254,10 @@ function legal_queen_moves(loc, all_pcs, rookpins, bishoppins, info::LegalInfo)
     return legal_rook | legal_bishop
 end
 
-"Bitboard logic to get attacks and quiets from legal moves"
-function quiets_and_attacks(legal, all_bb, enemy_bb, MODE::UInt64)
-    attacks = attack_moves(legal, enemy_bb)
-    #set quiets to zero if only generating attacks
-    quiets = quiet_moves(legal, all_bb) * MODE
-    return quiets, attacks
-end
+"when not pinned, use a full bitboard as a mask that allows all moves"
+legal_bishop_moves(loc, all_pcs, info) = legal_bishop_moves(loc, all_pcs, BITBOARD_FULL, info)
+legal_rook_moves(loc, all_pcs, info) = legal_rook_moves(loc, all_pcs, BITBOARD_FULL, info)
+legal_queen_moves(loc, all_pcs, info) = legal_queen_moves(loc, all_pcs, BITBOARD_FULL, BITBOARD_FULL, info)
 
 "bishop can only move if pinned diagonally"
 pinned_bishop(piece_bb, bishoppins) = piece_bb & bishoppins
@@ -274,7 +279,7 @@ end
 "add all legal moves that can be made by a non-pinned rook from locations on bitboard that are not pinned"
 function unpinned_rook_moves!(board::BoardState, enemy_pcs, all_pcs, unpinned_bb, TYPE, MODE, info::LegalInfo)
     for loc in unpinned_bb
-        legal = legal_rook_moves(loc, all_pcs, BITBOARD_FULL, info)
+        legal = legal_rook_moves(loc, all_pcs, info)
         quiets, attacks = quiets_and_attacks(legal, all_pcs, enemy_pcs, MODE)
 
         moves_from_location!(TYPE, board, quiets, loc, false)
@@ -296,7 +301,7 @@ end
 "add all legal moves that can be made by a non-pinned bishop from locations on bitboard that are not pinned"
 function unpinned_bishop_moves!(board::BoardState, enemy_pcs, all_pcs, unpinned_bb, TYPE, MODE, info::LegalInfo)
     for loc in unpinned_bb
-        legal = legal_bishop_moves(loc, all_pcs, BITBOARD_FULL, info)
+        legal = legal_bishop_moves(loc, all_pcs, info)
         quiets, attacks = quiets_and_attacks(legal, all_pcs, enemy_pcs, MODE)
 
         moves_from_location!(TYPE, board, quiets, loc, false)
@@ -307,7 +312,7 @@ end
 "add all legal moves that can be made by a non-pinned queen from locations on bitboard that are not pinned"
 function unpinned_queen_moves(board::BoardState, enemy_pcs, all_pcs, unpinned_bb, MODE, info::LegalInfo)
     for loc in unpinned_bb
-        legal = legal_queen_moves(loc, all_pcs, BITBOARD_FULL, BITBOARD_FULL, info)
+        legal = legal_queen_moves(loc, all_pcs, info)
         quiets, attacks = quiets_and_attacks(legal, all_pcs, enemy_pcs, MODE)
 
         moves_from_location!(QUEEN, board, quiets, loc, false)
@@ -328,7 +333,7 @@ end
     pinned_bishop_moves!(board, enemy_pcs, all_pcs, bishop_pinned_bb, QUEEN, MODE, info)
 end
 
-"Returns true if any queen moves exist"
+"returns true if any queen moves exist"
 @inline function any_queen_moves(piece_bb, all_pcs, ally_pcs_bb, info::LegalInfo)::Bool
     unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
     for loc in unpinned_bb
@@ -458,9 +463,9 @@ end
         #must mask out opponent's castle rights
         for castle_id in BitBoard(get_castle_rights(castlrts, (colour_id + 1) % 2, 0))
             castleattack = MOVESET.castle_check[castle_id + 1]
-            blockId = castle_id % 2 # only queenside castle (=1) has extra block squares
+            block_id = castle_id % 2 # only queenside castle (=1) has extra block squares
             #white queen blockers are at index 5, black queen blockers are at index 6
-            castleblock = MOVESET.castle_check[castle_id + blockId * (2 + (castle_id % 3)) + 1]
+            castleblock = MOVESET.castle_check[castle_id + block_id * (2 + (castle_id % 3)) + 1]
             if (castleblock & all_pcs == 0) && (castleattack & info.attack_sqs == 0)
                 append!(board.move_vector, create_castle(UInt8(castle_id % 2), colour_id))
             end
@@ -480,9 +485,9 @@ end
 "use bitshifts to push all white/black pawns at once"
 cond_push(colour::Bool, pawn_bb) = ifelse(colour, pawn_bb >> 8, pawn_bb << 8)
 
-attack_left(piece_bb) = (piece_bb >> 1) & BitBoard(0x7F7F7F7F7F7F7F7F)
+attack_left(piece_bb) = (piece_bb >> 1) & PAWN_LEFT_ATTACK_MASK
 
-attack_right(piece_bb) = (piece_bb << 1) & BitBoard(0xFEFEFEFEFEFEFEFE)
+attack_right(piece_bb) = (piece_bb << 1) & PAWN_RIGHT_ATTACK_MASK
 
 "appends 4 promotion moves"
 function append_moves!(board::BoardState, piece_type, from, to, capture_type,::Promote)
@@ -497,26 +502,26 @@ function append_moves!(board::BoardState, piece_type, from, to, capture_type, fl
 end
 
 "Create list of pawn push moves with a given flag"
-function push_moves!(board::BoardState, singlepush, promotemask, shift, blocks, flag, MODE::UInt64)
-    for q1 in ((singlepush * MODE) & blocks & promotemask)
+function push_moves!(board::BoardState, helper, promotemask, shift, info, flag, MODE::UInt64)
+    for q1 in ((helper.single_push * MODE) & info.evasion_mask & promotemask)
         append_moves!(board, PAWN, UInt8(q1 + shift), q1, NULL_PIECE, flag)
     end
 end
 
 "Create list of double pawn push moves"
-function push_moves!(board::BoardState, doublepush, shift, blocks, MODE::UInt64)
-    for q2 in ((doublepush * MODE) & blocks)
+function double_push_moves!(board::BoardState, helper, shift, info, MODE::UInt64)
+    for q2 in ((helper.double_push * MODE) & info.evasion_mask)
         append!(board.move_vector, Move(PAWN, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
     end
 end
 
 "Create list of pawn capture moves with a given flag"
-function capture_moves!(board::BoardState, leftattack, rightattack, promotemask, shift, enemy_pcs, checks, flag)
-    for la in (leftattack & enemy_pcs & promotemask & checks)
+function capture_moves!(board::BoardState, helper, promote_mask, shift, enemy_pcs, info, flag)
+    for la in (helper.attack_left & enemy_pcs & promote_mask & info.attackers)
         attack_piece_id = identify_piecetype(board, la)
         append_moves!(board, PAWN, UInt8(la + shift + 1), la, attack_piece_id, flag)
     end
-    for ra in (rightattack & enemy_pcs & promotemask & checks)
+    for ra in (helper.attack_right & enemy_pcs & promote_mask & info.attackers)
         attack_piece_id = identify_piecetype(board, ra)
         append_moves!(board, PAWN, UInt8(ra + shift - 1), ra, attack_piece_id, flag)
     end
@@ -548,20 +553,24 @@ function push_enpassant!(board::BoardState, from, to, shift, checks, all_pcs, ki
 end
 
 "Create list of pawn en-passant moves"
-function enpassant_moves!(board::BoardState, leftattack, rightattack, shift, enpassant_sqs, checks, all_pcs, kingpos)
-    for la in (leftattack & enpassant_sqs)  
+function enpassant_moves!(board::BoardState, helper, shift, enpassant_sqs, checks, all_pcs, kingpos)
+    for la in (helper.attack_left & enpassant_sqs)  
         push_enpassant!(board, UInt8(la + shift + 1), la, shift, checks, all_pcs, kingpos)
     end
-    for ra in (rightattack & enpassant_sqs)
+    for ra in (helper.attack_right & enpassant_sqs)
         push_enpassant!(board, UInt8(ra + shift - 1), ra, shift, checks, all_pcs, kingpos)
     end
 end
 
-"returns attack and quiet moves for pawns only if legal, based on checks and pins"
-function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, enpass_bb, colour::Bool, kingpos, MODE, info::LegalInfo)
-    piece_bb = ally_piece(board, PAWN)
-    pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
+"store useful bitboards that are used for pawn legal move generation"
+struct PawnMoveHelper
+    single_push::BitBoard
+    double_push::BitBoard
+    attack_left::BitBoard
+    attack_right::BitBoard
+end
 
+function PawnMoveHelper(piece_bb, double_push_mask, all_pcs, colour, info::LegalInfo)
     #split into pinned and unpinned pieces, then run movegetter seperately on each
     unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
     rook_pinned_bb = pinned_rook(piece_bb, info.rookpins)
@@ -574,62 +583,52 @@ function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, enpass_bb, colou
     legalpush1 |= quiet_moves(pushpinned, all_pcs) & info.rookpins
 
     #push twice if possible
-    pushpawn2 = cond_push(colour, legalpush1 & pawn_masks.doublepush)
+    pushpawn2 = cond_push(colour, legalpush1 & double_push_mask)
     legalpush2 = quiet_moves(pushpawn2, all_pcs)
 
     #shift left and right to attack
     attackleft = attack_left(pushpawn1)
     attackright = attack_right(pushpawn1)
 
-    Bpush = cond_push(colour, bishop_pinned_bb)
-    Battackleft = attack_left(Bpush)
-    Battackright = attack_right(Bpush)
+    bishop_pin_push = cond_push(colour, bishop_pinned_bb)
+    bishop_pin_attack_left = attack_left(bishop_pin_push)
+    bishop_pin_attack_right = attack_right(bishop_pin_push)
 
     #combine with attacks pinned by a bishop
-    attackleft |= Battackleft & info.bishoppins
-    attackright |= Battackright & info.bishoppins
+    attackleft |= bishop_pin_attack_left & info.bishoppins
+    attackright |= bishop_pin_attack_right & info.bishoppins
+
+    return PawnMoveHelper(legalpush1, legalpush2, attackleft, attackright)
+end
+
+"returns attack and quiet moves for pawns only if legal, based on checks and pins"
+function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, enpass_bb, colour::Bool, kingpos, MODE, info::LegalInfo)
+    piece_bb = ally_piece(board, PAWN)
+    pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
+    helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, colour, info)
     
     #add non-promote pushes, promote pushes, double pushes, non-promote captures, promote captures and en-passant
-    push_moves!(board, legalpush1, ~pawn_masks.promote, pawn_masks.shift, info.evasion_mask, NOFLAG, MODE),
-    push_moves!(board, legalpush1, pawn_masks.promote, pawn_masks.shift, info.evasion_mask, Promote(), MODE),
-    push_moves!(board, legalpush2, pawn_masks.shift, info.evasion_mask, MODE),
-    capture_moves!(board, attackleft, attackright, ~pawn_masks.promote, pawn_masks.shift, enemy_pcs, info.attackers, NOFLAG),
-    capture_moves!(board, attackleft, attackright, pawn_masks.promote, pawn_masks.shift, enemy_pcs,info.attackers, Promote()),
-    enpassant_moves!(board, attackleft, attackright, pawn_masks.shift, enpass_bb, info.attackers, all_pcs, kingpos)
+    push_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, info, NOFLAG, MODE)
+    push_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, info, Promote(), MODE)
+    double_push_moves!(board, helper, pawn_masks.shift, info, MODE)
+    capture_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, NOFLAG)
+    capture_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, Promote())
+    enpassant_moves!(board, helper, pawn_masks.shift, enpass_bb, info.attackers, all_pcs, kingpos)
 end
 
 "Return true if any pawn moves exist"
 function any_pawn_moves(piece_bb, all_pcs, ally_pcs_bb, colour::Bool, info::LegalInfo)::Bool
-    #split into pinned and unpinned pieces, then run movegetter seperately on each
-    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
-    Rpinned_bb = pinned_rook(piece_bb, info.rookpins)
-    Bpinned_bb = pinned_bishop(piece_bb, info.bishoppins)
-
-    #push once and remove any that are blocked
-    pushpawn1 = cond_push(colour, unpinned_bb)
-    legalpush1 = quiet_moves(pushpawn1, all_pcs)
-    pushpinned = cond_push(colour, Rpinned_bb)
-    legalpush1 |= quiet_moves(pushpinned, all_pcs) & info.rookpins
-
-    if (legalpush1 & info.evasion_mask) > 0
+    helper = PawnMoveHelper(piece_bb, BITBOARD_EMPTY, all_pcs, colour, info)
+    if (helper.single_push & info.evasion_mask) > 0
         return true
     end
 
-    #shift left and right to attack
-    attackleft = attack_left(pushpawn1)
-    attackright = attack_right(pushpawn1)
-
-    Bpush = cond_push(colour, Bpinned_bb)
-    Battackleft = attack_left(Bpush)
-    Battackright = attack_right(Bpush)
-
-    #combine with attacks pinned by a bishop
-    attackleft |= Battackleft & info.bishoppins
-    attackright |= Battackright & info.bishoppins
-
     enemy_pieces_bb = all_pcs & ~ally_pcs_bb
+    if ((helper.attack_left & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0
+        return true
+    end
 
-    if ((attackleft & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0 || ((attackright & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0
+    if ((helper.attack_right & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0
         return true
     end
     return false

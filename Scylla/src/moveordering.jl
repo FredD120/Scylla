@@ -84,4 +84,3 @@ function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best
         end
     end
 end
-
