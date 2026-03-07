@@ -6,7 +6,7 @@ locate_king(board::BoardState) = locate_king(board, board.colour)
 
 "Masked 4-bit integer representing king- and queen-side castling rights for one side"
 function get_castle_rights(castling, colour_id, king_or_queen_side)
-    #colour_id must be 0 for white and 1 for black
+    #colour_id is 0 for white and 1 for black
     #king_or_queen_side allows masking out of only king/queen side
     #for a given colour, =0 if both, 1 = king, 2 = queen
     rights = MOVESET.castle_rights_mask[3 * colour_id + king_or_queen_side + 1]
@@ -180,8 +180,11 @@ end
 function create_castle(king_or_queen, white_or_black)
     #king_or_queen is 0 if kingside, 1 if queenside 
     #white_or_black is 0 if white, 1 if black
-    from = UInt8(63 - 7 * king_or_queen - white_or_black * 56)
-    to = UInt8(from - 2 + 5 * king_or_queen)
+    rook_position_lookup = king_or_queen + white_or_black * 2 + 1
+
+    from = ROOK_START_SQUARES[rook_position_lookup]
+    to = ROOK_CASTLE_SQUARES[rook_position_lookup]
+
     return Move(KING, from, to, NULL_PIECE, KING_CASTLE + king_or_queen)
 end
 
@@ -197,25 +200,24 @@ end
     end
 end
 
-"Bitboard containing only the attacks by a particular piece"
-function attack_moves(move_bb, enemy_bb)
-    return move_bb & enemy_bb
-end
+"bitboard containing only the attacks by a particular piece"
+attack_moves(::MoveMode, move_bb, enemy_bb) = move_bb & enemy_bb
 
-"Bitboard containing only the quiets by a particular piece"
-function quiet_moves(move_bb, all_pcs)
-    return move_bb & ~all_pcs
-end
+"bitboard containing only the quiets by a particular piece"
+quiet_moves(::AllMoves, move_bb, all_pcs) = move_bb & ~all_pcs
+
+"bitboard containing no moves if we only want to generate attacks"
+quiet_moves(::AttacksOnly, move_bb, all_pcs) = BITBOARD_EMPTY
 
 "bitboard logic to get attacks and quiets from a set of moves"
-function quiets_and_attacks(moves, all_bb, enemy_bb, MODE::UInt64)
-    attacks = attack_moves(moves, enemy_bb)
+function quiets_and_attacks(moves, all_bb, enemy_bb, MODE::MoveMode)
+    attacks = attack_moves(MODE, moves, enemy_bb)
     #set quiets to zero if only generating attacks
-    quiets = quiet_moves(moves, all_bb) * MODE
+    quiets = quiet_moves(MODE, moves, all_bb)
     return quiets, attacks
 end
 
-"Filter pseudolegal moves for legality for king"
+"filter pseudolegal moves for legality for king"
 function legal_king_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_king_moves(loc)
     #Filter out moves that put king in check
@@ -223,7 +225,7 @@ function legal_king_moves(loc, info::LegalInfo)
     return legal_moves
 end
 
-"Filter pseudolegal moves for legality for knight"
+"filter pseudolegal moves for legality for knight"
 function legal_knight_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_knight_moves(loc)
     #Filter out knight moves that don't block/capture if in check
@@ -231,7 +233,7 @@ function legal_knight_moves(loc, info::LegalInfo)
     return legal_moves
 end
 
-"Filter pseudolegal moves for legality for bishop"
+"filter pseudolegal moves for legality for bishop"
 function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
     poss_moves = pseudolegal_bishop_moves(loc,all_pcs)
     #Filter out bishop moves that don't block/capture if in check/pinned
@@ -239,7 +241,7 @@ function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
     return legal_moves
 end
 
-"Filter pseudolegal moves for legality for rook"
+"filter pseudolegal moves for legality for rook"
 function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
     poss_moves = pseudolegal_rook_moves(loc, all_pcs)
     #Filter out rook moves that don't block/capture if in check/pinned
@@ -247,7 +249,7 @@ function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
     return legal_moves
 end
 
-"Filter pseudolegal moves for legality for queen"
+"filter pseudolegal moves for legality for queen"
 function legal_queen_moves(loc, all_pcs, rookpins, bishoppins, info::LegalInfo)
     legal_rook = legal_rook_moves(loc, all_pcs, rookpins, info)
     legal_bishop = legal_bishop_moves(loc, all_pcs, bishoppins, info)
@@ -447,8 +449,51 @@ end
     return false
 end
 
-"returns attacks, quiet moves and castles for king only if legal, based on checks"
-@inline function get_king_moves!(board::BoardState, enemy_pcs, all_pcs, castlrts, colour_id, MODE, info::LegalInfo)
+"mask out opponents castle rights, retrieve king- and queen-side castling rights index if possible"
+function self_castle_rights(castle_rights, colour_id)::BitBoard
+    opponent_id = (colour_id + 1) % 2
+    return get_castle_rights(castle_rights, opponent_id, 0)
+end
+
+"return mask for squares that can block castling, either by ally or enemy pieces"
+function castle_blocker_mask(castle_id)
+    # only queenside castle (=1) has extra block squares
+    block_id = (castle_id % 2) * (2 + (castle_id % 3))
+    # white queen blockers are at index 5, black queen blockers are at index 6
+    return MOVESET.castle_check[castle_id + block_id  + 1]
+end
+
+"retrieve mask from lookup table containing squares that must not be in check to castle"
+castle_attacker_mask(castle_id) = MOVESET.castle_check[castle_id + 1]
+
+"returns true if there are no attacks or blockers on squares required for castling"
+function can_castle(castle_id, all_pieces_bb, attacked_squares_bb)
+    if castle_blocker_mask(castle_id) & all_pieces_bb == 0
+        if castle_attacker_mask(castle_id) & attacked_squares_bb == 0
+            return true
+        end
+    end
+   return false
+end
+
+"generate castling moves for side-to-move if the rights exist and it is legal to do so"
+function get_castle_moves!(::AllMoves, board::BoardState, all_pcs, castle_rights, info::LegalInfo)
+    colour_index = colour_id(board.colour)
+    # cannot castle out of check
+    if info.attack_num == 0
+        for castle_id in self_castle_rights(castle_rights, colour_index)
+            if can_castle(castle_id, all_pcs, info.attack_sqs)
+                append!(board.move_vector, create_castle(UInt8(castle_id % 2), colour_index))
+            end
+        end
+    end
+end
+
+"castling is a quiet move, not generated during attack-only move generation"
+get_castle_moves!(::AttacksOnly, _, _, _, _) = nothing
+
+"generate attacks, quiet moves and castles for king only if legal, based on checks"
+@inline function get_king_moves!(board::BoardState, enemy_pcs, all_pcs, castle_rights, MODE, info::LegalInfo)
     piece_bb = ally_piece(board, KING)
     for loc in piece_bb
         legal = legal_king_moves(loc, info)
@@ -457,20 +502,7 @@ end
         moves_from_location!(KING, board, quiets, loc, false)
         moves_from_location!(KING, board, attacks, loc, true)
     end
-    #cannot castle out of check. castling is a quiet move
-    if info.attack_num == 0 && MODE == ALLMOVES
-        #index into lookup table containing squares that must be free/not in check to castle
-        #must mask out opponent's castle rights
-        for castle_id in BitBoard(get_castle_rights(castlrts, (colour_id + 1) % 2, 0))
-            castleattack = MOVESET.castle_check[castle_id + 1]
-            block_id = castle_id % 2 # only queenside castle (=1) has extra block squares
-            #white queen blockers are at index 5, black queen blockers are at index 6
-            castleblock = MOVESET.castle_check[castle_id + block_id * (2 + (castle_id % 3)) + 1]
-            if (castleblock & all_pcs == 0) && (castleattack & info.attack_sqs == 0)
-                append!(board.move_vector, create_castle(UInt8(castle_id % 2), colour_id))
-            end
-        end
-    end
+    get_castle_moves!(MODE, board, all_pcs, castle_rights, info)
 end
 
 "Returns true if any king moves exist. Don't need to check castles as castle is only legal if sideways moves are"
@@ -502,15 +534,15 @@ function append_moves!(board::BoardState, piece_type, from, to, capture_type, fl
 end
 
 "Create list of pawn push moves with a given flag"
-function push_moves!(board::BoardState, helper, promotemask, shift, info, flag, MODE::UInt64)
-    for q1 in ((helper.single_push * MODE) & info.evasion_mask & promotemask)
+function push_moves!(board::BoardState, helper, promotemask, shift, info, flag)
+    for q1 in ((helper.single_push) & info.evasion_mask & promotemask)
         append_moves!(board, PAWN, UInt8(q1 + shift), q1, NULL_PIECE, flag)
     end
 end
 
 "Create list of double pawn push moves"
-function double_push_moves!(board::BoardState, helper, shift, info, MODE::UInt64)
-    for q2 in ((helper.double_push * MODE) & info.evasion_mask)
+function double_push_moves!(board::BoardState, helper, shift, info)
+    for q2 in ((helper.double_push) & info.evasion_mask)
         append!(board.move_vector, Move(PAWN, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
     end
 end
@@ -570,7 +602,7 @@ struct PawnMoveHelper
     attack_right::BitBoard
 end
 
-function PawnMoveHelper(piece_bb, double_push_mask, all_pcs, colour, info::LegalInfo)
+function PawnMoveHelper(piece_bb, double_push_mask, all_pcs, colour, MODE, info::LegalInfo)
     #split into pinned and unpinned pieces, then run movegetter seperately on each
     unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
     rook_pinned_bb = pinned_rook(piece_bb, info.rookpins)
@@ -578,13 +610,13 @@ function PawnMoveHelper(piece_bb, double_push_mask, all_pcs, colour, info::Legal
 
     #push once and remove any that are blocked
     pushpawn1 = cond_push(colour, unpinned_bb)
-    legalpush1 = quiet_moves(pushpawn1, all_pcs)
+    legalpush1 = quiet_moves(MODE, pushpawn1, all_pcs)
     pushpinned = cond_push(colour, rook_pinned_bb)
-    legalpush1 |= quiet_moves(pushpinned, all_pcs) & info.rookpins
+    legalpush1 |= quiet_moves(MODE, pushpinned, all_pcs) & info.rookpins
 
     #push twice if possible
     pushpawn2 = cond_push(colour, legalpush1 & double_push_mask)
-    legalpush2 = quiet_moves(pushpawn2, all_pcs)
+    legalpush2 = quiet_moves(MODE, pushpawn2, all_pcs)
 
     #shift left and right to attack
     attackleft = attack_left(pushpawn1)
@@ -605,12 +637,12 @@ end
 function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, enpass_bb, colour::Bool, kingpos, MODE, info::LegalInfo)
     piece_bb = ally_piece(board, PAWN)
     pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
-    helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, colour, info)
+    helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, colour, MODE, info)
     
     #add non-promote pushes, promote pushes, double pushes, non-promote captures, promote captures and en-passant
-    push_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, info, NOFLAG, MODE)
-    push_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, info, Promote(), MODE)
-    double_push_moves!(board, helper, pawn_masks.shift, info, MODE)
+    push_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, info, NOFLAG)
+    push_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, info, Promote())
+    double_push_moves!(board, helper, pawn_masks.shift, info)
     capture_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, NOFLAG)
     capture_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, Promote())
     enpassant_moves!(board, helper, pawn_masks.shift, enpass_bb, info.attackers, all_pcs, kingpos)
@@ -618,7 +650,7 @@ end
 
 "Return true if any pawn moves exist"
 function any_pawn_moves(piece_bb, all_pcs, ally_pcs_bb, colour::Bool, info::LegalInfo)::Bool
-    helper = PawnMoveHelper(piece_bb, BITBOARD_EMPTY, all_pcs, colour, info)
+    helper = PawnMoveHelper(piece_bb, BITBOARD_EMPTY, all_pcs, colour, AllMoves(), info)
     if (helper.single_push & info.evasion_mask) > 0
         return true
     end
@@ -643,15 +675,14 @@ function draw_state(board::BoardState)::Bool
 end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
-function generate_legal_moves(board::BoardState, legal_info::LegalInfo=LegalInfo(board), MODE::UInt64=ALLMOVES)
+function generate_legal_moves(board::BoardState, legal_info::LegalInfo=LegalInfo(board), MODE::MoveMode=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)
     
     kingpos = locate_king(board)
 
-    get_king_moves!(board, enemy_pcs_bb, all_pcs_bb,
-    board.castle, colour_id(board.colour), MODE, legal_info)
+    get_king_moves!(board, enemy_pcs_bb, all_pcs_bb, board.castle, MODE, legal_info)
 
     #if multiple checks on king, only king can move
     if legal_info.attack_num <= 1
@@ -675,7 +706,7 @@ end
 
 "helper function that used generate moves create a movelist of all attacking moves (no quiets)"
 function generate_legal_attacks(board::BoardState, legal_info::LegalInfo=LegalInfo(board))
-    return generate_legal_moves(board, legal_info, ATTACKONLY)
+    return generate_legal_moves(board, legal_info, AttacksOnly())
 end
 
 "evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"

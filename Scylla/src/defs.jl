@@ -110,6 +110,13 @@ const SCORESHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE + FLAGSIZE
 
 ### Move Generator Features ###
 
+"types to allow multiple dispatch during move generation for all moves or only attacks"
+abstract type MoveMode end
+
+struct AllMoves <: MoveMode end
+
+struct AttacksOnly <: MoveMode end
+
 "read masks for checking castling rights and legality"
 function get_castle_masks()
     h5open("$(dirname(@__DIR__))/src/move_bitboards/castle.h5", "r") do fid
@@ -137,6 +144,22 @@ function identify_locations(int::Integer)::Vector{UInt8}
     end
     return locations
 end
+
+"named tuple storing positions of rook home squares for use when generating castling moves"
+const ROOK_START_SQUARES = (
+    white_kingside = UInt8(63),
+    white_queenside = UInt8(56),
+    black_kingside  = UInt8(7),
+    black_queenside = UInt8(0)
+)
+
+"named tuple storing positions of squares the rook finishes on after castling"
+const ROOK_CASTLE_SQUARES = (
+    white_kingside = UInt8(61),
+    white_queenside = UInt8(59),
+    black_kingside  = UInt8(5),
+    black_queenside = UInt8(3)
+)
 
 "bitboard masks for pawn double push and promotion legality
 shift to define whether pawn moves forwards or backwards from white's perspective"

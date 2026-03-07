@@ -57,7 +57,7 @@ function update_castle_rights!(board::BoardState, ColId, side)
     #remove ally castling rights by &-ing with opponent mask
     #side is king=1, queen=2, both=0
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
-    board.castle = get_castle_rights(board.castle, ColId,side)
+    board.castle = get_castle_rights(board.castle, ColId, side)
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
 end
 
@@ -81,11 +81,11 @@ function make_move!(move::Move, board::BoardState)
     #deal with castling
     if (mv_flag == KING_CASTLE) || (mv_flag == QUEEN_CASTLE)
         move_piece!(board, board.colour, ROOK, mv_from, mv_to)
-        update_castle_rights!(board,ColId,0)
+        update_castle_rights!(board, ColId, 0)
         if mv_flag == KING_CASTLE
-            king_castle!(board,board.colour)
+            king_castle!(board, board.colour)
         else
-            queen_castle!(board,board.colour)
+            queen_castle!(board, board.colour)
         end
         #castling does not reset halfmove count
         board.data.half_moves[end] += 1

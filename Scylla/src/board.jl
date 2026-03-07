@@ -107,7 +107,7 @@ end
 
 "Helper function to modify zobrist based on castle rights"
 function zobrist_castle(zobrist_hash, castling)
-    #use last rank of black pawns and 8 extra indices (0⋜castling⋜15)
+    #use last rank of black pawns and 8 extra indices (0 ⋜ castling ⋜ 15)
     zobrist_hash ⊻= ZOBRIST_KEYS[end - 16 + castling]
     return zobrist_hash
 end
