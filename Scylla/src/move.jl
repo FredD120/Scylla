@@ -51,17 +51,13 @@ const NULLMOVE = Move(UInt8(0), UInt8(0), UInt8(0), UInt8(0), UInt8(0))
 struct Move_BB
     king::SVector{64, BitBoard}
     knight::SVector{64, BitBoard}
-    castle_rights_mask::SVector{6, UInt8}
-    castle_check::SVector{6, BitBoard}
 end
 
 "constructor for Move_BB that reads all moves from txt files"
 function Move_BB()
     king_mvs = get_normal_masks("king")
     knight_mvs = get_normal_masks("knight")
-    castle_rights, castle_check = get_castle_masks()
-
-    return Move_BB(king_mvs, knight_mvs, castle_rights, castle_check)
+    return Move_BB(king_mvs, knight_mvs)
 end
 
 const MOVESET = Move_BB()

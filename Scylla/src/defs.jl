@@ -117,15 +117,6 @@ struct AllMoves <: MoveMode end
 
 struct AttacksOnly <: MoveMode end
 
-"read masks for checking castling rights and legality"
-function get_castle_masks()
-    h5open("$(dirname(@__DIR__))/src/move_bitboards/castle.h5", "r") do fid
-        castle_rights = read(fid["rights"])
-        castle_check = read(fid["check"])
-        return castle_rights, castle_check
-    end
-end
-
 "read bitboards for king/knight moves from any position"
 function get_normal_masks(piece)
     h5open("$(dirname(@__DIR__))/src/move_bitboards/$(piece).h5", "r") do fid
@@ -159,6 +150,32 @@ const ROOK_CASTLE_SQUARES = (
     white_queenside = UInt8(59),
     black_kingside  = UInt8(5),
     black_queenside = UInt8(3)
+)
+
+"named tuple storing castling rights masks to check if it is legal for black/white to castle king/queenside"
+const CASTLE_RIGHTS = (
+    white_king_and_queen = UInt8(12),
+    white_king = UInt8(14),
+    white_queen = UInt8(13),
+    black_king_and_queen = UInt8(3),
+    black_king = UInt8(11),
+    black_queen = UInt8(7)
+)
+
+"named tuple storing masks of squares that can't be blocked for black/white to castle king/queenside"
+const CASTLE_BLOCKS = (
+    white_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000110),
+    white_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01110000),
+    black_king = BitBoard(0b00000110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    black_queen = BitBoard(0b01110000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+)
+
+"named tuple storing masks of squares that can't be attacked for black/white to castle king/queenside"
+const CASTLE_ATTACKS = (
+    white_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00001110),
+    white_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01111000),
+    black_king = BitBoard(0b00001110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    black_queen = BitBoard(0b01111000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
 )
 
 "bitboard masks for pawn double push and promotion legality
