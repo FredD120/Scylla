@@ -118,9 +118,9 @@ Logger(TT_entries) = Logger(0, 0, 0, 0, 0, 0,
                      TT_entries, 0, 0.0)
 
 "Constant evaluation of stalemate"
-eval(::Draw, ply) = Int16(0)
+evaluate(::Draw, ply) = Int16(0)
 "Constant evaluation of being checkmated (favour quicker mates)"
-eval(::Loss, ply) = -INF + Int16(ply)
+evaluate(::Loss, ply) = -INF + Int16(ply)
 
 "Returns score of current position from whites perspective"
 function evaluate(board::BoardState)::Int16
@@ -147,7 +147,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     gameover!(engine.board, legal_info)
 
     if engine.board.state != Neutral()
-        return eval(engine.board.state, ply)
+        return evaluate(engine.board.state, ply)
     end
 
     #not in check, continue quiescence
@@ -253,7 +253,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     
     if engine.board.state != Neutral()
         logger.pos_eval += 1
-        return eval(engine.board.state, ply)
+        return evaluate(engine.board.state, ply)
     end
 
     #enter quiescence search if at leaf node
