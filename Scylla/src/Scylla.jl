@@ -41,7 +41,6 @@ TO THINK ABOUT
 module Scylla
 
 using StaticArrays
-using JLD2
 using HDF5
 using Random
 using ArgParse
