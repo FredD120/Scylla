@@ -140,6 +140,58 @@ end
 end
 
 @testset "Castling Rights" begin
+    @testset "Self Castle Rights" begin
+        castle_rights = UInt8(0b1111)
+        white = Scylla.self_castle_rights(castle_rights, Scylla.colour_id(Scylla.WHITE))
+        black = Scylla.self_castle_rights(castle_rights, Scylla.colour_id(Scylla.BLACK))
+
+        @test white == UInt8(0b0011)
+        @test black == UInt8(0b1100)
+    end
+
+    king_set = setone(setone(Scylla.BITBOARD_EMPTY, 4), 60)
+    rook_set = setone(setone(setone(setone(Scylla.BITBOARD_EMPTY, 0), 7), 56), 63)
+    queen_set = setone(setone(Scylla.BITBOARD_EMPTY, 3), 59)
+    white_castle = BitBoard(0b0011)
+    black_castle = BitBoard(0b1100)
+
+    @testset "Castle Blockers" begin
+        for index_bb in [white_castle, black_castle]
+            for (index, is_queen) in zip(index_bb, [false, true])
+                block_mask = Scylla.castle_blocker_mask(index)
+
+                @test block_mask & Scylla.BITBOARD_EMPTY == 0
+                @test block_mask & king_set == 0
+                @test block_mask & rook_set == 0
+                @test (block_mask & queen_set != 0) == is_queen
+            end
+        end
+    end
+
+    @testset "Castle Attackers" begin
+        for index_bb in [white_castle, black_castle]
+            for (index, is_queen) in zip(index_bb, [false, true])
+                attack_mask = Scylla.castle_attacker_mask(index)
+
+                @test attack_mask & Scylla.BITBOARD_EMPTY == 0
+                @test attack_mask & king_set > 0
+                @test attack_mask & rook_set == 0
+                @test (attack_mask & queen_set != 0) == is_queen
+            end
+        end
+    end
+
+    @testset "Asymmetric Castle" begin
+        castle_FEN = "r3k2r/pppppppp/8/8/8/8/8/RRRRKRRR b KQkq - 0 1"
+        board = Scylla.BoardState(castle_FEN)
+        castle_id = Scylla.self_castle_rights(board.castle, Scylla.colour_id(board.colour))
+        info = Scylla.LegalInfo(board)
+
+        for id in castle_id
+            @test Scylla.can_castle(id, Scylla.all_pieces(board), info.attack_sqs)
+        end
+    end
+
     cFEN = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
     board = Scylla.BoardState(cFEN)
     moves, move_count = Scylla.generate_legal_moves(board)
@@ -633,21 +685,51 @@ end
 if perft_extra::Bool
     test_with_perft()
     leaves, Δt = test_speed()
-    println("Leaves: $leaves. NPS = $(leaves/Δt) nodes/second")
+    println("Leaves: $leaves. NPS = $(leaves/(Δt * 1e6)) Mnps")
+end
+
+function run_TT_perft(fen, depth, target)
+    board = Scylla.BoardState(fen)
+    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
+    t = time()
+    @test Scylla.perft(board, depth, table, verbose) == target
+    return  time()-t
 end
 
 function test_TT_perft()
-    #best speed = 220 Mnps
-    board = Scylla.BoardState(FEN)
-    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
-    t = time()
-    @test Scylla.perft(board, 7, table, verbose) == 3195901860
-    δt = time()-t
+    #best speed = 400 Mnps
+    δt = run_TT_perft(FEN, 7, 3195901860)
     println("Successfully determined perft 7 in $(round(δt,sigdigits=4))s. $(round(3195901860 / (δt * 1e6), sigdigits=6)) Mnps")
 end
 if TT_perft::Bool
     test_TT_perft()
 end
 
+function test_big_perft_positions()
+    positions = readlines("$(dirname(@__DIR__))/test/perftsuite.epd")
+    total = 0
+    time = 0.0
 
+    for pos in positions
+        all_strings = split(pos, " ;")
+        pFEN = all_strings[1]
 
+        perft_ind = findfirst(x -> contains(x, "D6"), all_strings)
+        depth = 6
+
+        if isnothing(perft_ind)
+            perft_ind = findfirst(x -> contains(x, "D5"), all_strings)
+            depth = 5
+        end
+
+        answer = parse(UInt64, split(all_strings[perft_ind], " ")[end])
+        time += run_TT_perft(pFEN, depth, answer)
+        total += answer
+    end
+    speed = round(total / (time * 1e6), sigdigits=6)
+    println("Perft test suite complete. Searched $total leaf nodes at $speed Mnps")
+end 
+
+if full_perft
+    test_big_perft_positions()
+end

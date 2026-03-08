@@ -449,7 +449,8 @@ end
     return false
 end
 
-"mask out opponents castle rights, retrieve king- and queen-side castling rights index if possible"
+"mask out opponents castle rights, retrieve king- and queen-side castling rights index if possible. 
+must return a Bitboard to iterate through the set bits"
 function self_castle_rights(castle_rights, colour_id)::BitBoard
     opponent_id = (colour_id + 1) % 2
     return get_castle_rights(castle_rights, opponent_id, 0)
@@ -468,7 +469,7 @@ function can_castle(castle_id, all_pieces_bb, attacked_squares_bb)
             return true
         end
     end
-   return false
+    return false
 end
 
 "generate castling moves for side-to-move if the rights exist and it is legal to do so"
@@ -658,12 +659,13 @@ function any_pawn_moves(piece_bb, all_pcs, ally_pcs_bb, colour::Bool, info::Lega
     return false
 end
 
-"one-liner to test repetition. function above should be faster but doesn't seem to work currently"
+#TODO: count backwards from latest position and quit early if halfmove count is reset
+"one-liner to test draw by repetition" 
 three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.data.zobrist_hash_history) >= 3
 
 "implement 50 move rule and 3 position repetition"
 function draw_state(board::BoardState)::Bool
-    return (board.data.half_moves[end] >= 100) || three_repetition(board) #three_repetition(board.zobrist_hash, board.data)
+    return (board.data.half_moves[end] >= 100) || three_repetition(board)
 end
 
 "get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"

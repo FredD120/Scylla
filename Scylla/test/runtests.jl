@@ -46,7 +46,7 @@ const perft_extra::Bool = args["perft_extra"]
 const verbose::Bool = args["verbose"]
 const TT_perft::Bool = args["TT_perft"]
 const engine_hard::Bool = args["engine"]
-const profile_engine::Bool = args["profile"]
+const full_perft::Bool = args["perft_full"]
 const MAXTIME::Float64 = args["maxtime"]
 
 run_tests()

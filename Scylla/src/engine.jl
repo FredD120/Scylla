@@ -215,7 +215,7 @@ end
 "returns true if we have run out of time"
 check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
 
-"return true if channel contains FORCEQUIT message"
+"return true if channel contains :quit message"
 check_quit(channel::Channels) = 
     isready(channel.quit) && take!(channel.quit) == :quit
 

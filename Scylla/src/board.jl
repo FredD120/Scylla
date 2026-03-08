@@ -162,7 +162,7 @@ function BoardState(FEN)
     move_history = Vector{Move}()
 
     #Keep track of where we are on chessboard
-    i = UInt32(0)           
+    i = UInt32(0)
     fen_vec = split(FEN)
 
     #Positions of  pieces
@@ -185,13 +185,13 @@ function BoardState(FEN)
     #castling rights
     for c in fen_vec[3]
         if c == 'K'
-            castling = setone(castling,0)
+            castling = setone(castling, 0)
         elseif c == 'Q'
-            castling = setone(castling,1)
+            castling = setone(castling, 1)
         elseif c == 'k'
-            castling = setone(castling,2)
+            castling = setone(castling, 2)
         elseif c == 'q'
-            castling = setone(castling,3)
+            castling = setone(castling, 3)
         end
     end
 

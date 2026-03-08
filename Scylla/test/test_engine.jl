@@ -114,22 +114,6 @@ end
     end
 end
 
-function profile()
-    positions = readlines("$(dirname(@__DIR__))/test/test_positions.txt")
-
-    #slow position
-    eFEN = split(split(positions[12],";")[1],"- bm")[1]*"0"
-    engine = Scylla.EngineState(eFEN)
-    best,log = Scylla.best_move(engine)
-
-    engine.config.control.maxtime = MAXTIME * 10
-    @profile Scylla.best_move(engine)
-    Profile.print()
-end
-if profile_engine::Bool
-    profile()
-end
-
 function test_positions()
     count_correct = 0
     positions = readlines("$(dirname(@__DIR__))/test/test_positions.txt")

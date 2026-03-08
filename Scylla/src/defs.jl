@@ -164,18 +164,18 @@ const CASTLE_RIGHTS = (
 
 "named tuple storing masks of squares that can't be blocked for black/white to castle king/queenside"
 const CASTLE_BLOCKS = (
-    white_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000110),
-    white_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01110000),
-    black_king = BitBoard(0b00000110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    black_queen = BitBoard(0b01110000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    white_king = BitBoard(0b01100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    white_queen = BitBoard(0b00001110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    black_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01100000),
+    black_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00001110),
 )
 
 "named tuple storing masks of squares that can't be attacked for black/white to castle king/queenside"
 const CASTLE_ATTACKS = (
-    white_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00001110),
-    white_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01111000),
-    black_king = BitBoard(0b00001110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    black_queen = BitBoard(0b01111000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    white_king = BitBoard(0b01110000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    white_queen = BitBoard(0b00011100_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    black_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01110000),
+    black_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00011100),
 )
 
 "bitboard masks for pawn double push and promotion legality
@@ -347,8 +347,8 @@ function test_args()
             help = "Run expensive engine tests from difficult test suite"
             action = :store_true
 
-        "--profile", "-f"
-            help = "Profile engine on a slow position"
+        "--perft_full", "-f"
+            help = "Run perft on over 100 tricky positions"
             action = :store_true 
             
         "--maxtime", "-m"
