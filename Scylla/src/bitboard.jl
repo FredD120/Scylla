@@ -98,9 +98,9 @@ Base.length(bb::BitBoard) = count_ones(bb)
 
 Base.count_ones(bb::BitBoard) = count_ones(bb.n)
 
-@inline setone(bb::BitBoard,index::Integer) = BitBoard(setone(bb.n, index))
+@inline setone(bb::BitBoard, index::Integer) = BitBoard(setone(bb.n, index))
 
-@inline setzero(bb::BitBoard,index::Integer) = BitBoard(setzero(bb.n, index))
+@inline setzero(bb::BitBoard, index::Integer) = BitBoard(setzero(bb.n, index))
 
 "Least significant bit of a bitboard, returned as a UInt8"
 @inline LSB(bb::BitBoard) = LSB(bb.n)

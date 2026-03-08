@@ -22,8 +22,18 @@ score(move::Move) = UInt8((move.n >> SCORESHIFT) & SCOREMASK)
 "Return move with score set"
 set_score(move::Move, score::UInt8) = Move(move.n | (UInt32(score) << SCORESHIFT))
 
-"return true if move captures a piece"
-iscapture(move::Move) = cap_type(move) > 0
+"helper functions to determine contents of move struct"
+is_capture(move::Move) = is_capture(cap_type(move))
+is_capture(cap_type::UInt8) = cap_type > 0
+
+is_castle(move_flag::UInt8) = (move_flag == KING_CASTLE) || (move_flag == QUEEN_CASTLE)
+
+function is_promotion(move_flag::UInt8)
+    return (move_flag == PROMQUEEN) ||
+           (move_flag == PROMROOK) ||
+           (move_flag == PROMBISHOP) ||
+           (move_flag == PROMKNIGHT)
+end
 
 "allocate array of null moves with length len"
 nulls(len::Integer) = [NULLMOVE for _ in 1:len]

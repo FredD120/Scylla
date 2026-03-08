@@ -71,7 +71,7 @@ function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best
             moves[i] = set_score(move, MAXMOVESCORE)
 
         #sort captures
-        elseif iscapture(move)
+        elseif is_capture(move)
             moves[i] = set_score(move, most_least_value(cap_type(move), pc_type(move)))
 
         #sort quiet moves

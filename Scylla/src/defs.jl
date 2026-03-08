@@ -41,6 +41,8 @@ const ALLMOVES = UInt64(1)
 
 const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
 
+const TYPICAL_GAME_LENGTH = 100
+
 const FIRST_MOVE_INDEX = 0
 
 const NOFLAG = UInt8(0)
@@ -75,14 +77,14 @@ struct Neutral end
 struct Loss end
 struct Draw end
 
-const GAME_STATE = Union{Neutral, Loss, Draw}
+const GameState = Union{Neutral, Loss, Draw}
 
 
 ### Bitboard Features ###
 
-setone(num::Integer, index::Integer) = num | (UInt64(1) << index)
+setone(num::I, index::Integer) where {I <: Integer} = num | (I(1) << index)
 
-setzero(num::Integer, index::Integer) = num & ~(UInt64(1) << index)
+setzero(num::I, index::Integer) where {I <: Integer} = num & ~(I(1) << index)
 
 "Least significant bit of an integer, returned as a UInt8"
 LSB(int::Integer) = UInt8(trailing_zeros(int))

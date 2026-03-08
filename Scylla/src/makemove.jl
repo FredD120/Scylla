@@ -53,190 +53,207 @@ function queen_castle!(board::BoardState, colour)
 end
 
 "update castling rights and zobrist hash"
-function update_castle_rights!(board::BoardState, ColId, side)
-    #remove ally castling rights by &-ing with opponent mask
-    #side is king=1, queen=2, both=0
+function update_castle_rights!(board::BoardState, colour_id, side)
+    #remove old castling rights from zobrist hash
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
-    board.castle = get_castle_rights(board.castle, ColId, side)
+    #remove ally castling rights by &-ing with opponent mask
+    board.castle = get_castle_rights(board.castle, colour_id, side)
+    #add new castling rights to zobrist hash
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
 end
 
 "set new EP val and incrementally update zobrist hash"
-function update_enpassant!(board::BoardState, newval::UInt64)
+function update_enpassant!(board::BoardState, newval::BitBoard)
     board.zobrist_hash = zobrist_enpassant(board.zobrist_hash, board.enpassant_bb)
     board.enpassant_bb = newval
     board.zobrist_hash = zobrist_enpassant(board.zobrist_hash, board.enpassant_bb)
 end
 
-"Returns location of en-passant and also pawn being captured by en-passant"
-enpassant_location(colour::UInt8, moveloc) = ifelse(colour==0, moveloc + 8, moveloc - 8)
+"returns location of sqaure behind pawn, either to capture by en-passant or to flag square for attack by en-passant"
+enpassant_location(colour::UInt8, destination) = ifelse(colour==0, destination + 8, destination - 8)
+
+"play a castling move onto the board"
+function make_castle!(board::BoardState, move_from, move_to, move_flag)
+    move_piece!(board, board.colour, ROOK, move_from, move_to)
+    update_castle_rights!(board, colour_id(board.colour), 0)
+    if move_flag == KING_CASTLE
+        king_castle!(board, board.colour)
+    else
+        queen_castle!(board, board.colour)
+    end
+    #castling does not reset halfmove clock
+    board.data.half_moves[end] += 1
+end
+
+"if not castling, moving the king/rooks or capturing rooks can update castling rights"
+function implicit_update_castle!(board::BoardState, piece_type, move_from, move_to)
+    if board.castle == 0
+        return nothing
+    end
+
+    colour_idx = colour_id(board.colour)
+    if piece_type == KING
+        update_castle_rights!(board, colour_idx, 0)
+    else
+        #lose self castle rights if rook moves
+        if move_from == ROOK_START_SQUARES[2 * colour_idx + 1]     #kingside
+            update_castle_rights!(board, colour_idx, 1)
+        elseif move_from == ROOK_START_SQUARES[2 * colour_idx + 2] #queenside
+            update_castle_rights!(board, colour_idx, 2)
+        end
+    end
+    
+    #remove enemy castle rights if rook captured
+    opponent_idx = (colour_idx + 1) % 2
+    if move_to == ROOK_START_SQUARES[2 * opponent_idx + 1]         #kingside
+        update_castle_rights!(board, opponent_idx, 1)
+    elseif move_to == ROOK_START_SQUARES[2 * opponent_idx + 2]     #queenside
+        update_castle_rights!(board, opponent_idx, 2)
+    end
+end
+
+"deals with promotions, always resets halfmove clock"
+function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    push!(board.data.half_moves, 0)
+    destroy_piece!(board, board.colour, mv_pc_type, mv_from)
+    create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
+
+    if is_capture(mv_cap_type)
+        destroy_piece!(board, opposite(board.colour), mv_cap_type, mv_to)
+    end
+end
+
+"handle cases where there is no flag, or the pawn moves en-passant and double push"
+function make_normal_move!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)
+
+    if is_capture(mv_cap_type)
+        destroy_loc = mv_to
+        if mv_flag == ENPASSANT
+            destroy_loc = enpassant_location(board.colour, destroy_loc)
+        end
+        destroy_piece!(board, opposite(board.colour), mv_cap_type, destroy_loc)
+        push!(board.data.half_moves, 0)
+    elseif mv_pc_type == PAWN
+        push!(board.data.half_moves, 0)
+    else
+        board.data.half_moves[end] += 1
+    end
+end
+
+"if necessary, push new enpassant location to bitboard, or wipe previous enpassant location"
+function enpassant_cleanup!(board::BoardState, move_flag, move_to)
+    if move_flag == DOUBLE_PUSH
+        location = enpassant_location(board.colour, move_to)
+        update_enpassant!(board, BitBoard(1) << location)
+    elseif board.enpassant_bb > 0
+        update_enpassant!(board, BitBoard())
+    end
+end
+
+"push move to move history and enpassant, zobrist hash and castling rights to BoardData"
+function update_history(board::BoardState, move::Move)
+    push!(board.move_history, move)
+    push!(board.data.enpassant, board.enpassant_bb)
+    push!(board.data.zobrist_hash_history, board.zobrist_hash)
+    push!(board.data.castling, board.castle)
+end
 
 "modify boardstate by making a move. increment halfmove count. add move to move_history. update castling rights"
 function make_move!(move::Move, board::BoardState)
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::Move)
 
-    #0 = white, 1 = black
-    ColId = colour_id(board.colour)
-
-    #deal with castling
-    if (mv_flag == KING_CASTLE) || (mv_flag == QUEEN_CASTLE)
-        move_piece!(board, board.colour, ROOK, mv_from, mv_to)
-        update_castle_rights!(board, ColId, 0)
-        if mv_flag == KING_CASTLE
-            king_castle!(board, board.colour)
+    if is_castle(mv_flag)
+        make_castle!(board, mv_from, mv_to, mv_flag)
+    else
+        implicit_update_castle!(board, mv_pc_type, mv_from, mv_to)
+        
+        if is_promotion(mv_flag)
+            make_promotion!(board, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
         else
-            queen_castle!(board, board.colour)
-        end
-        #castling does not reset halfmove count
-        board.data.half_moves[end] += 1
-
-    #update castling rights if not castling    
-    else
-        if board.castle > 0
-            if mv_pc_type == KING
-                update_castle_rights!(board, ColId, 0)
-            else
-                #lose self castle rights
-                if mv_from == 63 - 56 * ColId     #kingside
-                    update_castle_rights!(board, ColId, 1)
-                elseif mv_from == 56 - 56 * ColId #queenside
-                    update_castle_rights!(board, ColId, 2)
-                end
-            end
-            #remove enemy castle rights
-            if mv_to == 7 + 56 * ColId      #kingside
-                update_castle_rights!(board, (ColId + 1) % 2, 1)
-            elseif mv_to == 56 * ColId      #queenside
-                update_castle_rights!(board, (ColId + 1) % 2, 2)
-            end
-        end
-        #deal with promotions, always reset halfmove clock
-        if (mv_flag == PROMQUEEN) | (mv_flag == PROMROOK) | (mv_flag == PROMBISHOP) | (mv_flag == PROMKNIGHT)
-            push!(board.data.half_moves, 0)
-            destroy_piece!(board, board.colour, mv_pc_type, mv_from)
-            create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
-
-            if mv_cap_type > 0
-                destroy_piece!(board, opposite(board.colour), mv_cap_type, mv_to)
-            end
-
-        else #no flag, en-passant, double push
-            move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)
-
-            if mv_cap_type > 0
-                destroy_loc = mv_to
-                if mv_flag == ENPASSANT
-                    destroy_loc = enpassant_location(board.colour, destroy_loc)
-                end
-                destroy_piece!(board, opposite(board.colour), mv_cap_type, destroy_loc)
-                push!(board.data.half_moves, 0)
-            elseif mv_pc_type == PAWN
-                push!(board.data.half_moves, 0)
-            else
-                board.data.half_moves[end] += 1
-            end
+            make_normal_move!(board, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
         end
     end
 
-    #update enpassant
-    if mv_flag == DOUBLE_PUSH
-        location = enpassant_location(board.colour, mv_to)
-        update_enpassant!(board, UInt64(1) << location)
-
-        push!(board.data.enpassant, board.enpassant_bb)
-        push!(board.data.enpassant_count, 0)
-    elseif board.enpassant_bb > 0
-        update_enpassant!(board, UInt64(0))
-
-        push!(board.data.enpassant, board.enpassant_bb)
-        push!(board.data.enpassant_count, 0)
-    else
-        board.data.enpassant_count[end] += 1
-    end
-
+    enpassant_cleanup!(board, mv_flag, mv_to)
     swap_player!(board)
-    push!(board.move_history, move)
-    push!(board.data.zobrist_hash_history, board.zobrist_hash)
     update_piece_union!(board)
+    update_history(board, move)
+end
 
-    #check if castling rights have changed
-    if board.castle == board.data.castling[end]
-        board.data.castleCount[end] += 1
+"unmaking a kingside castle is the same as a queenside castle and vice-versa"
+function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
+    move_piece!(board, opposite_colour, ROOK, move_to, move_from)
+    if move_flag == KING_CASTLE
+        queen_castle!(board, opposite_colour)
     else
-        #add new castling rights to history stack
-        push!(board.data.castling, board.castle)
-        push!(board.data.castleCount, 0)
+        king_castle!(board, opposite_colour)
     end
 end
 
+"uses opponents colour to create a pawn and destroy promotion piece. uses own colour to undo capture"
+function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    create_piece!(board, opposite_colour, mv_pc_type, mv_from)
+    destroy_piece!(board, opposite_colour, promote_type(mv_flag), mv_to)
+
+    if is_capture(mv_cap_type)
+        create_piece!(board, board.colour, mv_cap_type, mv_to)
+    end
+end
+
+"undo normal quiets and attacks, pawn double pushes and enpassant"
+function unmake_normal_move!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    move_piece!(board, opposite_colour, mv_pc_type, mv_to, mv_from)
+
+    if is_capture(mv_cap_type)
+        create_loc = mv_to
+        if mv_flag == ENPASSANT
+            create_loc = enpassant_location(opposite_colour, create_loc)
+        end
+        create_piece!(board, board.colour, mv_cap_type, create_loc)
+    end
+end
+
+"update data struct with halfmoves, en-passant, zobrist hash and castling"
+function rollback_history!(board::BoardState)
+    if board.data.half_moves[end] > 0 
+        board.data.half_moves[end] -= 1
+    else
+        pop!(board.data.half_moves)
+    end
+
+    pop!(board.data.castling)
+    board.castle = board.data.castling[end]
+
+    pop!(board.data.enpassant)
+    board.enpassant_bb = board.data.enpassant[end]
+
+    pop!(board.data.zobrist_hash_history)
+    board.zobrist_hash = board.data.zobrist_hash_history[end]
+end
 
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
 function unmake_move!(board::BoardState)
-    opposite_colour = opposite(board.colour)
     if length(board.move_history) > 0
-        board.state = Neutral()
-        move = board.move_history[end]
-        mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
-
-        if (mv_flag == KING_CASTLE) || (mv_flag == QUEEN_CASTLE)
-            move_piece!(board, opposite_colour, ROOK, mv_to, mv_from)
-            #unmaking a kingside castle is the same as a queenside castle and vice-versa
-            if mv_flag == KING_CASTLE
-                queen_castle!(board, opposite_colour)
-            else
-                king_castle!(board, opposite_colour)
-            end
-        
-        #deal with everything other than castling
-        else
-            if (mv_flag==NOFLAG) | (mv_flag==DOUBLE_PUSH) | (mv_flag==ENPASSANT)
-                move_piece!(board, opposite_colour, mv_pc_type, mv_to, mv_from)
-
-                if mv_cap_type > 0
-                    create_loc = mv_to
-                    if mv_flag == ENPASSANT
-                        create_loc = enpassant_location(opposite_colour, create_loc)
-                    end
-                    create_piece!(board, board.colour, mv_cap_type, create_loc)
-                end
-            else #deal with promotions
-                create_piece!(board, opposite_colour, mv_pc_type, mv_from)
-                destroy_piece!(board, opposite_colour, promote_type(mv_flag), mv_to)
-
-                if mv_cap_type > 0
-                    create_piece!(board, board.colour, mv_cap_type, mv_to)
-                end
-            end
-        end
-
-        swap_player!(board)
-        pop!(board.move_history)
-
-        #update data struct with halfmoves, en-passant, hash and castling
-        pop!(board.data.zobrist_hash_history)
-        board.zobrist_hash = board.data.zobrist_hash_history[end]
-        update_piece_union!(board)
-
-        if board.data.half_moves[end] > 0 
-            board.data.half_moves[end] -= 1
-        else
-            pop!(board.data.half_moves)
-        end
-
-        if board.data.castleCount[end] == 0
-            pop!(board.data.castleCount)
-            pop!(board.data.castling)
-            board.castle = board.data.castling[end]
-        else
-            board.data.castleCount[end] -= 1
-        end
-
-        if board.data.enpassant_count[end] == 0
-            pop!(board.data.enpassant_count)
-            pop!(board.data.enpassant)
-            board.enpassant_bb = board.data.enpassant[end]
-        else
-            board.data.enpassant_count[end] -= 1
-        end  
+        #error("unmake_move called with no move history")
     end
+
+    opposite_colour = opposite(board.colour)
+    board.state = Neutral()
+    move = pop!(board.move_history)
+    mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
+
+    if is_castle(mv_flag)
+        unmake_castle!(board, opposite_colour, mv_from, mv_to, mv_flag)
+    
+    elseif is_promotion(mv_flag)
+        unmake_promotion!(board, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+
+    else
+        unmake_normal_move!(board, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    end
+
+    swap_player!(board)
+    update_piece_union!(board)
+    rollback_history!(board)
 end

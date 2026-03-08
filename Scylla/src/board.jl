@@ -55,10 +55,22 @@ side_index(colour::UInt8, ind) = ifelse(colour==0, ind, 8 * rank(ind) + file(ind
 mutable struct BoardData
     half_moves::Vector{UInt8}
     castling::Vector{UInt8}
-    castleCount::Vector{UInt16}
     enpassant::Vector{BitBoard}
-    enpassant_count::Vector{UInt16}
     zobrist_hash_history::Vector{BitBoard}
+end
+
+"constructor for BoardData using data from an initial Board state. set initial array lengths to avoid later allocation"
+function BoardData(half_moves::UInt8, castling::UInt8, enpassant::BitBoard, zobrist::BitBoard)
+    half_move_hist = Vector{UInt8}([half_moves])
+    castling_hist = Vector{UInt8}([castling])
+    enpassant_hist = Vector{BitBoard}([enpassant])
+    zobrist_hist = Vector{BitBoard}([zobrist])
+
+    sizehint!(castling_hist, TYPICAL_GAME_LENGTH)
+    sizehint!(enpassant_hist, TYPICAL_GAME_LENGTH)
+    sizehint!(zobrist_hist, TYPICAL_GAME_LENGTH)
+
+    return BoardData(half_move_hist, castling_hist, enpassant_hist, zobrist_hist)
 end
 
 mutable struct BoardState
@@ -67,7 +79,7 @@ mutable struct BoardState
     colour::UInt8
     castle::UInt8
     enpassant_bb::BitBoard
-    state::GAME_STATE
+    state::GameState
     pst_score::Vector{Int32}
     zobrist_hash::BitBoard
     move_history::Vector{Move}
@@ -151,22 +163,12 @@ end
 "generate zobrist hash statically from existing boardstate"
 generate_hash(b::BoardState) = generate_hash(b.pieces, b.colour, b.castle, b.enpassant_bb)
 
-"Initialise a boardstate from a FEN string"
-function BoardState(FEN)
+"create array of piece bitboards and populate using first section of FEN_string"
+function get_pieces(FEN_board)
     pieces = [BitBoard() for _ in 1:12]
-    castling = UInt8(0)
-    half_moves = UInt8(0)
-    enpassant = BitBoard()
-    colour = WHITE
-    pst_score = zeros(Int32,2)
-    move_history = Vector{Move}()
-
-    #Keep track of where we are on chessboard
     i = UInt32(0)
-    fen_vec = split(FEN)
 
-    #Positions of  pieces
-    for char in fen_vec[1]
+    for char in FEN_board
         if isletter(char)
             upper_letter = uppercase(char)
             piece_colour = char == upper_letter ? WHITE : BLACK
@@ -176,14 +178,13 @@ function BoardState(FEN)
             i += parse(Int, char)
         end
     end
-  
-    #Determine whose turn it is
-    if fen_vec[2] == "b"
-        colour = BLACK
-    end
+    return pieces
+end
 
-    #castling rights
-    for c in fen_vec[3]
+"create UInt8 containing castling rights for black/white on king/queen-side from castling part of a FEN string"
+function get_castle_rights(FEN_castle)
+    castling = UInt8(0)
+    for c in FEN_castle
         if c == 'K'
             castling = setone(castling, 0)
         elseif c == 'Q'
@@ -194,26 +195,51 @@ function BoardState(FEN)
             castling = setone(castling, 3)
         end
     end
+    return castling
+end
 
-    #en-passant
-    if length(fen_vec[4]) == 2
-        enpassant = setone(enpassant, algebraic_to_numeric(fen_vec[4]))
+"return side to move from FEN string, defaults to white"
+function get_side_to_move(FEN_colour)
+    if FEN_colour == "b"
+        return BLACK
+    else
+        return WHITE
     end
+end
 
-    if length(fen_vec) > 4
-        half_moves = parse(UInt8, fen_vec[5])
+"return en-passant from FEN string, empty bitboard if no enpassant available"
+function get_enpassant(FEN_enpassant)
+    enpassant = BitBoard()
+    if length(FEN_enpassant) == 2
+        return setone(enpassant, algebraic_to_numeric(FEN_enpassant))
+    else
+        return enpassant
+    end
+end
+
+"Initialise a boardstate from a FEN string"
+function BoardState(FEN)
+    move_history = Vector{Move}()
+
+    fen_vec = split(FEN)
+
+    pieces = get_pieces(fen_vec[1])
+    colour = get_side_to_move(fen_vec[2])
+    castling = get_castle_rights(fen_vec[3])
+    enpassant = get_enpassant(fen_vec[4])
+
+    half_moves = if length(fen_vec) > 4
+        parse(UInt8, fen_vec[5])
+    else
+        UInt8(0)
     end
 
     zobrist = generate_hash(pieces, colour, castling, enpassant)
-    data = BoardData(Vector{UInt8}([half_moves]),
-                     Vector{UInt8}([castling]),Vector{UInt8}([0]),
-                     Vector{BitBoard}([enpassant]),Vector{UInt8}([0]),
-                     Vector{BitBoard}([zobrist]))
-
-    set_pst!(pst_score, pieces)
+    board_data = BoardData(half_moves, castling, enpassant, zobrist)
+    pst_score = get_pst(pieces)
 
     BoardState(pieces, pc_unions(pieces), colour, castling, enpassant,
-    Neutral(), pst_score, zobrist, move_history, data, MoveVec())
+    Neutral(), pst_score, zobrist, move_history, board_data, MoveVec())
 end
 
 "helper function to obtain vector of ally bitboards"
@@ -255,7 +281,6 @@ function identify_piecetype(board::BoardState, location::Integer)::UInt8
     end
     return id - opposite(board.colour)
 end
-
 
 "convert a move to UCI notation"
 function uci_move(board::BoardState, move::Move)

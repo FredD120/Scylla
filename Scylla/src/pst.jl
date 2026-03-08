@@ -39,8 +39,9 @@ function update_pst_score!(score::Vector{Int32}, colour::UInt8, type_val, pos, a
     @inbounds score[2] += sign * EG_PSTs[type_val][ind+1]
 end
 
-"Returns score of current position from whites perspective. used when initialising boardstate"
-function set_pst!(score::Vector{Int32},pieces::AbstractArray{BitBoard})
+"returns score of current position from whites perspective for mid and endgame. used when initialising boardstate"
+function get_pst(pieces::AbstractArray{BitBoard})
+    score = zeros(Int32, 2)
     for type in [KING, QUEEN, ROOK, BISHOP, KNIGHT, PAWN]
         for colour in [WHITE, BLACK]
             for pos in pieces[colour_piece_id(colour, type)]

@@ -315,7 +315,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
             #cut when upper bound exceeded
             if score >= β
                 #update killers if exceed β
-                if !iscapture(move)
+                if !is_capture(move)
                     new_killer!(engine.info.Killers, ply, move)
                 end
 

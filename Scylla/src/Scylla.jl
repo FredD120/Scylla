@@ -25,15 +25,13 @@ TO-DO (general)
  - Enable searching to depth/mate/nodes
  - Better time estimation - use movestogo if provided
 -> Add pseudolegal move generation
- - Squares attacked by enemy must be generated during make move (and stored in BoardState)
  - New functionality to make move and unmake if illegal
+ - Test if enemy king is in check after make_move!
  - Test using perft
--> Optimise memory allocations of board data in make and rollback in unmake
 -> Add check for FIDE draws like KNk, KBk
 
 Code Clarity
 -> Separate out functions for readability in:
- - generatemoves.jl
  - makemove.jl
  - cli.jl
  - engine.jl

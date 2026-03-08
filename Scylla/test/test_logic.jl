@@ -624,8 +624,7 @@ function Testing_perft(board::BoardState, depth)
     if depth > 1
         for move in moves
             Scylla.make_move!(move, board)
-            static_eval = zeros(Int32, 2)
-            Scylla.set_pst!(static_eval, board.pieces)
+            static_eval = Scylla.get_pst(board.pieces)
             @assert board.pst_score == static_eval "Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found on move $(Scylla.long_move(move))"
             Testing_perft(board, depth - 1)
             Scylla.unmake_move!(board)
@@ -705,6 +704,7 @@ if TT_perft::Bool
     test_TT_perft()
 end
 
+const quick_suite = false
 function test_big_perft_positions()
     positions = readlines("$(dirname(@__DIR__))/test/perftsuite.epd")
     total = 0
@@ -717,7 +717,7 @@ function test_big_perft_positions()
         perft_ind = findfirst(x -> contains(x, "D6"), all_strings)
         depth = 6
 
-        if isnothing(perft_ind)
+        if isnothing(perft_ind) || quick_suite
             perft_ind = findfirst(x -> contains(x, "D5"), all_strings)
             depth = 5
         end
