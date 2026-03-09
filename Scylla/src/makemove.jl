@@ -2,7 +2,7 @@
 # Define all helper functions to ensure zobrist hash, board position and PST scores are preserved
 
 "utilises setzero to remove a piece from a position"
-function destroy_piece!(board::BoardState, colour::UInt8, piece_type, pos)
+@inline function destroy_piece!(board::BoardState, colour::UInt8, piece_type, pos)
     piece_id = colour_piece_id(colour, piece_type)
     board.pieces[piece_id] = setzero(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, -1)
@@ -13,7 +13,7 @@ function destroy_piece!(board::BoardState, colour::UInt8, piece_type, pos)
 end
 
 "utilises setone to create a piece in a position"
-function create_piece!(board::BoardState, colour::UInt8, piece_type, pos)
+@inline function create_piece!(board::BoardState, colour::UInt8, piece_type, pos)
     piece_id = colour_piece_id(colour, piece_type)
     board.pieces[piece_id] = setone(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, +1)
@@ -73,7 +73,7 @@ end
 enpassant_location(colour::UInt8, destination) = ifelse(colour==0, destination + 8, destination - 8)
 
 "play a castling move onto the board"
-function make_castle!(board::BoardState, move_from, move_to, move_flag)
+@inline function make_castle!(board::BoardState, move_from, move_to, move_flag)
     move_piece!(board, board.colour, ROOK, move_from, move_to)
     update_castle_rights!(board, colour_id(board.colour), 0)
     if move_flag == KING_CASTLE
@@ -86,7 +86,7 @@ function make_castle!(board::BoardState, move_from, move_to, move_flag)
 end
 
 "if not castling, moving the king/rooks or capturing rooks can update castling rights"
-function implicit_update_castle!(board::BoardState, piece_type, move_from, move_to)
+@inline function implicit_update_castle!(board::BoardState, piece_type, move_from, move_to)
     if board.castle == 0
         return nothing
     end
@@ -113,7 +113,7 @@ function implicit_update_castle!(board::BoardState, piece_type, move_from, move_
 end
 
 "deals with promotions, always resets halfmove clock"
-function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+@inline function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     push!(board.data.half_moves, 0)
     destroy_piece!(board, board.colour, mv_pc_type, mv_from)
     create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
@@ -124,7 +124,7 @@ function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_t
 end
 
 "handle cases where there is no flag, or the pawn moves en-passant and double push"
-function make_normal_move!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+@inline function make_normal_move!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)
 
     if is_capture(mv_cap_type)
@@ -142,7 +142,7 @@ function make_normal_move!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap
 end
 
 "if necessary, push new enpassant location to bitboard, or wipe previous enpassant location"
-function enpassant_cleanup!(board::BoardState, move_flag, move_to)
+@inline function enpassant_cleanup!(board::BoardState, move_flag, move_to)
     if move_flag == DOUBLE_PUSH
         location = enpassant_location(board.colour, move_to)
         update_enpassant!(board, BitBoard(1) << location)
@@ -152,7 +152,7 @@ function enpassant_cleanup!(board::BoardState, move_flag, move_to)
 end
 
 "push move to move history and enpassant, zobrist hash and castling rights to BoardData"
-function update_history(board::BoardState, move::Move)
+@inline function update_history(board::BoardState, move::Move)
     push!(board.move_history, move)
     push!(board.data.enpassant, board.enpassant_bb)
     push!(board.data.zobrist_hash_history, board.zobrist_hash)
@@ -160,7 +160,7 @@ function update_history(board::BoardState, move::Move)
 end
 
 "modify boardstate by making a move. increment halfmove count. add move to move_history. update castling rights"
-function make_move!(move::Move, board::BoardState)
+@inline function make_move!(move::Move, board::BoardState)
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::Move)
 
     if is_castle(mv_flag)
@@ -182,7 +182,7 @@ function make_move!(move::Move, board::BoardState)
 end
 
 "unmaking a kingside castle is the same as a queenside castle and vice-versa"
-function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
+@inline function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
     move_piece!(board, opposite_colour, ROOK, move_to, move_from)
     if move_flag == KING_CASTLE
         queen_castle!(board, opposite_colour)
@@ -192,7 +192,7 @@ function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, 
 end
 
 "uses opponents colour to create a pawn and destroy promotion piece. uses own colour to undo capture"
-function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+@inline function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     create_piece!(board, opposite_colour, mv_pc_type, mv_from)
     destroy_piece!(board, opposite_colour, promote_type(mv_flag), mv_to)
 
@@ -202,7 +202,7 @@ function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_fr
 end
 
 "undo normal quiets and attacks, pawn double pushes and enpassant"
-function unmake_normal_move!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+@inline function unmake_normal_move!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     move_piece!(board, opposite_colour, mv_pc_type, mv_to, mv_from)
 
     if is_capture(mv_cap_type)
@@ -215,7 +215,7 @@ function unmake_normal_move!(board::BoardState, opposite_colour, mv_pc_type, mv_
 end
 
 "update data struct with halfmoves, en-passant, zobrist hash and castling"
-function rollback_history!(board::BoardState)
+@inline function rollback_history!(board::BoardState)
     if board.data.half_moves[end] > 0 
         board.data.half_moves[end] -= 1
     else
@@ -233,7 +233,7 @@ function rollback_history!(board::BoardState)
 end
 
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
-function unmake_move!(board::BoardState)
+@inline function unmake_move!(board::BoardState)
     if length(board.move_history) > 0
         #error("unmake_move called with no move history")
     end

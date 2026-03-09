@@ -63,7 +63,7 @@ function TranspositionTable(verbose=false;
 end
 
 "retrieve transposition from TT using index derived from bitshift"
-get_entry(table::TranspositionTable, zobrist::BitBoard) = table.hash_table[zobrist_mask(zobrist, table.key) + 1]
+get_entry(table::TranspositionTable, zobrist::BitBoard) = @inbounds table.hash_table[zobrist_mask(zobrist, table.key) + 1]
 
 "use zhash and bitshift to make zkey into TT - not currently in use"
 zobrist_shift(zobrist_hash, shift) = zobrist_hash >> shift
@@ -73,12 +73,12 @@ zobrist_mask(zobrist_hash, mask) = zobrist_hash & mask
 
 "set value of entry in TT"
 function set_entry!(table::TranspositionTable, data) 
-    table.hash_table[zobrist_mask(data.zobrist_hash, table.key) + 1] = data
+    @inbounds table.hash_table[zobrist_mask(data.zobrist_hash, table.key) + 1] = data
 end
 
 "set value of entry in TT using zhash provided"
 function set_entry!(table::TranspositionTable, zobrist_hash, data) 
-    table.hash_table[zobrist_mask(zobrist_hash, table.key) + 1] = data
+    @inbounds table.hash_table[zobrist_mask(zobrist_hash, table.key) + 1] = data
 end
 
 "data describing a node, to be stored in TT"

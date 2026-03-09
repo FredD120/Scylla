@@ -28,16 +28,16 @@ TO-DO (general)
  - New functionality to make move and unmake if illegal
  - Test if enemy king is in check after make_move!
  - Test using perft
+ - Determine if in terminal node after attempting all pseudolegal moves
+ - Can still generate only legal moves if in check
 -> Add check for FIDE draws like KNk, KBk
 
 Code Clarity
 -> Separate out functions for readability in:
- - makemove.jl
  - cli.jl
  - engine.jl
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6
--> Make castling purely a king's move and calculate rook position during makemove
 
 TO THINK ABOUT
 # When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply

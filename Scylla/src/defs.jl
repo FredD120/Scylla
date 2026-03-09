@@ -269,9 +269,9 @@ const BETA = UInt8(2)
 const EXACT = UInt8(3)
 
 const MB_SIZE = 1048576 #size of a Mb in bytes
-const TT_DEFAULT_MB = 32
+const TT_DEFAULT_MB = 48
 const TT_MIN_MB = 0
-const TT_MAX_MB = 64
+const TT_MAX_MB = 96
 
 
 ### Heuristic Evaluation Features ###

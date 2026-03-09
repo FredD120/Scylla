@@ -37,8 +37,8 @@ const ROOK_MAGICS, ROOK_ATTACKS = read_magics("rook")
 magic_index(bb::BitBoard, num, shift) = (bb * num) >> (64 - shift)
 
 "Uses magic bitboards to identify blockers and retrieve legal attacks against them"
-function sliding_attacks(magic::Magic, all_pieces::BitBoard, vector::MagicVector)
+@inline function sliding_attacks(magic::Magic, all_pieces::BitBoard, vector::MagicVector)
     blocker_bb = all_pieces & magic.mask
     index = magic_index(blocker_bb, magic.magic_number, magic.bit_shift)
-    return vector.attacks[magic.offset + index + 1]
+    return @inbounds vector.attacks[magic.offset + index + 1]
 end
