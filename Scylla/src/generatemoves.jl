@@ -1,5 +1,5 @@
 "return location of king for a given colour"
-locate_king(board::BoardState, colour) = LSB(board.pieces[colour_piece_id(colour, KING)])
+locate_king(board::BoardState, colour) = LSB(colour_piece(board, colour, KING))
 
 "return location of king for side to move"
 locate_king(board::BoardState) = locate_king(board, board.colour)
@@ -87,15 +87,17 @@ end
 "checks enemy pieces to see if any are attacking the king square, returns BB of attackers"
 @inline function king_attackers(board::BoardState, all_pcs::BitBoard, location::Integer)::BitBoard
     attackers = BITBOARD_EMPTY
+    enemy_queen_bb = enemy_piece(board, QUEEN)
+
     knight_moves = pseudolegal_knight_moves(location)
     attackers |= (knight_moves & enemy_piece(board, KNIGHT))
-
-    rook_moves = pseudolegal_rook_moves(location,all_pcs)
-    rook_attackers = (rook_moves & (enemy_piece(board, ROOK) | enemy_piece(board, QUEEN)))
+    
+    rook_moves = pseudolegal_rook_moves(location, all_pcs)
+    rook_attackers = (rook_moves & (enemy_piece(board, ROOK) | enemy_queen_bb))
     attackers |= rook_attackers
 
-    bishop_moves = pseudolegal_bishop_moves(location,all_pcs)
-    bishop_attackers = (bishop_moves & (enemy_piece(board, BISHOP) | enemy_piece(board, QUEEN)))
+    bishop_moves = pseudolegal_bishop_moves(location, all_pcs)
+    bishop_attackers = (bishop_moves & (enemy_piece(board, BISHOP) | enemy_queen_bb))
     attackers |= bishop_attackers
 
     pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << location, whitesmove(board.colour))
@@ -325,8 +327,8 @@ end
 "generate all moves by all queens of side-to-move. may leave king in check"
 @inline function get_pseudolegal_queen_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
     piece_bb = ally_piece(board, QUEEN)
-    all_pseudolegal_rooks!(board, piece_bb, enemy_pcs, all_pcs, MODE)
-    all_pseudolegal_bishops!(board, piece_bb, enemy_pcs, all_pcs, MODE)
+    all_pseudolegal_rooks!(board, piece_bb, enemy_pcs, all_pcs, QUEEN, MODE)
+    all_pseudolegal_bishops!(board, piece_bb, enemy_pcs, all_pcs, QUEEN, MODE)
 end
 
 "returns attack and quiet moves only if legal, based on checks and pins"
@@ -371,7 +373,7 @@ end
 end
 
 "iterate through all rooks/queens for side-to-move and add their moves to movelist"
-@inline function all_pseudolegal_rooks!(board::BoardState, piece_bb, enemy_pcs, all_pcs, MODE)
+@inline function all_pseudolegal_rooks!(board::BoardState, piece_bb, enemy_pcs, all_pcs, TYPE, MODE)
     for loc in piece_bb
         moves = pseudolegal_rook_moves(loc, all_pcs)
         quiets, attacks = quiets_and_attacks(moves, all_pcs, enemy_pcs, MODE)
@@ -384,7 +386,7 @@ end
 "generate all moves by all rooks of side-to-move. may leave king in check"
 @inline function get_pseudolegal_rook_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
     piece_bb = ally_piece(board, ROOK)
-    all_pseudolegal_rooks!(board, piece_bb, enemy_pcs, all_pcs, MODE)
+    all_pseudolegal_rooks!(board, piece_bb, enemy_pcs, all_pcs, ROOK, MODE)
 end
 
 "returns attack and quiet moves only if legal for rook, based on checks and pins"
@@ -418,7 +420,7 @@ end
 end
 
 "iterate through all rooks/queens for side-to-move and add their moves to movelist"
-@inline function all_pseudolegal_rooks!(board::BoardState, piece_bb, enemy_pcs, all_pcs, MODE)
+@inline function all_pseudolegal_bishops!(board::BoardState, piece_bb, enemy_pcs, all_pcs, TYPE, MODE)
     for loc in piece_bb
         moves = pseudolegal_bishop_moves(loc, all_pcs)
         quiets, attacks = quiets_and_attacks(moves, all_pcs, enemy_pcs, MODE)
@@ -431,7 +433,7 @@ end
 "generate all moves by all bishops of side-to-move. may leave king in check"
 @inline function get_pseudolegal_bishop_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
     piece_bb = ally_piece(board, BISHOP)
-    all_pseudolegal_rooks!(board, piece_bb, enemy_pcs, all_pcs, MODE)
+    all_pseudolegal_bishops!(board, piece_bb, enemy_pcs, all_pcs, BISHOP, MODE)
 end
 
 "returns attack and quiet moves only if legal for bishop, based on checks and pins"
@@ -582,11 +584,11 @@ end
 end
 
 "use bitshifts to push all white/black pawns at once"
-cond_push(colour::Bool, pawn_bb) = ifelse(colour, pawn_bb >> 8, pawn_bb << 8)
+@inline cond_push(colour::Bool, pawn_bb) = ifelse(colour, pawn_bb >> 8, pawn_bb << 8)
 
-attack_left(piece_bb) = (piece_bb >> 1) & PAWN_LEFT_ATTACK_MASK
+@inline attack_left(piece_bb) = (piece_bb >> 1) & PAWN_LEFT_ATTACK_MASK
 
-attack_right(piece_bb) = (piece_bb << 1) & PAWN_RIGHT_ATTACK_MASK
+@inline attack_right(piece_bb) = (piece_bb << 1) & PAWN_RIGHT_ATTACK_MASK
 
 "appends 4 promotion moves"
 @inline function append_moves!(board::BoardState, piece_type, from, to, capture_type,::Promote)
@@ -601,26 +603,26 @@ end
 end
 
 "Create list of pawn push moves with a given flag"
-@inline function push_moves!(board::BoardState, helper, promotemask, shift, info, flag)
-    for q1 in ((helper.single_push) & info.evasion_mask & promotemask)
+@inline function push_moves!(board::BoardState, single_push, shift, flag)
+    for q1 in single_push
         append_moves!(board, PAWN, UInt8(q1 + shift), q1, NULL_PIECE, flag)
     end
 end
 
 "Create list of double pawn push moves"
-@inline function double_push_moves!(board::BoardState, helper, shift, info)
-    for q2 in ((helper.double_push) & info.evasion_mask)
+@inline function double_push_moves!(board::BoardState, double_push, shift)
+    for q2 in double_push
         append!(board.move_vector, Move(PAWN, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
     end
 end
 
 "Create list of pawn capture moves with a given flag"
-@inline function capture_moves!(board::BoardState, helper, promote_mask, shift, enemy_pcs, info, flag)
-    for la in (helper.attack_left & enemy_pcs & promote_mask & info.attackers)
+@inline function capture_moves!(board::BoardState, attackable_mask, attack_left, attack_right, shift, flag)
+    for la in (attack_left & attackable_mask)
         attack_piece_id = identify_piecetype(board, la)
         append_moves!(board, PAWN, UInt8(la + shift + 1), la, attack_piece_id, flag)
     end
-    for ra in (helper.attack_right & enemy_pcs & promote_mask & info.attackers)
+    for ra in (attack_right & attackable_mask)
         attack_piece_id = identify_piecetype(board, ra)
         append_moves!(board, PAWN, UInt8(ra + shift - 1), ra, attack_piece_id, flag)
     end
@@ -700,19 +702,46 @@ function PawnMoveHelper(piece_bb, double_push_mask, all_pcs, colour, MODE, info:
     return PawnMoveHelper(legalpush1, legalpush2, attackleft, attackright)
 end
 
+"add all legal single pawn pushes to move list"
+@inline function legal_single_push!(board::BoardState, helper, pawn_masks, info::LegalInfo)
+    single_legal = helper.single_push & info.evasion_mask
+    single_normal = single_legal & ~pawn_masks.promote
+    single_promote = single_legal & pawn_masks.promote
+
+    push_moves!(board, single_normal, pawn_masks.shift, NOFLAG)
+    push_moves!(board, single_promote, pawn_masks.shift, Promote())
+end
+
+"add all legal double pawn pushes to move list"
+@inline function legal_double_push!(board::BoardState, helper, pawn_masks, info::LegalInfo)
+    double_legal = helper.double_push & info.evasion_mask
+    double_push_moves!(board, double_legal, pawn_masks.shift)
+end
+
+"add all legal pawn attacks to move list"
+@inline function legal_pawn_attacks!(board::BoardState, enemy_pcs, helper, pawn_masks, info::LegalInfo)
+    attackable_squares = enemy_pcs & info.attackers
+    attack_normal = attackable_squares & ~pawn_masks.promote
+    attack_promote = attackable_squares & pawn_masks.promote
+
+    left = helper.attack_left
+    right = helper.attack_right
+
+    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
+    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote())
+end
+
 "returns attack and quiet moves for pawns only if legal, based on checks and pins"
-@inline function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, kingpos, MODE, info::LegalInfo)
+@inline function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE, info::LegalInfo)
     colour = whitesmove(board.colour)
     piece_bb = ally_piece(board, PAWN)
+    kingpos = locate_king(board)
     pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
     helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, colour, MODE, info)
-    
-    #add non-promote pushes, promote pushes, double pushes, non-promote captures, promote captures and en-passant
-    push_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, info, NOFLAG)
-    push_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, info, Promote())
-    double_push_moves!(board, helper, pawn_masks.shift, info)
-    capture_moves!(board, helper, ~pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, NOFLAG)
-    capture_moves!(board, helper, pawn_masks.promote, pawn_masks.shift, enemy_pcs, info, Promote())
+
+    legal_single_push!(board, helper, pawn_masks, info)
+    legal_double_push!(board, helper, pawn_masks, info)
+    legal_pawn_attacks!(board, enemy_pcs, helper, pawn_masks, info)
     enpassant_moves!(board, helper, pawn_masks.shift, board.enpassant_bb, info.attackers, all_pcs, kingpos)
 end
 
@@ -734,6 +763,48 @@ end
     return false
 end
 
+#TODO: refactor into separate functions
+@inline function get_pseudolegal_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
+    colour = whitesmove(board.colour)    
+    pawn_bb = ally_piece(board, PAWN)
+    pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
+
+    #single push
+    single_push = cond_push(colour, pawn_bb)
+    quiet_single = quiet_moves(MODE, single_push, all_pcs)
+    single_normal = quiet_single & ~pawn_masks.promote
+    single_promote = quiet_single & pawn_masks.promote
+    push_moves!(board, single_normal, pawn_masks.shift, NOFLAG)
+    push_moves!(board, single_promote, pawn_masks.shift, Promote())
+
+    #double push
+    double_push = cond_push(colour, quiet_single & pawn_masks.doublepush)
+    quiet_double = quiet_moves(MODE, double_push, all_pcs)
+    double_push_moves!(board, quiet_double, pawn_masks.shift)
+
+    #attacks
+    attack_normal = enemy_pcs & ~pawn_masks.promote
+    attack_promote = enemy_pcs & pawn_masks.promote
+    left = attack_left(single_push)
+    right = attack_right(single_push)
+
+    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
+    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote())
+
+    #enpassant
+    left_enpassant = left & board.enpassant_bb
+    for to in left_enpassant
+        from = UInt8(to + pawn_masks.shift + 1)
+        append!(board.move_vector, Move(PAWN, from, to, PAWN, ENPASSANT))
+    end
+
+    right_enpassant = right & board.enpassant_bb
+    for to in right_enpassant
+        from = UInt8(to + pawn_masks.shift - 1)
+        append!(board.move_vector, Move(PAWN, from, to, PAWN, ENPASSANT))
+    end
+end
+
 #TODO: count backwards from latest position and quit early if halfmove count is reset
 "one-liner to test draw by repetition" 
 three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.data.zobrist_hash_history) >= 3
@@ -743,13 +814,11 @@ function draw_state(board::BoardState)::Bool
     return (board.data.half_moves[end] >= 100) || three_repetition(board)
 end
 
-"get lists of pieces and piece types, find locations of owned pieces and create a movelist of all legal moves"
+"find locations of owned pieces and create a movelist of all legal moves"
 function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MODE=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)
-    
-    kingpos = locate_king(board)
 
     get_king_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE, legal_info)
     get_castle_moves!(MODE, board, all_pcs_bb, legal_info.attack_sqs)
@@ -765,7 +834,7 @@ function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MO
         
         get_queen_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE, legal_info)
 
-        get_pawn_moves!(board, enemy_pcs_bb, all_pcs_bb, kingpos, MODE, legal_info)
+        get_pawn_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE, legal_info)
     end
 
     move_count = board.move_vector.ind - prev_move_index
@@ -773,11 +842,12 @@ function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MO
     return move_view, move_count
 end
 
-"helper function that used generate moves create a movelist of all attacking moves (no quiets)"
+"helper function that uses generate moves to create a movelist of all attacking moves (no quiets)"
 function generate_legal_attacks(board::BoardState, legal_info=LegalInfo(board))
     return generate_legal_moves(board, legal_info, AttacksOnly())
 end
 
+"fetch bitboards of all/enemy piece positions and generate pseudolegal moves for all ally pieces"
 function generate_pseudolegal_moves(board::BoardState, MODE=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
@@ -786,12 +856,50 @@ function generate_pseudolegal_moves(board::BoardState, MODE=AllMoves())
     get_pseudolegal_king_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_castle_moves!(MODE, board, all_pcs_bb)
     get_pseudolegal_knight_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
+    get_pseudolegal_bishop_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
+    get_pseudolegal_rook_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
+    get_pseudolegal_queen_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
+    get_pseudolegal_pawn_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
 
     move_count = board.move_vector.ind - prev_move_index
     move_view = current_moves(board.move_vector, move_count)
     return move_view, move_count
 end
 
+"helper function that uses generate moves to create a movelist of all pseudolegal attacking moves (no quiets)"
+function generate_pseudolegal_attacks(board::BoardState)
+    return generate_pseudolegal_moves(board, AttacksOnly())
+end
+
+"scan all ally pieces from enemy king's perspective to determine whether king is under attack"
+function enemy_in_check(board::BoardState)
+    enemy_king_pos = locate_king(board, opposite(board.colour))
+
+    knight_moves = pseudolegal_knight_moves(enemy_king_pos)
+    if (knight_moves & ally_piece(board, KNIGHT)) > 0
+        return true
+    end
+
+    ally_queen_bb = ally_piece(board, QUEEN)
+    all_pcs = all_pieces(board)
+
+    rook_moves = pseudolegal_rook_moves(enemy_king_pos, all_pcs)
+    if (rook_moves & (ally_piece(board, ROOK) | ally_queen_bb)) > 0
+        return true
+    end
+
+    bishop_moves = pseudolegal_bishop_moves(enemy_king_pos, all_pcs)
+    if (bishop_moves & (ally_piece(board, BISHOP) | ally_queen_bb)) > 0
+        return true
+    end
+
+    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << enemy_king_pos, whitesmove(board.colour))
+    if (pawn_attackers & ally_piece(board, PAWN)) > 0
+        return true
+    end
+
+    return false
+end
 
 "evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"
 function gameover!(board::BoardState, info=LegalInfo(board))

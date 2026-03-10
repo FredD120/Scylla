@@ -352,6 +352,10 @@ function test_args()
         "--perft_full", "-f"
             help = "Run perft on over 100 tricky positions"
             action = :store_true 
+
+        "--pseudolegal", "-s"
+            help = "Run pseudolegal perft to validate pseudolegal move generation and legality checking"
+            action = :store_true 
             
         "--maxtime", "-m"
             help = "Maximum time the engine will spend on a move during testing" 

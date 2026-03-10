@@ -12,7 +12,7 @@ end
 PerftData() = PerftData(BitBoard(), UInt8(0), UInt128(0))
 
 "count leaf nodes from a position at a given depth"
-function perft(board::BoardState, depth, TT::Union{TranspositionTable,Nothing}=nothing, verbose=false; TT_enabled=!isnothing(TT))
+function perft(board::BoardState, depth, TT::Union{TranspositionTable, Nothing}=nothing, verbose=false; TT_enabled=!isnothing(TT))
     if depth == 1
         moves, move_length = generate_legal_moves(board)
         clear_current_moves!(board.move_vector, move_length)
@@ -46,5 +46,32 @@ function perft(board::BoardState, depth, TT::Union{TranspositionTable,Nothing}=n
     if TT_enabled
         set_entry!(TT, PerftData(board.zobrist_hash, depth, leaf_nodes))
     end
+    return leaf_nodes
+end
+
+"count leaf nodes from a position at a given depth, generating only pseudolegal moves"
+function pseudolegal_perft(board::BoardState, depth, verbose=false)
+    if depth == 0
+        return 1
+    end
+
+    leaf_nodes = 0
+    moves, move_length = generate_pseudolegal_moves(board)
+    for move in moves
+        success = make_pseudolegal_move!(move, board)
+        if !success
+            continue
+        end
+
+        nodecount = pseudolegal_perft(board, depth - 1)
+        
+        if verbose == true
+            println(long_move(move) * ": " * string(nodecount))
+        end
+        
+        leaf_nodes += nodecount
+        unmake_move!(board)
+    end
+    clear_current_moves!(board.move_vector, move_length)
     return leaf_nodes
 end

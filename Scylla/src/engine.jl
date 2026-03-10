@@ -91,7 +91,7 @@ reset_tt!(::EngineState{Nothing, C, Q}) where {C, Q} = nothing
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(engine::EngineState)
     reset_tt!(engine)
-    engine.board = BoardState(START_FEN)
+    engine.board = BoardState()
 end
 
 "return PV as vector of strings"

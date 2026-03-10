@@ -242,6 +242,9 @@ function BoardState(FEN)
     Neutral(), pst_score, zobrist, move_history, board_data, MoveVec())
 end
 
+"default constructor for BoardState"
+BoardState() = BoardState(START_FEN)
+
 "helper function to obtain vector of ally bitboards"
 ally_pieces(b::BoardState) = @view b.pieces[b.colour + 1:b.colour + 6]
 
@@ -252,10 +255,13 @@ function enemy_pieces(b::BoardState)
 end
 
 "helper function to obtain bitboard of ally piece"
-ally_piece(b::BoardState, piece) = b.pieces[b.colour + piece]
+@inline ally_piece(b::BoardState, piece) = colour_piece(b, b.colour, piece)
 
 "helper function to obtain bitboard of enemy piece"
-enemy_piece(b::BoardState, piece) = b.pieces[opposite(b.colour) + piece]
+@inline enemy_piece(b::BoardState, piece) = colour_piece(b, opposite(b.colour), piece)
+
+"helper function to access pieces bitboards for either player"
+@inline colour_piece(b::BoardState, colour, piece) = @inbounds b.pieces[colour + piece]
 
 "create a 64-length vector of where pieces are on the board, useful for a GUI"
 function GUIposition(board::BoardState)

@@ -25,9 +25,10 @@ TO-DO (general)
  - Enable searching to depth/mate/nodes
  - Better time estimation - use movestogo if provided
 -> Add pseudolegal move generation
- - New functionality to make move and unmake if illegal
- - Test if enemy king is in check after make_move!
  - Test using perft
+ - Add TT capability to pseudolegal perft
+ - Test using big perft suite
+-> Pseudolegal move generation in engine
  - Determine if in terminal node after attempting all pseudolegal moves
  - Can still generate only legal moves if in check
 -> Add check for FIDE draws like KNk, KBk
@@ -67,8 +68,8 @@ include("perft.jl")
 include("cli.jl")
 
 export BitBoard, BoardState, setzero, setone,
-       make_move!, unmake_move!,
-       generate_legal_moves, gameover!,
+       make_move!, unmake_move!, gameover!,
+       generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
        Logger, print_log,
        run_cli, assign_tt!, reset_engine!,

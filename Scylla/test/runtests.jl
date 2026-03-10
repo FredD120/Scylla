@@ -47,6 +47,7 @@ const verbose::Bool = args["verbose"]
 const TT_perft::Bool = args["TT_perft"]
 const engine_hard::Bool = args["engine"]
 const full_perft::Bool = args["perft_full"]
+const pseudolegal::Bool = args["pseudolegal"]
 const MAXTIME::Float64 = args["maxtime"]
 
 run_tests()

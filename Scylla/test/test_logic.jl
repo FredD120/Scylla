@@ -523,7 +523,7 @@ end
     @test board.state == Scylla.Draw()
 end
 
-@testset "Pseudo-legal Sliding Piece Generation" begin
+@testset "Sliding Piece Generation" begin
     slidingFEN = "Q6r/8/2K5/8/8/8/8/b2k3 w - 0 1"
     board = Scylla.BoardState(slidingFEN)
 
@@ -540,6 +540,46 @@ end
     @test length(newmoves) == 12
     @test count(i->(Scylla.cap_type(i) == Scylla.QUEEN),newmoves) == 1
 end
+
+@testset "Illegal Move" begin
+    illegalFEN = "K6Q/8/8/8/8/8/8/7k w - 0 1"
+    legalFEN = "K6Q/8/8/8/8/8/8/7k b - 0 1"
+
+    illegal_board = BoardState(illegalFEN)
+    @test Scylla.enemy_in_check(illegal_board) == true
+
+    legal_board = BoardState(legalFEN)
+    @test Scylla.enemy_in_check(legal_board) == false   
+end
+
+@testset "Pseudolegal == Legal" begin
+    all_FEN = "1n2k3/P7/8/8/8/PPP1PPPP/3P4/RNBQKBNR w KQkq - 0 1"
+    all_board = BoardState(all_FEN)
+
+    legal, _ = generate_legal_moves(all_board)
+    pseudolegal, _ = generate_pseudolegal_moves(all_board)
+
+    @test length(legal) == length(pseudolegal)
+
+    attack_FEN = "1n2k3/P7/8/8/8/rrrrrrrr/3PRP2/RNBQKBNR w KQkq - 0 1"
+    attack_board = BoardState(attack_FEN)
+
+    legal, _ = Scylla.generate_legal_attacks(attack_board)
+    pseudolegal, _ = Scylla.generate_pseudolegal_attacks(attack_board)
+
+    @test length(legal) == length(pseudolegal)
+end
+
+@testset "Pseudolegal Enpassant" begin
+    ep_FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/Pp2P3/2N2Q1p/1PPBBPPP/R3K2R b KQkq a3 0 1"
+    ep_board = BoardState(ep_FEN)
+
+    legal, _ = generate_legal_moves(ep_board)
+    pseudolegal, _ = generate_pseudolegal_moves(ep_board)
+
+    @test length(legal) == length(pseudolegal)
+end
+
 
 @testset "Zobrist" begin
     board = Scylla.BoardState(FEN)
@@ -651,24 +691,27 @@ function test_with_perft()
     Testing_perft(board,5)
 end
 
-function test_speed()
-    FENs = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
+const FENs = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
     "bbbqknbq/8/8/8/8/8/8/QNNNKBBQ w - - 0 1",
     "r3k2r/4q1b1/bn3n2/4N3/8/2N2Q2/3BB3/R3K2R w KQkq - 0 1",
     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"]
-    Depths = [5, 4, 4, 4]
-    Targets = [11813050, 7466475, 7960855, 4085603]
+
+const DEPTHS = [5, 4, 4, 4]
+
+const TARGETS = [11813050, 7466475, 7960855, 4085603]
+
+function test_speed()
     Δt = 0
     leaves = 0
 
-    for (FEN,depth,target) in zip(FENs,Depths,Targets)
+    for (FEN, depth, target) in zip(FENs, DEPTHS, TARGETS)
         board = Scylla.BoardState(FEN)
         if verbose
             println("Testing position: $FEN")
         end
         
         t = time()
-        cur_leaves = Scylla.perft(board,depth,nothing,verbose)
+        cur_leaves = Scylla.perft(board ,depth, nothing, verbose)
         Δt += time() - t
         leaves += cur_leaves
 
@@ -685,6 +728,35 @@ if perft_extra::Bool
     test_with_perft()
     leaves, Δt = test_speed()
     println("Leaves: $leaves. NPS = $(leaves/(Δt * 1e6)) Mnps")
+end
+
+function test_pseudolegal_perft()
+    Δt = 0
+    leaves = 0
+
+    for (FEN, depth, target) in zip(FENs, DEPTHS, TARGETS)
+        board = Scylla.BoardState(FEN)
+        if verbose
+            println("Testing position: $FEN")
+        end
+        
+        t = time()
+        cur_leaves = Scylla.pseudolegal_perft(board, depth, verbose)
+        Δt += time() - t
+        leaves += cur_leaves
+
+        if target == 0
+            println(cur_leaves)
+        else
+            @assert cur_leaves == target "failed on FEN $FEN, missing $(target-cur_leaves) nodes"
+        end
+    end
+    return leaves, Δt
+end
+
+if pseudolegal::Bool
+    leaves, Δt = test_pseudolegal_perft()
+    println("Pseudolegal Perft: Leaves = $leaves. NPS = $(leaves/(Δt * 1e6)) Mnps")
 end
 
 function run_TT_perft(fen, depth, target)
