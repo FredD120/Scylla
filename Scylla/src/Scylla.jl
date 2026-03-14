@@ -24,24 +24,19 @@ TO-DO (general)
 -> UCI protocol
  - Enable searching to depth/mate/nodes
  - Better time estimation - use movestogo if provided
--> Add pseudolegal move generation
- - Test using perft
- - Add TT capability to pseudolegal perft
- - Test using big perft suite
 -> Pseudolegal move generation in engine
  - Determine if in terminal node after attempting all pseudolegal moves
  - Can still generate only legal moves if in check
 -> Add check for FIDE draws like KNk, KBk
+-> Enable turning off quiescence through CLI
 
 Code Clarity
 -> Separate out functions for readability in:
- - cli.jl
  - engine.jl
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6
 
 TO THINK ABOUT
-# When adding extensions, eg.for checks, we will exceed PV triangular ply and Killer ply
 # What to do about unforcable draws like KNkb
 =#
 

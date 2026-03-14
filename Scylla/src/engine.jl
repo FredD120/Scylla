@@ -8,17 +8,25 @@ end
 Channels() = Channels(Channel{Symbol}(1), Channel{String}(100))
 
 "different configurations the engine can run in"
-mutable struct Config{C<:Control}
+mutable struct Config{C <: Control}
     control::C
     starttime::Float64
     nodes_since_time::UInt32
+    leaf_nodes::UInt32
     quit_now::Bool
     quiescence::Bool
     verbose::Bool
 end
 
 function Config(control::Control, verbose)
-    Config(control, time(), UInt32(0), false, true, verbose)
+    Config(control, time(), UInt32(0), UInt32(0), false, true, verbose)
+end
+
+"reset all temporary counters/trackers in config struct"
+function reset_config!(config)
+    config.quit_now = false
+    config.nodes_since_time = UInt32(0)
+    config.leaf_nodes = UInt32(0)
 end
 
 mutable struct SearchInfo
@@ -36,7 +44,7 @@ function SearchInfo(depth)
 end
 
 "holds all information the engine needs to calculate"
-mutable struct EngineState{T<:Union{TranspositionTable, Nothing}, C<:Control, Q<:Union{Channels, Nothing}}
+mutable struct EngineState{T <: Union{TranspositionTable, Nothing}, C <: Control, Q <: Union{Channels, Nothing}}
     board::BoardState
     table::T
     tt_hashfull::UInt32
@@ -57,6 +65,26 @@ function EngineState(FEN::AbstractString=START_FEN; verbose=false,
     config = Config(control, verbose)
     info = SearchInfo(config.control.maxdepth)
     return EngineState(board, TT, UInt32(0), config, comms, info)
+end
+
+"return a new engine with a new type of control assigned to it"
+function assign_control(engine::EngineState{T, C, Q}, new_control) where {T, C, Q}
+    if new_control isa C 
+        engine.config.control = new_control
+        return engine
+    else
+        new_config = Config(new_control,
+        engine.config.starttime,
+        engine.config.nodes_since_time,
+        engine.config.leaf_nodes,
+        engine.config.quit_now,
+        engine.config.quiescence,
+        engine.config.verbose,)  
+
+        return EngineState(engine.board, engine.table, 
+        engine.tt_hashfull, new_config,
+        engine.channel, engine.info)
+    end
 end
 
 "return a new engine with a transposition table"
@@ -99,8 +127,6 @@ pv_string(pv::Vector{Move})::Vector{String} = map(m -> long_move(m), pv)
 
 mutable struct Logger
     best_score::Int16
-    pos_eval::Int32
-    cumulative_nodes::Int32
     nodes::Int32
     q_nodes::Int32
     cur_depth::UInt8
@@ -113,313 +139,19 @@ mutable struct Logger
     δt::Float32
 end
 
-Logger(TT_entries) = Logger(0, 0, 0, 0, 0, 0, 
+Logger(TT_entries) = Logger(0, 0, 0, 0, 
                      false, Move[], 0, 0, 
                      TT_entries, 0, 0.0)
 
-"Constant evaluation of stalemate"
-evaluate(::Draw, ply) = Int16(0)
-"Constant evaluation of being checkmated (favour quicker mates)"
-evaluate(::Loss, ply) = -INF + Int16(ply)
-
-"Returns score of current position from whites perspective"
-function evaluate(board::BoardState)::Int16
-    num_pieces = count_pieces(board.pieces)
-    score = board.pst_score[1] * midgame_weighting(num_pieces) +
-            board.pst_score[2] * endgame_weighting(num_pieces)
-    
-    return Int16(round(score))
-end
-
-"Search available (move-ordered) captures until we reach quiet positions to evaluate"
-function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
-    if stop_early(engine)
-        logger.stopmidsearch = true
-        return α 
-    end 
-
-    logger.nodes += 1
-    logger.q_nodes += 1
-    logger.seldepth = max(logger.seldepth, ply)
-
-    #still need to check for terminal nodes in qsearch
-    legal_info = LegalInfo(engine.board)
-    gameover!(engine.board, legal_info)
-
-    if engine.board.state != Neutral()
-        return evaluate(engine.board.state, ply)
-    end
-
-    #not in check, continue quiescence
-    if legal_info.attack_num == 0
-        best_score = player * evaluate(engine.board)
-        if best_score > α
-            if best_score >= β
-                return β
-            end
-            α = best_score
-        end
-        moves, attack_count = generate_legal_attacks(engine.board, legal_info)
-        score_moves!(moves)
-
-        for i in eachindex(moves)
-            next_best!(moves,i)
-            move = moves[i]
-
-            make_move!(move,engine.board)
-            score = -quiescence(engine, -player, -β, -α, ply+1, logger)
-            unmake_move!(engine.board)
-
-            if score > α
-                if score >= β
-                    clear_current_moves!(engine.board.move_vector, attack_count)
-                    return β
-                end
-                α = score
-            end
-            if score > best_score
-                best_score = score
-            end
-        end
-        clear_current_moves!(engine.board.move_vector, attack_count)
-        #fail hard
-        return best_score
-
-    #in check, must search all legal moves (check extension)
-    else
-        moves, move_length = generate_legal_moves(engine.board, legal_info)
-        score_moves!(moves)
-
-        for i in eachindex(moves)
-            next_best!(moves,i)
-            move = moves[i]
-
-            make_move!(move,engine.board)
-            score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
-            unmake_move!(engine.board)
-
-            if score > α
-                if score >= β
-                    clear_current_moves!(engine.board.move_vector, move_length)
-                    return β
-                end
-                α = score
-            end
-        end
-        clear_current_moves!(engine.board.move_vector, move_length)
-        #fail soft
-        return α
-    end
-end
-
-"returns true if we have run out of time"
-check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
-
-"return true if channel contains :quit message"
-check_quit(channel::Channels) = 
-    isready(channel.quit) && take!(channel.quit) == :quit
-
-"return false if channel doesn't exist"
-check_quit(::Nothing) = false
-
-function stop_early(engine::EngineState{T, Time, Q}, safety_factor=0.97; bypass_check=false) where {T, Q}
-    if engine.config.quit_now
-        return true
-    end
-
-    #reduce number of sys calls
-    engine.config.nodes_since_time += 1
-    if bypass_check || engine.config.nodes_since_time > CHECKNODES
-        engine.config.nodes_since_time = 0
-        engine.config.quit_now = check_quit(engine.channel) || check_time(engine.config, safety_factor)
-    end
-    return engine.config.quit_now
-end
-
-"returns true if score is a mate score"
-mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
-
-"minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
-    if stop_early(engine)
-        logger.stopmidsearch = true
-        return α 
-    end 
-    logger.nodes += 1
-
-    #Evaluate whether we are in a terminal node
-    legal_info = LegalInfo(engine.board)
-    gameover!(engine.board, legal_info)
-    
-    if engine.board.state != Neutral()
-        logger.pos_eval += 1
-        return evaluate(engine.board.state, ply)
-    end
-
-    #enter quiescence search if at leaf node
-    if depth <= MINDEPTH 
-        logger.pos_eval += 1
-        if engine.config.quiescence
-            return quiescence(engine, player, α, β, ply, logger)
-        else 
-            return player * evaluate(engine.board)
-        end
-    end
-
-    best_move = NULLMOVE
-    #dont use TT if on PV (still save result of PV search in TT)
-    if is_principal
-        best_move = engine.info.pv[ply+1]
-    elseif !isnothing(engine.table)
-        transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
-        if !isnothing(transposition_data)
-            #don't try to cutoff if depth of TT entry is too low
-            if transposition_data.depth >= depth 
-                if transposition_data.type == EXACT
-                    logger.tt_cut += 1
-                    return transposition_score
-                elseif transposition_data.type == BETA && transposition_score >= β
-                    logger.tt_cut += 1
-                    return β
-                elseif transposition_data.type == ALPHA && transposition_score <= α 
-                    logger.tt_cut += 1
-                    return α
-                end
-            end
-            #we can only use the move stored if we found BETA or EXACT node
-            #otherwise it will be a NULLMOVE so won't match in move scoring
-            best_move = transposition_data.move
-        end
-    end
-
-    #figure out type of current node for use in TT and best move
-    node_type = ALPHA
-    cur_best_move = NULLMOVE   
-
-    moves, move_length = generate_legal_moves(engine.board, legal_info)
-    score_moves!(moves, engine.info.Killers[ply+1], best_move)
-
-    for i in eachindex(moves)
-        next_best!(moves,i)
-        move = moves[i]
-
-        make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, is_principal, logger)
-        unmake_move!(engine.board)
-
-        #only first search is on PV
-        is_principal = false
-
-        #update alpha (lower bound) when better score is found
-        if score > α
-            #cut when upper bound exceeded
-            if score >= β
-                #update killers if exceed β
-                if !is_capture(move)
-                    new_killer!(engine.info.Killers, ply, move)
-                end
-
-                if move == best_move
-                    logger.tt_cut += 1
-                end
-
-                success = store!(engine.table, engine.board.zobrist_hash, depth, score, BETA, move)
-                if success
-                    engine.tt_hashfull += 1
-                end
-                clear_current_moves!(engine.board.move_vector, move_length)
-                return β
-            end
-            node_type = EXACT
-            cur_best_move = move
-            α = score
-            #exact score found, must copy up PV from further down the tree
-            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
-        end
-    end
-
-    success = store!(engine.table, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
-    if success
-        engine.tt_hashfull += 1
-    end
-    clear_current_moves!(engine.board.move_vector, move_length)
-    return α
-end
-
-"root of minimax search"
-function root(engine::EngineState, moves, depth, logger::Logger)
-    #whites current best score
-    α = -INF
-    #whites current worst score (blacks best score)
-    β = INF
-    player::Int8 = sgn(engine.board.colour)
-    ply = 0
-    #search PV first, only if it exists
-    is_principal = true 
-
-    #root node is always on PV
-    score_moves!(moves, engine.info.Killers[ply+1], engine.info.pv[ply+1])
-
-    for i in eachindex(moves)
-        next_best!(moves, i)
-        move = moves[i]
-
-        make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, is_principal, logger)
-        unmake_move!(engine.board)
-
-        if stop_early(engine)
-            logger.stopmidsearch = true
-            break
-        end
-
-        if score > α
-            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
-            α = score
-        end
-        is_principal = false
-    end
-    return α
-end
-
-"Run minimax search to fixed depth then increase depth until time runs out"
-function iterative_deepening(engine::EngineState)
-    moves, _ = generate_legal_moves(engine.board)
-    depth = 0
-    logger = Logger(num_entries(engine.table))
-    bestscore = 0
-
-    #Quit early if we or opponent have mate or if we run out of time
-    while (depth < max_depth(engine)) &&  
-        !(mate_found(bestscore)) &&
-        !(stop_early(engine, 0.5, bypass_check=true))
-
-        depth += 1
-        logger.cur_depth = depth
-        engine.info.pv_len = depth
-        bestscore = root(engine, moves, depth, logger)
-
-        update_logger!(engine, logger, bestscore)
-
-        if engine.config.verbose && (time() - engine.config.starttime > 0.05)
-            report_progress(engine, logger)
-        end
-    end
-    clear!(engine.board.move_vector)
-    return engine.info.pv[1], logger
-end
-
 "calculate logging values that are not automatically updated during minimax"
 function update_logger!(engine::EngineState, logger::Logger, bestscore)
-    logger.pv = engine.info.pv[1:engine.info.pv_len]
     logger.δt = time() - engine.config.starttime
     logger.hashfull = engine.tt_hashfull
+    logger.best_score = bestscore
     
-    #If we stopped midsearch, we still want to add to total nodes and nps (but not when calculating branching factor)
+    #PV table is only valid after an exhaustive search of a given depth
     if !logger.stopmidsearch
-        logger.cumulative_nodes += logger.pos_eval
-        logger.pos_eval = 0 
-        logger.best_score = bestscore
+        logger.pv = engine.info.pv[1:engine.info.pv_len]
     end
 end
 
@@ -505,13 +237,329 @@ function print_log(logger::Logger)
     end
 end
 
+"returns true if we have run out of time"
+check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
+
+"return true if channel contains :quit message"
+check_quit(channel::Channels) = 
+    isready(channel.quit) && take!(channel.quit) == :quit
+
+"return false if channel doesn't exist"
+check_quit(::Nothing) = false
+
+"don't need to handle quitting on depth exept through channel, since it is dealt with in iterative_deepening"
+function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q} 
+    if engine.config.quit_now
+        return true
+    end
+
+    engine.config.quit_now = check_quit(engine.channel)
+    return engine.config.quit_now
+end
+
+"stop when we have reached the limit of positions to evaluate"
+function stop_early(engine::EngineState{T, Nodes, Q}; kwargs...) where {T, Q}
+    if engine.config.quit_now
+        return true
+    end
+
+    if check_quit(engine.channel) || (engine.config.leaf_nodes >= engine.config.control.maxnodes)
+        engine.config.quit_now = true
+    end
+
+    return engine.config.quit_now
+end
+
+"check if we have run out of time to continue searching, safety_factor ensures we don't run over due to overhead"
+function stop_early(engine::EngineState{T, Time, Q}; safety_factor=0.97, bypass_check=false) where {T, Q}
+    if engine.config.quit_now
+        return true
+    end
+
+    #reduce number of sys calls
+    engine.config.nodes_since_time += 1
+    if bypass_check || engine.config.nodes_since_time > CHECKNODES
+        engine.config.nodes_since_time = 0
+        engine.config.quit_now = check_quit(engine.channel) || check_time(engine.config, safety_factor)
+    end
+    return engine.config.quit_now
+end
+
+"returns true if score is a mate score"
+mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
+
+"Constant evaluation of stalemate"
+evaluate(::Draw, ply) = Int16(0)
+"Constant evaluation of being checkmated (favour quicker mates)"
+evaluate(::Loss, ply) = -INF + Int16(ply)
+
+"Returns score of current position from whites perspective"
+function evaluate(board::BoardState)::Int16
+    num_pieces = count_pieces(board.pieces)
+    score = board.pst_score[1] * midgame_weighting(num_pieces) +
+            board.pst_score[2] * endgame_weighting(num_pieces)
+    
+    return Int16(round(score))
+end
+
+"Search available (move-ordered) captures until we reach quiet positions to evaluate"
+function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
+    if stop_early(engine)
+        logger.stopmidsearch = true
+        return α 
+    end 
+
+    engine.config.leaf_nodes += 1
+    logger.nodes += 1
+    logger.q_nodes += 1
+    logger.seldepth = max(logger.seldepth, ply)
+
+    #still need to check for terminal nodes in qsearch
+    legal_info = LegalInfo(engine.board)
+    gameover!(engine.board, legal_info)
+
+    if engine.board.state != Neutral()
+        return evaluate(engine.board.state, ply)
+    end
+
+    #not in check, continue quiescence
+    if legal_info.attack_num == 0
+        best_score = player * evaluate(engine.board)
+        if best_score > α
+            if best_score >= β
+                return β
+            end
+            α = best_score
+        end
+        moves, attack_count = generate_legal_attacks(engine.board, legal_info)
+        score_moves!(moves)
+
+        for i in eachindex(moves)
+            next_best!(moves,i)
+            move = moves[i]
+
+            make_move!(move,engine.board)
+            score = -quiescence(engine, -player, -β, -α, ply+1, logger)
+            unmake_move!(engine.board)
+
+            if score > α
+                if score >= β
+                    clear_current_moves!(engine.board.move_vector, attack_count)
+                    return β
+                end
+                α = score
+            end
+            if score > best_score
+                best_score = score
+            end
+        end
+        clear_current_moves!(engine.board.move_vector, attack_count)
+        #fail hard
+        return best_score
+
+    #in check, must search all legal moves (check extension)
+    else
+        moves, move_length = generate_legal_moves(engine.board, legal_info)
+        score_moves!(moves)
+
+        for i in eachindex(moves)
+            next_best!(moves,i)
+            move = moves[i]
+
+            make_move!(move,engine.board)
+            score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
+            unmake_move!(engine.board)
+
+            if score > α
+                if score >= β
+                    clear_current_moves!(engine.board.move_vector, move_length)
+                    return β
+                end
+                α = score
+            end
+        end
+        clear_current_moves!(engine.board.move_vector, move_length)
+        #fail soft
+        return α
+    end
+end
+
+"minimax algorithm, tries to maximise own eval and minimise opponent eval"
+function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+    if stop_early(engine)
+        logger.stopmidsearch = true
+        return α 
+    end 
+    logger.nodes += 1
+
+    #Evaluate whether we are in a terminal node
+    legal_info = LegalInfo(engine.board)
+    gameover!(engine.board, legal_info)
+    
+    if engine.board.state != Neutral()
+        engine.config.leaf_nodes += 1
+        return evaluate(engine.board.state, ply)
+    end
+
+    #enter quiescence search if at leaf node
+    if depth <= MINDEPTH 
+        if engine.config.quiescence
+            return quiescence(engine, player, α, β, ply, logger)
+        else 
+            engine.config.leaf_nodes += 1
+            return player * evaluate(engine.board)
+        end
+    end
+
+    best_move = NULLMOVE
+    #dont use TT if on PV (still save result of PV search in TT)
+    if is_principal
+        best_move = engine.info.pv[ply+1]
+    elseif !isnothing(engine.table)
+        transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
+        if !isnothing(transposition_data)
+            #don't try to cutoff if depth of TT entry is too low
+            if transposition_data.depth >= depth 
+                if transposition_data.type == EXACT
+                    logger.tt_cut += 1
+                    return transposition_score
+                elseif transposition_data.type == BETA && transposition_score >= β
+                    logger.tt_cut += 1
+                    return β
+                elseif transposition_data.type == ALPHA && transposition_score <= α 
+                    logger.tt_cut += 1
+                    return α
+                end
+            end
+            #we can only use the move stored if we found BETA or EXACT node
+            #otherwise it will be a NULLMOVE so won't match in move scoring
+            best_move = transposition_data.move
+        end
+    end
+
+    #figure out type of current node for use in TT and best move
+    node_type = ALPHA
+    cur_best_move = NULLMOVE   
+
+    moves, move_length = generate_legal_moves(engine.board, legal_info)
+    score_moves!(moves, engine.info.Killers[ply + 1], best_move)
+
+    for i in eachindex(moves)
+        next_best!(moves, i)
+        move = moves[i]
+
+        make_move!(move, engine.board)
+        score = -minimax(engine, -player, -β, -α, depth-1, ply + 1, is_principal, logger)
+        unmake_move!(engine.board)
+
+        #only first search is on PV
+        is_principal = false
+
+        #update alpha (lower bound) when better score is found
+        if score > α
+            #cut when upper bound exceeded
+            if score >= β
+                #update killers if exceed β
+                if !is_capture(move)
+                    new_killer!(engine.info.Killers, ply, move)
+                end
+
+                if move == best_move
+                    logger.tt_cut += 1
+                end
+
+                success = store!(engine.table, engine.board.zobrist_hash, depth, score, BETA, move)
+                if success
+                    engine.tt_hashfull += 1
+                end
+                clear_current_moves!(engine.board.move_vector, move_length)
+                return β
+            end
+            node_type = EXACT
+            cur_best_move = move
+            α = score
+            #exact score found, must copy up PV from further down the tree
+            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
+        end
+    end
+
+    success = store!(engine.table, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
+    if success
+        engine.tt_hashfull += 1
+    end
+    clear_current_moves!(engine.board.move_vector, move_length)
+    return α
+end
+
+"root of minimax search"
+function root(engine::EngineState, moves, depth, logger::Logger)
+    #whites current best score
+    α = -INF
+    #whites current worst score (blacks best score)
+    β = INF
+    #white is +1, black is -1. this ensures score is always from side-to-moves perspective
+    player::Int8 = sgn(engine.board.colour)
+    ply = 0
+    #search PV first, only if it exists
+    is_principal = true 
+
+    #root node is always on PV
+    score_moves!(moves, engine.info.Killers[ply+1], engine.info.pv[ply+1])
+
+    for i in eachindex(moves)
+        next_best!(moves, i)
+        move = moves[i]
+
+        make_move!(move, engine.board)
+        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, is_principal, logger)
+        unmake_move!(engine.board)
+
+        if stop_early(engine)
+            logger.stopmidsearch = true
+            break
+        end
+
+        if score > α
+            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
+            α = score
+        end
+        is_principal = false
+    end
+    return α
+end
+
+"Run minimax search to fixed depth then increase depth until time runs out"
+function iterative_deepening(engine::EngineState)
+    moves, _ = generate_legal_moves(engine.board)
+    depth = 0
+    logger = Logger(num_entries(engine.table))
+    bestscore = 0
+
+    #Quit early if we or opponent have mate or if we run out of time
+    while (depth < max_depth(engine)) &&  
+        !(mate_found(bestscore)) &&
+        !(stop_early(engine, safety_factor = 0.5, bypass_check=true))
+
+        depth += 1
+        logger.cur_depth = depth
+        engine.info.pv_len = depth
+        bestscore = root(engine, moves, depth, logger)
+
+        update_logger!(engine, logger, bestscore)
+
+        if engine.config.verbose && (time() - engine.config.starttime > 0.05)
+            report_progress(engine, logger)
+        end
+    end
+    clear!(engine.board.move_vector)
+    return engine.info.pv[1], logger
+end
+
 "Evaluates the position to return the best move"
 function best_move(engine::EngineState)
     engine.config.starttime = time()
     best_move, logger = iterative_deepening(engine)
 
-    engine.config.quit_now = false
-    engine.config.nodes_since_time = UInt32(0)
-
+    reset_config!(engine.config)
     return best_move, logger
 end

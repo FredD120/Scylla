@@ -242,11 +242,16 @@ end
 Time() = Time(DEFAULTTIME, DEFAULTDEPTH)
 Time(max_t) = Time(max_t, DEFAULTDEPTH)
 
+"Depth control for engine, where depth is in halfmoves"
 struct Depth <: Control
     maxdepth::UInt8
+
+    "inner constructor, limits depth to MAXDEPTH"
+    Depth(depth) = new(min(depth, MAXDEPTH))
 end
 Depth() = Depth(MAXDEPTH)
 
+"Node control for engine, where nodes are any leaf node visited"
 struct Nodes <: Control
     maxnodes::UInt64
     maxdepth::UInt8

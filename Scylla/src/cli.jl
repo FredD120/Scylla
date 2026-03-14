@@ -40,58 +40,25 @@ function listen(st::CLI_state)
     end
 end
 
-"parse OPTION command from CLI, dispatch on requests"
-function set_option!(wrapper::EngineWrapper, cli_state, msg_vec)::Union{Nothing, String}
-    if msg_vec[1] == "CLEAR" && msg_vec[2] == "HASH"
-        reset_tt!(wrapper.engine)
-
-    elseif msg_vec[1] == "HASH"
-        ind = findfirst(x -> x=="VALUE", msg_vec)
-        if !isnothing(ind) && length(msg_vec) > ind
-            wrapper.engine = assign_tt(wrapper.engine, size_mb = tryparse(Int64, msg_vec[ind+1]))
-            cli_state.TT_SET = true
-        end
-
-    elseif wrapper.debug
-        return "info option not recognised"
-    end
-    return nothing
-end
-
-"set board position from a FEN string plus moves"
-function set_position!(engine, position_moves)
-    ind = get_msg_index(uppercase.(position_moves), "MOVES")
-    if uppercase(position_moves[1]) == "STARTPOS"
-        engine.board = BoardState(START_FEN)
-    else
-        last_ind = length(position_moves)
-        #set last index to index of "MOVES" keyword if it exists
-        if !isnothing(ind)
-            last_ind = ind
-        end
-        FEN_string = join(position_moves[2:last_ind], " ")
-        engine.board = BoardState(FEN_string)
-    end
-    #play moves if provided
-    if !isnothing(ind)
-        for move_str in position_moves[ind + 1:end]
-            move = identify_uci_move(engine.board, move_str)
-            make_move!(move, engine.board)
-        end
-    end
-end
-
 "parse time-control info from CLI, return as time + increment in seconds"
-function get_time_control(e::EngineState, msg_array)
-    match_colour = whitesmove(e.board.colour) ? "W" : "B"
+function get_time_control(board::BoardState, msg_caps)
+    match_colour = whitesmove(board.colour) ? "W" : "B"
 
-    time_ind = get_msg_index(msg_array, match_colour * "TIME")
-    inc_ind = get_msg_index(msg_array, match_colour * "INC")
+    time_ind = get_msg_index(msg_caps, match_colour * "TIME")
+    inc_ind = get_msg_index(msg_caps, match_colour * "INC")
 
-    length(msg_array) > time_ind || error("No move-time given")
-    time = parse(Float64, msg_array[time_ind + 1])
+    time = if is_valid(time_ind, msg_caps)
+        parse(Float64, msg_caps[time_ind + 1])
+    else
+        DEFAULTTIME * 1000
+    end
 
-    increment = isnothing(inc_ind) ? 0.0 : parse(Float64, msg_array[inc_ind + 1])
+    increment = if is_valid(inc_ind, msg_caps)
+        parse(Float64, msg_caps[inc_ind + 1])
+    else
+        0.0
+    end
+
     return (time, increment) ./ 1000
 end
 
@@ -108,74 +75,196 @@ send_quit_msg!(::Nothing) = nothing
 "find relevant string within message to look for variables on the right"
 get_msg_index(msg_array, substr) = findfirst(x -> x==substr, msg_array)
 
-"can modify either the engine state or the CLI state and launch new worker threads"
-function parse_msg!(wrapper::EngineWrapper, cli_st, msg)::Union{Nothing, String}
-    msg_in = split(uppercase(msg))
-    if "QUIT" in msg_in
-        send_quit_msg!(wrapper.engine.channel)
-        cli_st.QUIT = true
+"check if index into message array is valid"
+is_valid(ind, msg_array) = !isnothing(ind) && (length(msg_array) > ind)
 
-    elseif "UCINEWGAME" in msg_in
-        reset_engine!(wrapper.engine)
+"put quit message into channel for engine to read and close CLI"
+function handle_quit!(wrapper, cli_st, _)
+    send_quit_msg!(wrapper.engine.channel)
+    cli_st.QUIT = true
+    return nothing
+end
 
-    elseif "UCI" in msg_in
-        return UCI_OK_MESSAGE
+"reset transposition table if it exists, also boardstate"
+function handle_ucinewgame!(wrapper, _, _) 
+    reset_engine!(wrapper.engine)
+    return nothing
+end  
 
-    elseif "ISREADY" in msg_in
-        if !cli_st.TT_SET
-            #assign default TT if not previously set
-            wrapper.engine = assign_tt(wrapper.engine, wrapper.debug)
-            cli_st.TT_SET = true
-        end
-        return "readyok"
-    
-    elseif "SETOPTION" in msg_in
-        ind = get_msg_index(msg_in, "NAME")
-        if !isnothing(ind) && length(msg_in) > ind
-            return set_option!(wrapper, cli_st, msg_in[ind+1:end])
-        end
+"send standard UCI_OK message to GUI"
+handle_uci(_, _, _) = UCI_OK_MESSAGE
 
-    elseif "DEBUG" in msg_in
-        ind = get_msg_index(msg_in, "DEBUG")
-        if !isnothing(ind) && length(msg_in) > ind
-            if msg_in[ind+1] == "ON"
-                wrapper.debug = true
-                return "info debug on"
-            elseif msg_in[ind+1] == "OFF"
-                wrapper.debug = false
-            end
-        end
+"assign default TT if not previously set, tell GUI we are ready to compute"
+function handle_isready!(wrapper, cli_st, _)
+    if !cli_st.TT_SET
+        wrapper.engine = assign_tt(wrapper.engine, wrapper.debug)
+        cli_st.TT_SET = true
+    end
+    return "readyok"
+end
 
-    elseif "GO" in msg_in
-        ind = get_msg_index(msg_in, "GO")
-        if !isnothing(ind) && length(msg_in) > ind + 1
-            if msg_in[ind+1] == "MOVETIME" && (wrapper.engine.config.control isa Time)
-                newtime = parse(Float64, msg_in[ind+2]) / 1000
-                wrapper.engine.config.control = Time(newtime, wrapper.engine.config.control.maxdepth)
-            
-            elseif msg_in[ind+1] == "WTIME"
-                newtime = estimate_movetime(wrapper.engine, get_time_control(wrapper.engine, msg_in)...)
-                wrapper.engine.config.control = Time(newtime, wrapper.engine.config.control.maxdepth)
-           
-            end
-        end
-        
-        cli_st.worker = Threads.@spawn run_engine(wrapper.engine)
+"set hash table to desired size in Mb if given"
+function set_hash_table!(wrapper::EngineWrapper, cli_state, msg_caps)
+    ind = get_msg_index(msg_caps, "VALUE")
+    if is_valid(ind, msg_caps)
+        wrapper.engine = assign_tt(wrapper.engine, size_mb = tryparse(Int64, msg_caps[ind+1]))
+        cli_state.TT_SET = true
+    end
+end
 
-        if wrapper.debug
-            return "info calculating best move"
-        end
+"dispatch on commands from GUI given by OPTION"
+function handle_setoption!(wrapper, cli_state, msg_in)
+    msg_caps = uppercase.(msg_in)
 
-    elseif "POSITION" in msg_in
-        ind = get_msg_index(msg_in, "POSITION")
-        if !isnothing(ind) && length(msg_in) > ind
-            set_position!(wrapper.engine, split(msg)[ind+1:end])
-        end
+    if "CLEAR" in msg_caps && "HASH" in msg_caps
+        reset_tt!(wrapper.engine)
 
-    elseif "STOP" in msg_in && !isnothing(cli_st.worker)
-        send_quit_msg!(wrapper.engine.channel)
+    elseif "HASH" in msg_caps
+        set_hash_table!(wrapper, cli_state, msg_caps)
 
     elseif wrapper.debug
+        return "info option not recognised"
+    end
+    return nothing
+end
+
+"toggle debug state of CLI"
+function handle_debug!(wrapper, _, msg_in)
+    msg_caps = uppercase.(msg_in)
+
+    if "ON" in msg_caps
+        wrapper.debug = true
+        return "info debug on"
+
+    elseif "OFF" in msg_caps
+        wrapper.debug = false
+    end
+    return nothing
+end
+
+"set engine control based on GUI message, may change type of control"
+function get_control(engine::EngineState, msg_in)
+    msg_caps = uppercase.(msg_in)
+    control = engine.config.control
+
+    if "MOVETIME" in msg_caps
+        ind = get_msg_index(msg_caps, "MOVETIME")
+        if is_valid(ind, msg_caps)
+            newtime = parse(Float64, msg_in[ind + 1]) / 1000
+            control = Time(newtime, control.maxdepth)
+        end
+    
+    elseif "WTIME" in msg_caps || "BTIME" in msg_caps
+        time, increment = get_time_control(engine.board, msg_caps)
+        newtime = estimate_movetime(engine, time, increment)
+        control = Time(newtime, control.maxdepth)
+
+    elseif "DEPTH" in msg_caps
+        ind = get_msg_index(msg_caps, "DEPTH")
+        if is_valid(ind, msg_caps)
+            new_depth = parse(UInt8, msg_in[ind + 1])
+            control = Depth(new_depth)
+        end
+
+    elseif "NODES" in msg_caps
+        ind = get_msg_index(msg_caps, "NODES")
+        if is_valid(ind, msg_caps)
+            new_nodecount = parse(UInt64, msg_in[ind + 1])
+            control = Nodes(new_nodecount)
+        end
+    end
+
+    return control
+end
+
+"set engine control type to time/depth/nodes based on GUI request and launch worker thread to calculate"
+function handle_go!(wrapper, cli_st, msg_in)
+    new_control = get_control(wrapper.engine, msg_in)
+    wrapper.engine = assign_control(wrapper.engine, new_control)
+
+    cli_st.worker = Threads.@spawn run_engine(wrapper.engine)
+
+    if wrapper.debug
+        return "info calculating best move"
+    end
+    return nothing
+end
+
+"set position sent from GUI, either the starting position or a specified FEN. must use lower case message for FEN string"
+function set_position!(engine::EngineState, msg_in, msg_caps)
+    if "STARTPOS" in msg_caps
+        engine.board = BoardState(START_FEN)
+    
+    elseif "FEN" in msg_caps
+        start_ind = get_msg_index(msg_caps, "FEN") + 1
+        last_ind = get_msg_index(msg_caps, "MOVES")
+        if isnothing(last_ind)
+            last_ind = length(msg_caps)
+        end
+
+        FEN_string = join(msg_in[start_ind:last_ind], " ")
+        engine.board = BoardState(FEN_string)
+    end
+end
+
+"play moves given by GUI onto the board if they are legal"
+function set_moves!(engine::EngineState, msg_in, msg_caps)
+    ind = get_msg_index(msg_caps, "MOVES")
+    if is_valid(ind, msg_caps)
+        for move_str in msg_in[ind + 1:end]
+            move = identify_uci_move(engine.board, move_str)
+            make_move!(move, engine.board)
+        end
+    end
+end
+
+"GUI sends a new position to CLI, set board position from a FEN string plus moves"
+function handle_position!(wrapper, _, msg_in)
+    msg_caps = uppercase.(msg_in)
+    set_position!(wrapper.engine, msg_in, msg_caps)
+
+    if "MOVES" in msg_caps
+        set_moves!(wrapper.engine, msg_in, msg_caps)
+    end
+
+    if wrapper.debug
+        return "info position set"
+    end
+    return nothing
+end
+
+"if worker is running, put message in channel to stop it"
+function handle_stop!(wrapper, cli_st, _)
+    if !isnothing(cli_st.worker)
+        send_quit_msg!(wrapper.engine.channel)
+    end
+    return nothing
+end
+
+"define all functions that can be dispatched by CLI message parser"
+const UCI_COMMANDS = Dict{String, Function}(
+    "QUIT"       => handle_quit!,
+    "UCINEWGAME" => handle_ucinewgame!,
+    "UCI"        => handle_uci,
+    "ISREADY"    => handle_isready!,
+    "SETOPTION"  => handle_setoption!,
+    "DEBUG"      => handle_debug!,
+    "GO"         => handle_go!,
+    "POSITION"   => handle_position!,
+    "STOP"       => handle_stop!,
+)
+
+"can modify either the engine state or the CLI state and launch new worker threads"
+function parse_msg!(wrapper::EngineWrapper, cli_state, msg)
+    msg_in = split(msg)
+
+    for token in uppercase.(msg_in)
+        if haskey(UCI_COMMANDS, token)
+            return UCI_COMMANDS[token](wrapper, cli_state, msg_in)
+        end
+    end
+
+    if wrapper.debug
         return "info command not recognised"
     end
     return nothing
@@ -256,5 +345,5 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
             end
         end
     end
-    error("Movelist given is not legal")
+    return NULLMOVE
 end

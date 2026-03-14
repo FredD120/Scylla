@@ -69,7 +69,7 @@ end
     msg_array = ["WTIME", "10000", "BTIME", "20000", "WINC", "1000", "BINC", "1000"]
     engine = EngineState(size_mb=0)
 
-    time, increment = Scylla.get_time_control(engine, msg_array)
+    time, increment = Scylla.get_time_control(engine.board, msg_array)
     @test time == 10.0
     @test increment == 1.0
     
