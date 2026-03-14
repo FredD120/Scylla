@@ -546,10 +546,12 @@ end
     legalFEN = "K6Q/8/8/8/8/8/8/7k b - 0 1"
 
     illegal_board = BoardState(illegalFEN)
-    @test Scylla.enemy_in_check(illegal_board) == true
+    enemy_colour = Scylla.opposite(illegal_board.colour)
+    @test Scylla.in_check(illegal_board, enemy_colour) == true
 
     legal_board = BoardState(legalFEN)
-    @test Scylla.enemy_in_check(legal_board) == false   
+    enemy_colour = Scylla.opposite(legal_board.colour)
+    @test Scylla.in_check(legal_board, enemy_colour) == false   
 end
 
 @testset "Pseudolegal == Legal" begin
@@ -691,7 +693,7 @@ function test_with_perft()
     Testing_perft(board,5)
 end
 
-const FENs = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
+const FENS = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
     "bbbqknbq/8/8/8/8/8/8/QNNNKBBQ w - - 0 1",
     "r3k2r/4q1b1/bn3n2/4N3/8/2N2Q2/3BB3/R3K2R w KQkq - 0 1",
     "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"]
@@ -704,7 +706,7 @@ function test_speed()
     Δt = 0
     leaves = 0
 
-    for (FEN, depth, target) in zip(FENs, DEPTHS, TARGETS)
+    for (FEN, depth, target) in zip(FENS, DEPTHS, TARGETS)
         board = Scylla.BoardState(FEN)
         if verbose
             println("Testing position: $FEN")
@@ -734,7 +736,7 @@ function test_pseudolegal_perft()
     Δt = 0
     leaves = 0
 
-    for (FEN, depth, target) in zip(FENs, DEPTHS, TARGETS)
+    for (FEN, depth, target) in zip(FENS, DEPTHS, TARGETS)
         board = Scylla.BoardState(FEN)
         if verbose
             println("Testing position: $FEN")
@@ -761,10 +763,10 @@ end
 
 function run_TT_perft(fen, depth, target)
     board = Scylla.BoardState(fen)
-    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=24)
+    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=20)
     t = time()
     @test Scylla.perft(board, depth, table, verbose) == target
-    return  time()-t
+    return  time() - t
 end
 
 function test_TT_perft()
@@ -774,6 +776,15 @@ function test_TT_perft()
 end
 if TT_perft::Bool
     test_TT_perft()
+end
+
+function run_pseudolegal_perft(fen, depth, target) 
+    board = Scylla.BoardState(fen)
+    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=22)
+    t = time()
+    @test Scylla.pseudolegal_perft(board, depth, table, verbose) == target
+    #@assert Scylla.pseudolegal_perft(board, depth, verbose) == target "Error on $fen"
+    return  time() - t
 end
 
 const quick_suite = false
@@ -795,7 +806,8 @@ function test_big_perft_positions()
         end
 
         answer = parse(UInt64, split(all_strings[perft_ind], " ")[end])
-        time += run_TT_perft(pFEN, depth, answer)
+        #time += run_TT_perft(pFEN, depth, answer)
+        time += run_pseudolegal_perft(pFEN, depth, answer)
         total += answer
     end
     speed = round(total / (time * 1e6), sigdigits=6)

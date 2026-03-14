@@ -871,33 +871,38 @@ function generate_pseudolegal_attacks(board::BoardState)
     return generate_pseudolegal_moves(board, AttacksOnly())
 end
 
-"scan all ally pieces from enemy king's perspective to determine whether king is under attack"
-function enemy_in_check(board::BoardState)
-    enemy_king_pos = locate_king(board, opposite(board.colour))
+"scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
+function in_check(board::BoardState, colour)
+    king_pos = locate_king(board, colour)
+    enemy_colour = opposite(colour)
 
-    knight_moves = pseudolegal_knight_moves(enemy_king_pos)
-    if (knight_moves & ally_piece(board, KNIGHT)) > 0
+    knight_moves = pseudolegal_knight_moves(king_pos)
+    if (knight_moves & colour_piece(board, enemy_colour, KNIGHT)) > 0
         return true
     end
 
-    ally_queen_bb = ally_piece(board, QUEEN)
+    king_moves = pseudolegal_king_moves(king_pos)
+    if (king_moves & colour_piece(board, enemy_colour, KING)) > 0
+        return true
+    end
+
+    queen_bb = colour_piece(board, enemy_colour, QUEEN)
     all_pcs = all_pieces(board)
 
-    rook_moves = pseudolegal_rook_moves(enemy_king_pos, all_pcs)
-    if (rook_moves & (ally_piece(board, ROOK) | ally_queen_bb)) > 0
+    rook_moves = pseudolegal_rook_moves(king_pos, all_pcs)
+    if (rook_moves & (colour_piece(board, enemy_colour, ROOK) | queen_bb)) > 0
         return true
     end
 
-    bishop_moves = pseudolegal_bishop_moves(enemy_king_pos, all_pcs)
-    if (bishop_moves & (ally_piece(board, BISHOP) | ally_queen_bb)) > 0
+    bishop_moves = pseudolegal_bishop_moves(king_pos, all_pcs)
+    if (bishop_moves & (colour_piece(board, enemy_colour, BISHOP) | queen_bb)) > 0
         return true
     end
 
-    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << enemy_king_pos, whitesmove(board.colour))
-    if (pawn_attackers & ally_piece(board, PAWN)) > 0
+    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << king_pos, whitesmove(colour))
+    if (pawn_attackers & colour_piece(board, enemy_colour, PAWN)) > 0
         return true
     end
-
     return false
 end
 
