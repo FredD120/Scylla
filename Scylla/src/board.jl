@@ -12,7 +12,7 @@ end
 MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
 
 "append move to move vec, increment index by one"
-function append!(m::MoveVec, move::Move)
+@inline function append!(m::MoveVec, move::Move)
     m.ind += 1
     @inbounds m.moves[m.ind] = move
 end
@@ -23,7 +23,7 @@ function clear!(m::MoveVec)
 end
 
 "push pointer back to before current set of moves were generated. must do this at the end of every recursive call"
-function clear_current_moves!(m::MoveVec, move_length)
+@inline function clear_current_moves!(m::MoveVec, move_length)
     m.ind -= move_length
 end
 

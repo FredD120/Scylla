@@ -815,7 +815,7 @@ function draw_state(board::BoardState)::Bool
 end
 
 "find locations of owned pieces and create a movelist of all legal moves"
-function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MODE=AllMoves())
+@inline function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MODE=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)
@@ -843,12 +843,12 @@ function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MO
 end
 
 "helper function that uses generate moves to create a movelist of all attacking moves (no quiets)"
-function generate_legal_attacks(board::BoardState, legal_info=LegalInfo(board))
+@inline function generate_legal_attacks(board::BoardState, legal_info=LegalInfo(board))
     return generate_legal_moves(board, legal_info, AttacksOnly())
 end
 
 "fetch bitboards of all/enemy piece positions and generate pseudolegal moves for all ally pieces"
-function generate_pseudolegal_moves(board::BoardState, MODE=AllMoves())
+@inline function generate_pseudolegal_moves(board::BoardState, MODE=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)
@@ -867,12 +867,12 @@ function generate_pseudolegal_moves(board::BoardState, MODE=AllMoves())
 end
 
 "helper function that uses generate moves to create a movelist of all pseudolegal attacking moves (no quiets)"
-function generate_pseudolegal_attacks(board::BoardState)
+@inline function generate_pseudolegal_attacks(board::BoardState)
     return generate_pseudolegal_moves(board, AttacksOnly())
 end
 
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
-function in_check(board::BoardState, colour)
+@inline function in_check(board::BoardState, colour)
     king_pos = locate_king(board, colour)
     enemy_colour = opposite(colour)
 
@@ -907,7 +907,7 @@ function in_check(board::BoardState, colour)
 end
 
 "evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"
-function gameover!(board::BoardState, info=LegalInfo(board))
+@inline function gameover!(board::BoardState, info=LegalInfo(board))
     if draw_state(board)
         board.state = Draw()
     else

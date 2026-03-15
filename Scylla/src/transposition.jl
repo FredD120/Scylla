@@ -49,7 +49,7 @@ end
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
 function TranspositionTable(verbose=false; 
-    size_mb=TT_DEFAULT_MB, size=nothing, type=TT_ENTRY_TYPE)::Union{TranspositionTable,Nothing}
+    size_mb=TT_DEFAULT_MB, size=nothing, type=TT_ENTRY_TYPE)::Union{TranspositionTable, Nothing}
     if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
         return TranspositionTable(type, size, verbose)
 
@@ -115,7 +115,7 @@ function correct_score(score, depth, sgn)::Int16
 end
 
 "update entry in transposition table. either greater depth or always replace. return true if successfull"
-function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, node_type, best_move)::Bool
+@inline function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, node_type, best_move)::Bool
     ind = convert(UInt64, zobrist_mask(zobrist_hash, table.key)) + 1
 
     @inbounds current_entry = table.hash_table[ind]
@@ -145,7 +145,7 @@ function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, n
 end
 
 "fallback for transposition table store if table doesn't exist"
-store!(::Nothing, _, _, _, _, _)::Bool = false
+@inline store!(::Nothing, _, _, _, _, _)::Bool = false
 
 "retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
 function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_depth)

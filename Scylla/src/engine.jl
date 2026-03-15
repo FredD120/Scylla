@@ -248,7 +248,7 @@ check_quit(channel::Channels) =
 check_quit(::Nothing) = false
 
 "don't need to handle quitting on depth exept through channel, since it is dealt with in iterative_deepening"
-function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q} 
+@inline function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q} 
     if engine.config.quit_now
         return true
     end
@@ -258,7 +258,7 @@ function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q}
 end
 
 "stop when we have reached the limit of positions to evaluate"
-function stop_early(engine::EngineState{T, Nodes, Q}; kwargs...) where {T, Q}
+@inline function stop_early(engine::EngineState{T, Nodes, Q}; kwargs...) where {T, Q}
     if engine.config.quit_now
         return true
     end
@@ -271,7 +271,7 @@ function stop_early(engine::EngineState{T, Nodes, Q}; kwargs...) where {T, Q}
 end
 
 "check if we have run out of time to continue searching, safety_factor ensures we don't run over due to overhead"
-function stop_early(engine::EngineState{T, Time, Q}; safety_factor=0.97, bypass_check=false) where {T, Q}
+@inline function stop_early(engine::EngineState{T, Time, Q}; safety_factor=0.97, bypass_check=false) where {T, Q}
     if engine.config.quit_now
         return true
     end
@@ -289,12 +289,12 @@ end
 mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "Constant evaluation of stalemate"
-evaluate(::Draw, ply) = Int16(0)
+@inline evaluate(::Draw, ply) = Int16(0)
 "Constant evaluation of being checkmated (favour quicker mates)"
-evaluate(::Loss, ply) = -INF + Int16(ply)
+@inline evaluate(::Loss, ply) = -INF + Int16(ply)
 
 "Returns score of current position from whites perspective"
-function evaluate(board::BoardState)::Int16
+@inline function evaluate(board::BoardState)::Int16
     num_pieces = count_pieces(board.pieces)
     score = board.pst_score[1] * midgame_weighting(num_pieces) +
             board.pst_score[2] * endgame_weighting(num_pieces)
@@ -302,8 +302,42 @@ function evaluate(board::BoardState)::Int16
     return Int16(round(score))
 end
 
+"retrieve information from transposition table and tell main engine whether to cut and return precalculated score"
+@inline function retrieve_from_table(engine::EngineState, α, β, depth)
+    best_move = NULLMOVE
+    score = UInt16(0)
+    return_early = false
+
+    #TODO: make enginestate TT type stable
+    if !isnothing(engine.table)
+        transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
+        if !isnothing(transposition_data)
+            #don't try to cutoff if depth of TT entry is too low
+            if transposition_data.depth >= depth 
+                if transposition_data.type == EXACT
+                    score = transposition_score
+                    return_early = true
+
+                elseif transposition_data.type == BETA && transposition_score >= β
+                    score = β
+                    return_early = true
+
+                elseif transposition_data.type == ALPHA && transposition_score <= α 
+                    score = α
+                    return_early = true
+
+                end
+            end
+            #we can only use the move stored if we found BETA or EXACT node
+            #otherwise it will be a NULLMOVE so won't match in move scoring
+            best_move = transposition_data.move
+        end
+    end
+    return best_move, score, return_early
+end
+
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
-function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
+@inline function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
     if stop_early(engine)
         logger.stopmidsearch = true
         return α 
@@ -324,13 +358,17 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     #not in check, continue quiescence
     if legal_info.attack_num == 0
+
+        # stand-pat evaluation
         best_score = player * evaluate(engine.board)
+        # either player can choose not to continue trading 
         if best_score > α
             if best_score >= β
                 return β
             end
             α = best_score
         end
+
         moves, attack_count = generate_legal_attacks(engine.board, legal_info)
         score_moves!(moves)
 
@@ -339,7 +377,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
             move = moves[i]
 
             make_move!(move,engine.board)
-            score = -quiescence(engine, -player, -β, -α, ply+1, logger)
+            score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
             unmake_move!(engine.board)
 
             if score > α
@@ -385,7 +423,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 end
 
 "minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+@inline function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
     if stop_early(engine)
         logger.stopmidsearch = true
         return α 
@@ -415,27 +453,37 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     #dont use TT if on PV (still save result of PV search in TT)
     if is_principal
         best_move = engine.info.pv[ply+1]
-    elseif !isnothing(engine.table)
-        transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
-        if !isnothing(transposition_data)
-            #don't try to cutoff if depth of TT entry is too low
-            if transposition_data.depth >= depth 
-                if transposition_data.type == EXACT
-                    logger.tt_cut += 1
-                    return transposition_score
-                elseif transposition_data.type == BETA && transposition_score >= β
-                    logger.tt_cut += 1
-                    return β
-                elseif transposition_data.type == ALPHA && transposition_score <= α 
-                    logger.tt_cut += 1
-                    return α
-                end
-            end
-            #we can only use the move stored if we found BETA or EXACT node
-            #otherwise it will be a NULLMOVE so won't match in move scoring
-            best_move = transposition_data.move
+    else
+        #= somehow this doesn't work
+        best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
+
+        if return_early
+            logger.tt_cut += 1
+            return score
         end
-    end
+        =#
+        if !isnothing(engine.table)
+            transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
+            if !isnothing(transposition_data)
+                #don't try to cutoff if depth of TT entry is too low
+                if transposition_data.depth >= depth 
+                    if transposition_data.type == EXACT
+                        logger.tt_cut += 1
+                        return transposition_score
+                    elseif transposition_data.type == BETA && transposition_score >= β
+                        logger.tt_cut += 1
+                        return β
+                    elseif transposition_data.type == ALPHA && transposition_score <= α 
+                        logger.tt_cut += 1
+                        return α
+                    end
+                end
+                #we can only use the move stored if we found BETA or EXACT node
+                #otherwise it will be a NULLMOVE so won't match in move scoring
+                best_move = transposition_data.move
+            end
+        end
+    end            
 
     #figure out type of current node for use in TT and best move
     node_type = ALPHA

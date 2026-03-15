@@ -22,7 +22,6 @@ TO-DO (engine)
 
 TO-DO (general)
 -> UCI protocol
- - Enable searching to depth/mate/nodes
  - Better time estimation - use movestogo if provided
 -> Pseudolegal move generation in engine
  - Determine if in terminal node after attempting all pseudolegal moves
