@@ -303,38 +303,31 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 end
 
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"
-@inline function retrieve_from_table(engine::EngineState, α, β, depth)
-    best_move = NULLMOVE
-    score = UInt16(0)
-    return_early = false
+@inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth)
+    transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
+    if !isnothing(transposition_data)
+        #don't try to cutoff if depth of TT entry is too low
+        if transposition_data.depth >= depth 
+            if transposition_data.type == EXACT
+                return NULLMOVE, transposition_score, true
 
-    #TODO: make enginestate TT type stable
-    if !isnothing(engine.table)
-        transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
-        if !isnothing(transposition_data)
-            #don't try to cutoff if depth of TT entry is too low
-            if transposition_data.depth >= depth 
-                if transposition_data.type == EXACT
-                    score = transposition_score
-                    return_early = true
+            elseif transposition_data.type == BETA && transposition_score >= β
+                return NULLMOVE, β, true
 
-                elseif transposition_data.type == BETA && transposition_score >= β
-                    score = β
-                    return_early = true
-
-                elseif transposition_data.type == ALPHA && transposition_score <= α 
-                    score = α
-                    return_early = true
-
-                end
+            elseif transposition_data.type == ALPHA && transposition_score <= α 
+                return NULLMOVE, α, true
+                
             end
-            #we can only use the move stored if we found BETA or EXACT node
-            #otherwise it will be a NULLMOVE so won't match in move scoring
-            best_move = transposition_data.move
         end
+        #we can only use the move stored if we found BETA or EXACT node
+        #otherwise it will be a NULLMOVE so won't match in move scoring
+        best_move = transposition_data.move
+        return best_move, Int16(0), false
     end
-    return best_move, score, return_early
+    return NULLMOVE, α, false
 end
+
+@inline retrieve_from_table(::EngineState{Nothing}, α, β, depth) = (NULLMOVE, α, false)
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
 @inline function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
@@ -454,34 +447,11 @@ end
     if is_principal
         best_move = engine.info.pv[ply+1]
     else
-        #= somehow this doesn't work
         best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
 
         if return_early
             logger.tt_cut += 1
             return score
-        end
-        =#
-        if !isnothing(engine.table)
-            transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
-            if !isnothing(transposition_data)
-                #don't try to cutoff if depth of TT entry is too low
-                if transposition_data.depth >= depth 
-                    if transposition_data.type == EXACT
-                        logger.tt_cut += 1
-                        return transposition_score
-                    elseif transposition_data.type == BETA && transposition_score >= β
-                        logger.tt_cut += 1
-                        return β
-                    elseif transposition_data.type == ALPHA && transposition_score <= α 
-                        logger.tt_cut += 1
-                        return α
-                    end
-                end
-                #we can only use the move stored if we found BETA or EXACT node
-                #otherwise it will be a NULLMOVE so won't match in move scoring
-                best_move = transposition_data.move
-            end
         end
     end            
 
@@ -497,7 +467,7 @@ end
         move = moves[i]
 
         make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth-1, ply + 1, is_principal, logger)
+        score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
         #only first search is on PV
