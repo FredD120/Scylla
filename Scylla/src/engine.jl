@@ -330,7 +330,7 @@ end
 @inline retrieve_from_table(::EngineState{Nothing}, α, β, depth) = (NULLMOVE, α, false)
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
-@inline function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
+function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
     if stop_early(engine)
         logger.stopmidsearch = true
         return α 
@@ -416,7 +416,7 @@ end
 end
 
 "minimax algorithm, tries to maximise own eval and minimise opponent eval"
-@inline function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
     if stop_early(engine)
         logger.stopmidsearch = true
         return α 
