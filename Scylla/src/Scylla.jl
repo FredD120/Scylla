@@ -27,7 +27,6 @@ TO-DO (general)
  - Determine if in terminal node after attempting all pseudolegal moves
  - Can still generate only legal moves if in check
 -> Add check for FIDE draws like KNk, KBk
--> Enable turning off quiescence through CLI
 
 Code Clarity
 -> Separate out functions for readability in:
@@ -58,7 +57,7 @@ include("transposition.jl")
 include("moveordering.jl")
 include("engine.jl")
 include("perft.jl")
-#include("precompile.jl")
+include("precompile.jl")
 include("cli.jl")
 
 export BitBoard, BoardState, setzero, setone,

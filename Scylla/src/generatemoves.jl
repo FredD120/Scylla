@@ -1,15 +1,15 @@
 "return location of king for a given colour"
-locate_king(board::BoardState, colour) = LSB(colour_piece(board, colour, KING))
+@inline locate_king(board::BoardState, colour) = LSB(colour_piece(board, colour, KING))
 
 "return location of king for side to move"
-locate_king(board::BoardState) = locate_king(board, board.colour)
+@inline locate_king(board::BoardState) = locate_king(board, board.colour)
 
 "Masked 4-bit integer representing king- and queen-side castling rights for one side"
-function get_castle_rights(castling, colour_id, king_or_queen_side)
+@inline function get_castle_rights(castling, colour_id, king_or_queen_side)
     #colour_id is 0 for white and 1 for black
     #king_or_queen_side allows masking out of only king/queen side
     #for a given colour, =0 if both, 1 = king, 2 = queen
-    rights = CASTLE_RIGHTS[3 * colour_id + king_or_queen_side + 1]
+    @inbounds rights = CASTLE_RIGHTS[3 * colour_id + king_or_queen_side + 1]
     return castling & rights
 end
 
@@ -64,22 +64,22 @@ function LegalInfo(board::BoardState)
     return LegalInfo(attackers, evasions, rookpins, bishoppins, attacked_sqs, attacker_num)
 end
 
-pseudolegal_king_moves(location) = @inbounds MOVESET.king[location + 1]
+@inline pseudolegal_king_moves(location) = @inbounds MOVESET.king[location + 1]
 
-pseudolegal_knight_moves(location) = @inbounds MOVESET.knight[location + 1]
+@inline pseudolegal_knight_moves(location) = @inbounds MOVESET.knight[location + 1]
 
-pseudolegal_rook_moves(location, all_pcs) = @inbounds sliding_attacks(ROOK_MAGICS[location + 1], all_pcs, ROOK_ATTACKS)
+@inline pseudolegal_rook_moves(location, all_pcs) = @inbounds sliding_attacks(ROOK_MAGICS[location + 1], all_pcs, ROOK_ATTACKS)
 
-pseudolegal_bishop_moves(location, all_pcs) = @inbounds sliding_attacks(BISHOP_MAGICS[location + 1], all_pcs, BISHOP_ATTACKS)
+@inline pseudolegal_bishop_moves(location, all_pcs) = @inbounds sliding_attacks(BISHOP_MAGICS[location + 1], all_pcs, BISHOP_ATTACKS)
 
-function pseudolegal_queen_moves(location, all_pcs)
+@inline function pseudolegal_queen_moves(location, all_pcs)
     rook_attacks = sliding_attacks(ROOK_MAGICS[location + 1], all_pcs, ROOK_ATTACKS)
     bishop_attacks = sliding_attacks(BISHOP_MAGICS[location + 1], all_pcs, BISHOP_ATTACKS)
     return rook_attacks | bishop_attacks
 end
 
 "returns BB containing attacking moves assuming all pieces in BB are pawns"
-function pseudolegal_pawn_moves(pawn_bb, colour::Bool)
+@inline function pseudolegal_pawn_moves(pawn_bb, colour::Bool)
     pawn_push = cond_push(colour, pawn_bb)
     return attack_left(pawn_push) | attack_right(pawn_push)
 end
@@ -107,7 +107,7 @@ end
 end
 
 "bitboard of all squares being attacked by the opponent"
-function enemy_attacks(board::BoardState, all_pcs)::BitBoard
+@inline function enemy_attacks(board::BoardState, all_pcs)::BitBoard
     attacks = BITBOARD_EMPTY
 
     for location in enemy_piece(board, KING)
@@ -136,7 +136,7 @@ function enemy_attacks(board::BoardState, all_pcs)::BitBoard
 end
 
 "return a bitboard containing squares that can be moved to by pieces pinned by a rook"
-function rook_pinlines(board::BoardState, king_pos, blocks_removed, slide_attacks)
+@inline function rook_pinlines(board::BoardState, king_pos, blocks_removed, slide_attacks)
     #recalculate rook attacks with blockers removed
     rook_no_blocks = pseudolegal_rook_moves(king_pos, blocks_removed) 
     #only want moves found after removing blockers
@@ -152,7 +152,7 @@ function rook_pinlines(board::BoardState, king_pos, blocks_removed, slide_attack
 end
 
 "return a bitboard containing squares that can be moved to by pieces pinned by a bishop"
-function bishop_pinlines(board::BoardState, king_pos, blocks_removed, slide_attacks)
+@inline function bishop_pinlines(board::BoardState, king_pos, blocks_removed, slide_attacks)
     bishop_no_blocks = pseudolegal_bishop_moves(king_pos, blocks_removed) 
     bpin_attacks = bishop_no_blocks & ~slide_attacks
     bishop_pins = bpin_attacks & (enemy_piece(board, BISHOP) | enemy_piece(board, QUEEN))
@@ -164,7 +164,7 @@ function bishop_pinlines(board::BoardState, king_pos, blocks_removed, slide_atta
 end
 
 "detect pins and create rook/bishop pin BBs"
-function detect_pins(board::BoardState, king_pos, all_pcs, ally_pcs)
+@inline function detect_pins(board::BoardState, king_pos, all_pcs, ally_pcs)
     #imagine king is a queen, what can it see?
     slide_attacks = pseudolegal_queen_moves(king_pos, all_pcs)
     #identify ally pieces seen by king
@@ -179,7 +179,7 @@ function detect_pins(board::BoardState, king_pos, all_pcs, ally_pcs)
 end
 
 "create a castling move where from and to is the rook to move"
-function create_castle(king_or_queen, white_or_black)
+@inline function create_castle(king_or_queen, white_or_black)
     #king_or_queen is 0 if kingside, 1 if queenside 
     #white_or_black is 0 if white, 1 if black
     rook_position_lookup = king_or_queen + white_or_black * 2 + 1
@@ -203,13 +203,13 @@ end
 end
 
 "bitboard containing only the attacks by a particular piece"
-attack_moves(::MoveMode, move_bb, enemy_bb) = move_bb & enemy_bb
+@inline attack_moves(::MoveMode, move_bb, enemy_bb) = move_bb & enemy_bb
 
 "bitboard containing only the quiets by a particular piece"
-quiet_moves(::AllMoves, move_bb, all_pcs) = move_bb & ~all_pcs
+@inline quiet_moves(::AllMoves, move_bb, all_pcs) = move_bb & ~all_pcs
 
 "bitboard containing no moves if we only want to generate attacks"
-quiet_moves(::AttacksOnly, move_bb, all_pcs) = BITBOARD_EMPTY
+@inline quiet_moves(::AttacksOnly, move_bb, all_pcs) = BITBOARD_EMPTY
 
 "bitboard logic to get attacks and quiets from a set of moves"
 @inline function quiets_and_attacks(moves, all_bb, enemy_bb, MODE::MoveMode)
@@ -220,7 +220,7 @@ quiet_moves(::AttacksOnly, move_bb, all_pcs) = BITBOARD_EMPTY
 end
 
 "filter pseudolegal moves for legality for king"
-function legal_king_moves(loc, info::LegalInfo)
+@inline function legal_king_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_king_moves(loc)
     #Filter out moves that put king in check
     legal_moves = poss_moves & ~info.attack_sqs
@@ -228,7 +228,7 @@ function legal_king_moves(loc, info::LegalInfo)
 end
 
 "filter pseudolegal moves for legality for knight"
-function legal_knight_moves(loc, info::LegalInfo)
+@inline function legal_knight_moves(loc, info::LegalInfo)
     poss_moves = pseudolegal_knight_moves(loc)
     #Filter out knight moves that don't block/capture if in check
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) 
@@ -236,7 +236,7 @@ function legal_knight_moves(loc, info::LegalInfo)
 end
 
 "filter pseudolegal moves for legality for bishop"
-function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
+@inline function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
     poss_moves = pseudolegal_bishop_moves(loc,all_pcs)
     #Filter out bishop moves that don't block/capture if in check/pinned
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) & bishoppins
@@ -244,7 +244,7 @@ function legal_bishop_moves(loc, all_pcs, bishoppins, info::LegalInfo)
 end
 
 "filter pseudolegal moves for legality for rook"
-function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
+@inline function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
     poss_moves = pseudolegal_rook_moves(loc, all_pcs)
     #Filter out rook moves that don't block/capture if in check/pinned
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) & rookpins
@@ -252,22 +252,22 @@ function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
 end
 
 "filter pseudolegal moves for legality for queen"
-function legal_queen_moves(loc, all_pcs, rookpins, bishoppins, info::LegalInfo)
+@inline function legal_queen_moves(loc, all_pcs, rookpins, bishoppins, info::LegalInfo)
     legal_rook = legal_rook_moves(loc, all_pcs, rookpins, info)
     legal_bishop = legal_bishop_moves(loc, all_pcs, bishoppins, info)
     return legal_rook | legal_bishop
 end
 
 "when not pinned, use a full bitboard as a mask that allows all moves"
-legal_bishop_moves(loc, all_pcs, info) = legal_bishop_moves(loc, all_pcs, BITBOARD_FULL, info)
-legal_rook_moves(loc, all_pcs, info) = legal_rook_moves(loc, all_pcs, BITBOARD_FULL, info)
-legal_queen_moves(loc, all_pcs, info) = legal_queen_moves(loc, all_pcs, BITBOARD_FULL, BITBOARD_FULL, info)
+@inline legal_bishop_moves(loc, all_pcs, info) = legal_bishop_moves(loc, all_pcs, BITBOARD_FULL, info)
+@inline legal_rook_moves(loc, all_pcs, info) = legal_rook_moves(loc, all_pcs, BITBOARD_FULL, info)
+@inline legal_queen_moves(loc, all_pcs, info) = legal_queen_moves(loc, all_pcs, BITBOARD_FULL, BITBOARD_FULL, info)
 
 "bishop can only move if pinned diagonally"
-pinned_bishop(piece_bb, bishoppins) = piece_bb & bishoppins
+@inline pinned_bishop(piece_bb, bishoppins) = piece_bb & bishoppins
 
 "rook can only move if pinned vertic/horizontally"
-pinned_rook(piece_bb, rookpins) = piece_bb & rookpins
+@inline pinned_rook(piece_bb, rookpins) = piece_bb & rookpins
 
 "add all legal moves that can be made by a pinned rook from locations on bitboard that are pinned"
 @inline function pinned_rook_moves!(board::BoardState, enemy_pcs, all_pcs, pinned_bb, TYPE, MODE, info::LegalInfo)
@@ -807,15 +807,15 @@ end
 
 #TODO: count backwards from latest position and quit early if halfmove count is reset
 "one-liner to test draw by repetition" 
-three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.data.zobrist_hash_history) >= 3
+@inline three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.data.zobrist_hash_history) >= 3
 
 "implement 50 move rule and 3 position repetition"
-function draw_state(board::BoardState)::Bool
+@inline function draw_state(board::BoardState)::Bool
     return (board.data.half_moves[end] >= 100) || three_repetition(board)
 end
 
 "find locations of owned pieces and create a movelist of all legal moves"
-@inline function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MODE=AllMoves())
+function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board), MODE=AllMoves())
     prev_move_index = board.move_vector.ind
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)

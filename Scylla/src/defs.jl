@@ -239,7 +239,7 @@ struct Time <: Control
     maxtime::Float64
     maxdepth::UInt8
 end
-Time() = Time(DEFAULTTIME, DEFAULTDEPTH)
+Time(;maxdepth = DEFAULTDEPTH) = Time(DEFAULTTIME, maxdepth)
 Time(max_t) = Time(max_t, DEFAULTDEPTH)
 
 "Depth control for engine, where depth is in halfmoves"
@@ -249,14 +249,14 @@ struct Depth <: Control
     "inner constructor, limits depth to MAXDEPTH"
     Depth(depth) = new(min(depth, MAXDEPTH))
 end
-Depth() = Depth(MAXDEPTH)
+Depth(;maxdepth = MAXDEPTH) = Depth(maxdepth)
 
 "Node control for engine, where nodes are any leaf node visited"
 struct Nodes <: Control
     maxnodes::UInt64
     maxdepth::UInt8
 end
-Nodes() = Nodes(DEFAULTNODES, DEFAULTDEPTH)
+Nodes(;maxdepth = DEFAULTDEPTH) = Nodes(DEFAULTNODES, maxdepth)
 Nodes(nodes) = Nodes(nodes, DEFAULTDEPTH)
 
 struct Mate <: Control
@@ -331,6 +331,8 @@ const UCI_OK_MESSAGE = string(
     "option name Clear Hash type button\n",
     "uciok")
 
+# fraction of a second to give time to send info back to GUI
+const GUI_SAFETY_FACTOR = 0.05
 
 ### Test Features ###
 

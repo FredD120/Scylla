@@ -238,14 +238,14 @@ function print_log(logger::Logger)
 end
 
 "returns true if we have run out of time"
-check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
+@inline check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
 
 "return true if channel contains :quit message"
-check_quit(channel::Channels) = 
+@inline check_quit(channel::Channels) = 
     isready(channel.quit) && take!(channel.quit) == :quit
 
 "return false if channel doesn't exist"
-check_quit(::Nothing) = false
+@inline check_quit(::Nothing) = false
 
 "don't need to handle quitting on depth exept through channel, since it is dealt with in iterative_deepening"
 @inline function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q} 
@@ -522,14 +522,14 @@ function root(engine::EngineState, moves, depth, logger::Logger)
     is_principal = true 
 
     #root node is always on PV
-    score_moves!(moves, engine.info.Killers[ply+1], engine.info.pv[ply+1])
+    score_moves!(moves, engine.info.Killers[ply + 1], engine.info.pv[ply + 1])
 
     for i in eachindex(moves)
         next_best!(moves, i)
         move = moves[i]
 
         make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth-1, ply+1, is_principal, logger)
+        score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
         if stop_early(engine)
@@ -565,7 +565,7 @@ function iterative_deepening(engine::EngineState)
 
         update_logger!(engine, logger, bestscore)
 
-        if engine.config.verbose && (time() - engine.config.starttime > 0.05)
+        if engine.config.verbose && (time() - engine.config.starttime > GUI_SAFETY_FACTOR)
             report_progress(engine, logger)
         end
     end

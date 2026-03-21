@@ -24,36 +24,36 @@ end
 end
 
 "utilises create and destroy to move single piece"
-function move_piece!(board::BoardState, colour::UInt8, piece_type, from, to)
+@inline function move_piece!(board::BoardState, colour::UInt8, piece_type, from, to)
     destroy_piece!(board, colour, piece_type, from)
     create_piece!(board, colour, piece_type, to)
 end
 
 "switch to opposite colour and update hash key"
-function swap_player!(board)
+@inline function swap_player!(board)
     board.colour = opposite(board.colour)
     board.zobrist_hash ⊻= zobrist_colour()
 end
 
 "shift king pos right for kingside castle"
-king_castle_shift(pos::Integer) = pos + 2
+@inline king_castle_shift(pos::Integer) = pos + 2
 "shift king pos left for queenside castle"
-queen_castle_shift(pos::Integer) = pos - 2
+@inline queen_castle_shift(pos::Integer) = pos - 2
 
 "make a kingside castle"
-function king_castle!(board::BoardState, colour)
+@inline function king_castle!(board::BoardState, colour)
     kingpos = locate_king(board, colour)
     move_piece!(board, colour, KING, kingpos, king_castle_shift(kingpos))
 end 
 
 "make a queenside castle"
-function queen_castle!(board::BoardState, colour)
+@inline function queen_castle!(board::BoardState, colour)
     kingpos = locate_king(board, colour)
     move_piece!(board, colour, KING, kingpos, queen_castle_shift(kingpos))
 end
 
 "update castling rights and zobrist hash"
-function update_castle_rights!(board::BoardState, colour_id, side)
+@inline function update_castle_rights!(board::BoardState, colour_id, side)
     #remove old castling rights from zobrist hash
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
     #remove ally castling rights by &-ing with opponent mask
@@ -63,7 +63,7 @@ function update_castle_rights!(board::BoardState, colour_id, side)
 end
 
 "set new EP val and incrementally update zobrist hash"
-function update_enpassant!(board::BoardState, newval::BitBoard)
+@inline function update_enpassant!(board::BoardState, newval::BitBoard)
     board.zobrist_hash = zobrist_enpassant(board.zobrist_hash, board.enpassant_bb)
     board.enpassant_bb = newval
     board.zobrist_hash = zobrist_enpassant(board.zobrist_hash, board.enpassant_bb)

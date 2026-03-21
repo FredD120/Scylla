@@ -94,8 +94,17 @@ end
 "send standard UCI_OK message to GUI"
 handle_uci(_, _, _) = UCI_OK_MESSAGE
 
+"ensure all functions are compiled into memory before first search is executed"
+function run_short_search(engine::EngineState{T, C, Q}) where {T, C, Q}
+    control = engine.config.control
+    engine.config.control = C(maxdepth = 4)
+    _, _ = best_move(engine)
+    engine.config.control = control
+end
+
 "assign default TT if not previously set, tell GUI we are ready to compute"
 function handle_isready!(wrapper, cli_st, _)
+    run_short_search(wrapper.engine)
     if !cli_st.TT_SET
         wrapper.engine = assign_tt(wrapper.engine, wrapper.debug)
         cli_st.TT_SET = true
@@ -150,8 +159,9 @@ function get_control(engine::EngineState, msg_in)
     if "MOVETIME" in msg_caps
         ind = get_msg_index(msg_caps, "MOVETIME")
         if is_valid(ind, msg_caps)
-            newtime = parse(Float64, msg_in[ind + 1]) / 1000
-            control = Time(newtime, control.maxdepth)
+            new_time = parse(Float64, msg_in[ind + 1]) / 1000
+            actual_time = max(new_time - GUI_SAFETY_FACTOR, GUI_SAFETY_FACTOR)
+            control = Time(actual_time, control.maxdepth)
         end
     
     elseif "WTIME" in msg_caps || "BTIME" in msg_caps

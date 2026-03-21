@@ -34,7 +34,7 @@ const BISHOP_MAGICS, BISHOP_ATTACKS = read_magics("bishop")
 const ROOK_MAGICS, ROOK_ATTACKS = read_magics("rook")
 
 "Magic function to transform positional information to an index (0-63) into an attack lookup table"
-magic_index(bb::BitBoard, num, shift) = (bb * num) >> (64 - shift)
+@inline magic_index(bb::BitBoard, num, shift) = (bb * num) >> (64 - shift)
 
 "Uses magic bitboards to identify blockers and retrieve legal attacks against them"
 @inline function sliding_attacks(magic::Magic, all_pieces::BitBoard, vector::MagicVector)
