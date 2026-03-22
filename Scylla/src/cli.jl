@@ -331,11 +331,12 @@ end
 
 "try to match given UCI move to a legal move. return null move otherwise"
 function identify_uci_move(board::BoardState, uci_move::AbstractString)
-    moves, _ = generate_legal_moves(board)
+    moves, move_count = generate_legal_moves(board)
     num_from = algebraic_to_numeric(uci_move[1:2])
     num_to = algebraic_to_numeric(uci_move[3:4])
     num_promote = NOFLAG
     kingsmove = num_from == locate_king(board)
+    gui_move = NULLMOVE
 
     if length(uci_move) > 4
         num_promote = promote_id(Char(uci_move[5]))
@@ -345,15 +346,18 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
         flg = flag(move)
         if from(move) == num_from && to(move) == num_to
             if num_promote == NOFLAG || num_promote == flg
-                return move
+                gui_move = move
+                break
             end
         #check for castling if the king is moving
         elseif kingsmove
             if (flg == KING_CASTLE && num_to == king_castle_shift(num_from)) ||
                 (flg == QUEEN_CASTLE && num_to == queen_castle_shift(num_from))
-                return move 
+                gui_move = move
+                break
             end
         end
     end
-    return NULLMOVE
+    clear_current_moves!(board.move_vector, move_count)
+    return gui_move
 end

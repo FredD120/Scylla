@@ -12,7 +12,7 @@ mutable struct Config{C <: Control}
     control::C
     starttime::Float64
     nodes_since_time::UInt32
-    leaf_nodes::UInt32
+    nodes::UInt32
     quit_now::Bool
     quiescence::Bool
     verbose::Bool
@@ -26,7 +26,7 @@ end
 function reset_config!(config)
     config.quit_now = false
     config.nodes_since_time = UInt32(0)
-    config.leaf_nodes = UInt32(0)
+    config.nodes = UInt32(0)
 end
 
 mutable struct SearchInfo
@@ -76,7 +76,7 @@ function assign_control(engine::EngineState{T, C, Q}, new_control) where {T, C, 
         new_config = Config(new_control,
         engine.config.starttime,
         engine.config.nodes_since_time,
-        engine.config.leaf_nodes,
+        engine.config.nodes,
         engine.config.quit_now,
         engine.config.quiescence,
         engine.config.verbose,)  
@@ -146,11 +146,12 @@ Logger(TT_entries) = Logger(0, 0, 0, 0,
 function update_logger!(engine::EngineState, logger::Logger, bestscore)
     logger.δt = time() - engine.config.starttime
     logger.hashfull = engine.tt_hashfull
-    logger.best_score = bestscore
+    logger.nodes = engine.config.nodes
     
-    #PV table is only valid after an exhaustive search of a given depth
+    #PV table + position score is only valid after an exhaustive search of a given depth
     if !logger.stopmidsearch
         logger.pv = engine.info.pv[1:engine.info.pv_len]
+        logger.best_score = bestscore
     end
 end
 
@@ -264,7 +265,7 @@ end
         return true
     end
 
-    if check_quit(engine.channel) || (engine.config.leaf_nodes >= engine.config.control.maxnodes)
+    if check_quit(engine.channel) || (engine.config.nodes >= engine.config.control.maxnodes)
         engine.config.quit_now = true
     end
 
@@ -372,8 +373,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         return α
     end 
 
-    engine.config.leaf_nodes += 1
-    logger.nodes += 1
+    engine.config.nodes += 1
     logger.q_nodes += 1
     logger.seldepth = max(logger.seldepth, ply)
 
@@ -475,14 +475,13 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         logger.stopmidsearch = true
         return α
     end 
-    logger.nodes += 1
+    engine.config.nodes += 1
 
     # enter quiescence search if at leaf node
     if depth <= MINDEPTH
         if engine.config.quiescence
             return quiescence(engine, player, α, β, ply, logger)
         else 
-            engine.config.leaf_nodes += 1
             # evaluate whether we are in a terminal node
             gameover!(engine.board)
             return evaluate(engine.board)
@@ -491,7 +490,6 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
 
     #check for draw by FIDE rules
     if draw_state(engine.board)
-        engine.config.leaf_nodes += 1
         return evaluate(DRAW, ply)
     end
 

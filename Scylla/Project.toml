@@ -1,6 +1,6 @@
 name = "Scylla"
 uuid = "24d84680-5a81-11f0-094e-d916aee03220"
-version = "0.5.4"
+version = "0.5.5"
 authors = ["Freddie Daniels fw.daniels01@gmail.com"]
 
 [deps]
