@@ -14,7 +14,7 @@ MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
 "append move to move vec, increment index by one"
 function append!(m::MoveVec, move::Move)
     m.ind += 1
-    @inbounds m.moves[m.ind] = move
+    #=@inbounds=# m.moves[m.ind] = move
 end
 
 "reset index of movevec, but don't actually wipe data"

@@ -329,6 +329,16 @@ end
 
 @inline retrieve_from_table(::EngineState{Nothing}, α, β, depth) = (NULLMOVE, α, false)
 
+"store position with depth, score and best move in transposition table, logging if successful"
+@inline function store_in_table!(engine::EngineState{<:TranspositionTable}, depth, score, node_type, move)
+    success = store!(engine.table, engine.board.zobrist_hash, depth, score, node_type, move)
+    if success
+        engine.tt_hashfull += 1
+    end
+end
+
+@inline store_in_table!(::EngineState{Nothing}, _, _, _, _) = nothing
+
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
 function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
     if stop_early(engine)
@@ -357,6 +367,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         # either player can choose not to continue trading 
         if best_score > α
             if best_score >= β
+                #fail hard
                 return β
             end
             α = best_score
@@ -380,6 +391,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
                 end
                 α = score
             end
+            # TODO: can we remove this and return α?
             if score > best_score
                 best_score = score
             end
@@ -415,52 +427,12 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     end
 end
 
-"minimax algorithm, tries to maximise own eval and minimise opponent eval"
-function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
-    if stop_early(engine)
-        logger.stopmidsearch = true
-        return α 
-    end 
-    logger.nodes += 1
-
-    #Evaluate whether we are in a terminal node
-    legal_info = LegalInfo(engine.board)
-    gameover!(engine.board, legal_info)
-    
-    if engine.board.state != Neutral()
-        engine.config.leaf_nodes += 1
-        return evaluate(engine.board.state, ply)
-    end
-
-    #enter quiescence search if at leaf node
-    if depth <= MINDEPTH 
-        if engine.config.quiescence
-            return quiescence(engine, player, α, β, ply, logger)
-        else 
-            engine.config.leaf_nodes += 1
-            return player * evaluate(engine.board)
-        end
-    end
-
-    best_move = NULLMOVE
-    #dont use TT if on PV (still save result of PV search in TT)
-    if is_principal
-        best_move = engine.info.pv[ply+1]
-    else
-        best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
-
-        if return_early
-            logger.tt_cut += 1
-            return score
-        end
-    end            
-
-    #figure out type of current node for use in TT and best move
+"iterate through all moves and recursively call minimax to evaluate the position. returns a score, node type and best move"
+function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+    # figure out type of current node for use in TT and best move
     node_type = ALPHA
-    cur_best_move = NULLMOVE   
-
-    moves, move_length = generate_legal_moves(engine.board, legal_info)
-    score_moves!(moves, engine.info.Killers[ply + 1], best_move)
+    best_move = NULLMOVE
+    break_early = false
 
     for i in eachindex(moves)
         next_best!(moves, i)
@@ -482,31 +454,80 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
                     new_killer!(engine.info.Killers, ply, move)
                 end
 
-                if move == best_move
-                    logger.tt_cut += 1
-                end
-
-                success = store!(engine.table, engine.board.zobrist_hash, depth, score, BETA, move)
-                if success
-                    engine.tt_hashfull += 1
-                end
-                clear_current_moves!(engine.board.move_vector, move_length)
-                return β
+                best_move = move
+                break_early = true
+                store_in_table!(engine, depth, score, BETA, best_move)
+                break
             end
             node_type = EXACT
-            cur_best_move = move
+            best_move = move
             α = score
             #exact score found, must copy up PV from further down the tree
             copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
         end
     end
 
-    success = store!(engine.table, engine.board.zobrist_hash, depth, α, node_type, cur_best_move)
-    if success
-        engine.tt_hashfull += 1
+    if break_early
+        return β, best_move
+    else
+        store_in_table!(engine, depth, α, node_type, best_move)
+        return α, best_move
     end
+end
+
+"minimax algorithm, tries to maximise eval while constrained by opponent trying to minimise eval"
+function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+    # stop if out of time/nodes or receive quit message
+    if stop_early(engine)
+        logger.stopmidsearch = true
+        return α
+    end 
+    logger.nodes += 1
+
+    # evaluate whether we are in a terminal node
+    legal_info = LegalInfo(engine.board)
+    gameover!(engine.board, legal_info)
+    
+    if engine.board.state != Neutral()
+        engine.config.leaf_nodes += 1
+        return evaluate(engine.board.state, ply)
+    end
+
+    # enter quiescence search if at leaf node
+    if depth <= MINDEPTH 
+        if engine.config.quiescence
+            return quiescence(engine, player, α, β, ply, logger)
+        else 
+            engine.config.leaf_nodes += 1
+            return evaluate(engine.board)
+        end
+    end
+
+    best_move = NULLMOVE
+    # dont use TT if on PV (still save result of PV search in TT)
+    if is_principal
+        best_move = engine.info.pv[ply + 1]
+    else
+        best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
+
+        if return_early
+            logger.tt_cut += 1
+            return score
+        end
+    end            
+
+    moves, move_length = generate_legal_moves(engine.board, legal_info)
+    score_moves!(moves, engine.info.Killers[ply + 1], best_move)
+
+    score, new_best_move = 
+        search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
+
+    if new_best_move == best_move
+        logger.tt_cut += 1
+    end
+
     clear_current_moves!(engine.board.move_vector, move_length)
-    return α
+    return score
 end
 
 "root of minimax search"

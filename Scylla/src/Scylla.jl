@@ -12,12 +12,23 @@ CURRENT CAPABILITIES
 -> Transposition table
 
 TO-DO (engine)
+
+Pruning
 -> Null move pruning
--> Delta/futility pruning
+-> SEE in quiescence
+-> TT in quiescence
 -> PVS/aspiration windows
--> Texel tuned PSTs
--> SEE move ordering
+-> Razoring
+
+Move Ordering
+-> Downrate underpromotion
+-> SEE
 -> LMR + history
+
+Evaluation
+-> Texel tuned PSTs
+-> King safety
+-> Pawn structure
 -> NNUE
 
 TO-DO (general)
