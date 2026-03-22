@@ -374,19 +374,14 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     logger.q_nodes += 1
     logger.seldepth = max(logger.seldepth, ply)
 
-    #still need to check for terminal nodes in qsearch
-    legal_info = LegalInfo(engine.board)
-    gameover!(engine.board, legal_info)
-
-    if engine.board.state != Neutral()
-        return evaluate(engine.board.state, ply)
+    #still need to check for draws in qsearch
+    if draw_state(engine.board)
+        return evaluate(DRAW, ply)
     end
 
-    in_check = legal_info.attack_num > 0
-
     #not in check, continue quiescence
-    if !in_check
-        # stand-pat evaluation
+    if !in_check(engine.board)
+        # stand-pat evaluation - makes null move assumption
         best_score = player * evaluate(engine.board)
         # either player can choose not to continue trading 
         if best_score > α
@@ -396,7 +391,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
             α = best_score
         end
 
-        moves, attack_count = generate_legal_attacks(engine.board, legal_info)
+        moves, attack_count = generate_legal_attacks(engine.board)
         score_moves!(moves)
 
         score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
@@ -406,7 +401,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     #in check, must search all legal moves (check extension)
     else
         best_score = evaluate(LOSS, ply)
-        moves, move_length = generate_legal_moves(engine.board, legal_info)
+        moves, move_length = generate_legal_moves(engine.board)
         score_moves!(moves)
 
         score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
@@ -421,6 +416,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     node_type = ALPHA
     best_move = NULLMOVE
     best_score = evaluate(LOSS, ply)
+    move_made = false
 
     for i in eachindex(moves)
         next_best!(moves, i)
@@ -432,6 +428,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
 
         #only first search is on PV
         is_principal = false
+        move_made = true
 
         best_score = max(score, best_score)
         #update alpha (lower bound) when better score is found
@@ -455,6 +452,16 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         end
     end
 
+    #no moves made, either stalemate or checkmate
+    if !move_made
+        node_type = EXACT
+        if in_check(engine.board)
+            best_score = evaluate(LOSS, ply)
+        else
+            best_score = evaluate(DRAW, ply)
+        end
+    end
+
     store_in_table!(engine, depth, best_score, node_type, best_move)
     return best_score
 end
@@ -468,23 +475,22 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     end 
     logger.nodes += 1
 
-    # evaluate whether we are in a terminal node
-    legal_info = LegalInfo(engine.board)
-    gameover!(engine.board, legal_info)
-
-    if engine.board.state != Neutral()
-        engine.config.leaf_nodes += 1
-        return evaluate(engine.board.state, ply)
-    end
-
     # enter quiescence search if at leaf node
-    if depth <= MINDEPTH 
+    if depth <= MINDEPTH
         if engine.config.quiescence
             return quiescence(engine, player, α, β, ply, logger)
         else 
             engine.config.leaf_nodes += 1
+            # evaluate whether we are in a terminal node
+            gameover!(engine.board)
             return evaluate(engine.board)
         end
+    end
+
+    #check for draw by FIDE rules
+    if draw_state(engine.board)
+        engine.config.leaf_nodes += 1
+        return evaluate(DRAW, ply)
     end
 
     best_move = NULLMOVE
@@ -497,11 +503,10 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         if return_early
             return score
         end
-    end            
+    end   
 
-    moves, move_length = generate_legal_moves(engine.board, legal_info)
+    moves, move_length = generate_legal_moves(engine.board)
     score_moves!(moves, engine.info.Killers[ply + 1], best_move)
-
     score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
 
     clear_current_moves!(engine.board.move_vector, move_length)

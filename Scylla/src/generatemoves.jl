@@ -872,7 +872,7 @@ end
 end
 
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
-@inline function in_check(board::BoardState, colour)
+@inline function in_check(board::BoardState, colour = board.colour)
     king_pos = locate_king(board, colour)
     enemy_colour = opposite(colour)
 
