@@ -21,9 +21,9 @@ Pruning
 -> Razoring
 
 Move Ordering
--> Downrate underpromotion
+-> Promotion - queen good, underpromote bad
 -> SEE
--> LMR + history
+-> LMR (+ history?)
 
 Evaluation
 -> Texel tuned PSTs
@@ -40,10 +40,9 @@ TO-DO (general)
 -> Add check for FIDE draws like KNk, KBk
 
 Code Clarity
--> Separate out functions for readability in:
- - engine.jl
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6
+-> Make compiled runtime file for testing
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb

@@ -78,7 +78,8 @@ struct Loss end
 struct Draw end
 
 const GameState = Union{Neutral, Loss, Draw}
-
+const LOSS = Loss()
+const DRAW = Draw()
 
 ### Bitboard Features ###
 

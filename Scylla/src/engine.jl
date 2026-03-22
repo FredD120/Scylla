@@ -156,7 +156,7 @@ end
 
 "report state of engine at current depth if verbose"
 function report_progress(engine::EngineState{T, C, Nothing}, logger::Logger) where {T, C}
-    println("Searched depth $(logger.cur_depth) in $(round(time() - engine.config.starttime,sigdigits=4))s. ",
+    println("Searched depth $(logger.cur_depth) in $(round(time() - engine.config.starttime, sigdigits=4))s. ",
     "Current maxdepth = $(logger.seldepth). ",
     "PV so far: ", pv_string(logger.pv))
 end
@@ -209,7 +209,7 @@ end
 "print all logging info to StdOut"
 function print_log(logger::Logger)
     if length(logger.pv) > 0
-        best ="$(logger.best_score)"
+        best = "$(logger.best_score)"
         if mate_found(logger.best_score)
             dist = Int((INF - abs(logger.best_score)) ÷ 2)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
@@ -350,9 +350,7 @@ function search_quiescent_moves(engine::EngineState, moves, best_score, player::
         score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
         unmake_move!(engine.board)
 
-        if score > best_score
-            best_score = score
-        end
+        best_score = max(score, best_score)
         if score > α
             if score >= β
                 break
@@ -407,8 +405,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     #in check, must search all legal moves (check extension)
     else
-        #if there are no legal moves, this is checkmate
-        best_score = evaluate(Loss(), ply)
+        best_score = evaluate(LOSS, ply)
         moves, move_length = generate_legal_moves(engine.board, legal_info)
         score_moves!(moves)
 
@@ -423,7 +420,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     # figure out type of current node for use in TT and best move
     node_type = ALPHA
     best_move = NULLMOVE
-    break_early = false
+    best_score = evaluate(LOSS, ply)
 
     for i in eachindex(moves)
         next_best!(moves, i)
@@ -436,6 +433,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         #only first search is on PV
         is_principal = false
 
+        best_score = max(score, best_score)
         #update alpha (lower bound) when better score is found
         if score > α
             #cut when upper bound exceeded
@@ -445,8 +443,8 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
                     new_killer!(engine.info.Killers, ply, move)
                 end
 
-                break_early = true
-                store_in_table!(engine, depth, score, BETA, move)
+                node_type = BETA
+                best_move = move
                 break
             end
             node_type = EXACT
@@ -457,12 +455,8 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         end
     end
 
-    if break_early
-        return β
-    else
-        store_in_table!(engine, depth, α, node_type, best_move)
-        return α
-    end
+    store_in_table!(engine, depth, best_score, node_type, best_move)
+    return best_score
 end
 
 "minimax algorithm, tries to maximise eval while constrained by opponent trying to minimise eval"
@@ -477,7 +471,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     # evaluate whether we are in a terminal node
     legal_info = LegalInfo(engine.board)
     gameover!(engine.board, legal_info)
-    
+
     if engine.board.state != Neutral()
         engine.config.leaf_nodes += 1
         return evaluate(engine.board.state, ply)
