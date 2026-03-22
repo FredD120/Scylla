@@ -133,14 +133,13 @@ mutable struct Logger
     stopmidsearch::Bool
     pv::Vector{Move}
     seldepth::UInt8
-    tt_cut::Int32
     tt_total::Int32
     hashfull::UInt32
     δt::Float32
 end
 
 Logger(TT_entries) = Logger(0, 0, 0, 0, 
-                     false, Move[], 0, 0, 
+                     false, Move[], 0, 
                      TT_entries, 0, 0.0)
 
 "calculate logging values that are not automatically updated during minimax"
@@ -182,7 +181,7 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
                 "" 
             else
                 hashfull = round(Int64, logger.hashfull*1000 / logger.tt_total)
-                "tthits $(logger.tt_cut) hashfull $(hashfull) "
+                "hashfull $(hashfull) "
             end
         end
 
@@ -216,8 +215,10 @@ function print_log(logger::Logger)
             best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
         end
 
-        TT_msg = logger.hashfull == 0 ? "" : "TT cuts = $(logger.tt_cut). \
-         Hash full = $(round(logger.hashfull*100/logger.tt_total, sigdigits=3))%."
+        TT_msg = ""
+        if logger.hashfull > 0 
+            TT_msg = "Hash full = $(round(logger.hashfull*100/logger.tt_total, sigdigits=3))%."
+        end
 
         println("Best = $(long_move(logger.pv[1])). \
         Score = "*best*". \
@@ -339,11 +340,35 @@ end
 
 @inline store_in_table!(::EngineState{Nothing}, _, _, _, _) = nothing
 
+"search a set of moves generated during quiescent search. recursively calls quiescence, uses fail-soft"
+function search_quiescent_moves(engine::EngineState, moves, best_score, player::Int8, α, β, ply, logger::Logger)
+    for i in eachindex(moves)
+        next_best!(moves,i)
+        move = moves[i]
+
+        make_move!(move, engine.board)
+        score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
+        unmake_move!(engine.board)
+
+        if score > best_score
+            best_score = score
+        end
+        if score > α
+            if score >= β
+                break
+            end
+            α = score
+        end
+    end
+    
+    return best_score
+end
+
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
 function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
     if stop_early(engine)
         logger.stopmidsearch = true
-        return α 
+        return α
     end 
 
     engine.config.leaf_nodes += 1
@@ -359,16 +384,16 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         return evaluate(engine.board.state, ply)
     end
 
-    #not in check, continue quiescence
-    if legal_info.attack_num == 0
+    in_check = legal_info.attack_num > 0
 
+    #not in check, continue quiescence
+    if !in_check
         # stand-pat evaluation
         best_score = player * evaluate(engine.board)
         # either player can choose not to continue trading 
         if best_score > α
             if best_score >= β
-                #fail hard
-                return β
+                return best_score
             end
             α = best_score
         end
@@ -376,54 +401,20 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         moves, attack_count = generate_legal_attacks(engine.board, legal_info)
         score_moves!(moves)
 
-        for i in eachindex(moves)
-            next_best!(moves,i)
-            move = moves[i]
-
-            make_move!(move,engine.board)
-            score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
-            unmake_move!(engine.board)
-
-            if score > α
-                if score >= β
-                    clear_current_moves!(engine.board.move_vector, attack_count)
-                    return β
-                end
-                α = score
-            end
-            # TODO: can we remove this and return α?
-            if score > best_score
-                best_score = score
-            end
-        end
+        score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
         clear_current_moves!(engine.board.move_vector, attack_count)
-        #fail hard
-        return best_score
+        return score
 
     #in check, must search all legal moves (check extension)
     else
+        #if there are no legal moves, this is checkmate
+        best_score = evaluate(Loss(), ply)
         moves, move_length = generate_legal_moves(engine.board, legal_info)
         score_moves!(moves)
 
-        for i in eachindex(moves)
-            next_best!(moves,i)
-            move = moves[i]
-
-            make_move!(move,engine.board)
-            score = -quiescence(engine, -player, -β, -α, ply + 1, logger)
-            unmake_move!(engine.board)
-
-            if score > α
-                if score >= β
-                    clear_current_moves!(engine.board.move_vector, move_length)
-                    return β
-                end
-                α = score
-            end
-        end
+        score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
         clear_current_moves!(engine.board.move_vector, move_length)
-        #fail soft
-        return α
+        return score
     end
 end
 
@@ -454,9 +445,8 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
                     new_killer!(engine.info.Killers, ply, move)
                 end
 
-                best_move = move
                 break_early = true
-                store_in_table!(engine, depth, score, BETA, best_move)
+                store_in_table!(engine, depth, score, BETA, move)
                 break
             end
             node_type = EXACT
@@ -468,10 +458,10 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     end
 
     if break_early
-        return β, best_move
+        return β
     else
         store_in_table!(engine, depth, α, node_type, best_move)
-        return α, best_move
+        return α
     end
 end
 
@@ -511,7 +501,6 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
 
         if return_early
-            logger.tt_cut += 1
             return score
         end
     end            
@@ -519,12 +508,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     moves, move_length = generate_legal_moves(engine.board, legal_info)
     score_moves!(moves, engine.info.Killers[ply + 1], best_move)
 
-    score, new_best_move = 
-        search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
-
-    if new_best_move == best_move
-        logger.tt_cut += 1
-    end
+    score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
 
     clear_current_moves!(engine.board.move_vector, move_length)
     return score
