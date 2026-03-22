@@ -34,9 +34,6 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
--> Pseudolegal move generation in engine
- - Determine if in terminal node after attempting all pseudolegal moves
- - Can still generate only legal moves if in check
 -> Add check for FIDE draws like KNk, KBk
 
 Code Clarity

@@ -259,10 +259,14 @@ end
 end
 
 "attempt to make a pseudolegal move and check if it worked. returns true if successful, false if not and rolls back illegal move"
-function make_pseudolegal_move!(move::Move, board::BoardState)
+function make_pseudolegal_move!(move::Move, board::BoardState, skip_legal_check = false)
     make_move!(move, board)
-    success = !in_check(board, opposite(board.colour))
 
+    if skip_legal_check
+        return true
+    end
+
+    success = !in_check(board, opposite(board.colour))
     if !success
         unmake_move!(board)
     end
