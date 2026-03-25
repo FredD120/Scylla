@@ -6,7 +6,7 @@ end
 "default constructor for EngineWrapper, assumes no transposition table and engine time restricted"
 EngineWrapper() = 
     EngineWrapper(EngineState(comms = Channels(), 
-    control = Time(5), size_mb = 0, verbose = true),
+    control = Time(GUI_SAFETY_FACTOR), size_mb = 0, verbose = true),
     debug = false)
 
 EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
@@ -360,4 +360,10 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
     end
     clear_current_moves!(board.move_vector, move_count)
     return gui_move
+end
+
+"entry point for PackageCompiler.jl"
+function julia_main()::Cint
+    run_cli()
+    return 0
 end

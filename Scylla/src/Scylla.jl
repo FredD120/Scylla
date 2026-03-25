@@ -34,15 +34,14 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
--> Add check for FIDE draws like KNk, KBk
 
 Code Clarity
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6
--> Make compiled runtime file for testing
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
+# Do we need to check for FIDE draws like KNk, KBk
 =#
 
 module Scylla
@@ -64,8 +63,8 @@ include("transposition.jl")
 include("moveordering.jl")
 include("engine.jl")
 include("perft.jl")
-include("precompile.jl")
 include("cli.jl")
+include("precompile.jl")
 
 export BitBoard, BoardState, setzero, setone,
        make_move!, unmake_move!, gameover!,

@@ -31,3 +31,4 @@ JuliaLocalPreferences.toml
 .vscode
 *.bat
 profile.jl
+executables
