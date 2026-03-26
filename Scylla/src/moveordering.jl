@@ -2,18 +2,18 @@
 #Score move using above heuristics
 #Dynamically push next best move to top of list
 
-"Store two best quiet moves for a given ply"
+"store two best quiet moves for a given ply"
 mutable struct Killer
     first::Move
     second::Move
 end
 
-"Construct killers with null moves"
+"construct killers with null moves"
 Killer() = Killer(NULLMOVE, NULLMOVE)
 
 const DEFAULT_KILLER = Killer()
 
-"Check that new move does not match second best killer, then push first to second and replace first"
+"check that new move does not match second best killer, then push first to second and replace first"
 function new_killer!(killer_vec::Vector{Killer}, ply, move)
     if move != killer_vec[ply + 1].first
         @inbounds killer_vec[ply + 1].second = killer_vec[ply + 1].first 
@@ -21,13 +21,13 @@ function new_killer!(killer_vec::Vector{Killer}, ply, move)
     end
 end
 
-"Triangle number for an index starting from zero"
+"triangle number for an index starting from zero"
 triangle_number(x) = Int(0.5 * x * (x + 1))
 
 "find index of PV move at current ply"
 pv_ind(ply, maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
 
-"Copies line below in triangular PV table"
+"copies line below in triangular PV table"
 function copy_pv!(triangle_pv, ply, pv_len, maxdepth, move)
     cur_ind = pv_ind(ply, maxdepth)
     @inbounds triangle_pv[cur_ind + 1] = move

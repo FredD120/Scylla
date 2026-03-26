@@ -273,7 +273,7 @@ end
 end
 
 "check if we have run out of time to continue searching, safety_factor ensures we don't run over due to overhead"
-@inline function stop_early(engine::EngineState{T, Time, Q}; safety_factor=0.97, bypass_check=false) where {T, Q}
+@inline function stop_early(engine::EngineState{T, Time, Q}; safety_factor=1.0, bypass_check=false) where {T, Q}
     if engine.config.quit_now
         return true
     end
@@ -333,6 +333,11 @@ end
 
 "store position with depth, score and best move in transposition table, logging if successful"
 @inline function store_in_table!(engine::EngineState{<:TranspositionTable}, depth, score, node_type, move)
+    #not safe to store in TT if search is incomplete
+    if engine.config.quit_now
+        return nothing
+    end 
+
     success = store!(engine.table, engine.board.zobrist_hash, depth, score, node_type, move)
     if success
         engine.tt_hashfull += 1
@@ -569,12 +574,12 @@ function iterative_deepening(engine::EngineState)
 
         update_logger!(engine, logger, bestscore)
 
-        if engine.config.verbose && (time() - engine.config.starttime > GUI_SAFETY_FACTOR)
+        if engine.config.verbose && (time() - engine.config.starttime > 0.01)
             report_progress(engine, logger)
         end
     end
     clear!(engine.board.move_vector)
-    return engine.info.pv[1], logger
+    return logger.pv[1], logger
 end
 
 "Evaluates the position to return the best move"

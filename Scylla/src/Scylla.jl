@@ -34,6 +34,7 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
+-> Fix PV collecting illegal moves - care when copying up the tree
 
 Code Clarity
 -> Unify white/black distinction, ensuring same speed
