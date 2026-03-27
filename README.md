@@ -1,5 +1,4 @@
 # Scylla
-Scylla is an original chess engine written in Julia.
 
 Scylla version 1.0 contains the following features:
 
