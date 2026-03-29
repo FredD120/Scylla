@@ -107,6 +107,9 @@ all_enemy_pieces(board::BoardState) = board.piece_union[piece_union_index(opposi
 
 all_pieces(board::BoardState) = board.piece_union[end]
 
+"count the total number of pieces in a vector of bitboards"
+count_pieces(board::BoardState) = length(all_pieces(board))
+
 "recalculate piece union after pieces have moved"
 function update_piece_union!(board::BoardState)
     board.piece_union[end] = board.piece_union[1] | board.piece_union[2]

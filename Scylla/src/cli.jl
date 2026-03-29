@@ -96,10 +96,15 @@ handle_uci(_, _, _) = UCI_OK_MESSAGE
 
 "ensure all functions are compiled into memory before first search is executed"
 function run_short_search(engine::EngineState{T, C, Q}) where {T, C, Q}
+    verbose = engine.config.verbose
     control = engine.config.control
+
     engine.config.control = C(maxdepth = 4)
+    engine.config.verbose = false
+
     _, _ = best_move(engine)
     engine.config.control = control
+    engine.config.verbose = verbose
 end
 
 "assign default TT if not previously set, tell GUI we are ready to compute"

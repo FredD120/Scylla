@@ -22,7 +22,7 @@ end
 @testset "PST Weighting" begin 
     eFEN = "4k3/ppppppp1/8/8/8/8/PPP5/R3K3 w Qkq - 0 1"
     board = Scylla.BoardState(eFEN)
-    num_pcs = Scylla.count_pieces(board.pieces)
+    num_pcs = Scylla.count_pieces(board)
 
     @test Scylla.midgame_weighting(num_pcs) > Scylla.endgame_weighting(num_pcs)
 

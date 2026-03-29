@@ -21,19 +21,46 @@ function new_killer!(killer_vec::Vector{Killer}, ply, move)
     end
 end
 
+mutable struct SearchInfo
+    #Record best moves from root to leaves for move ordering
+    pv::Vector{Move}
+    pv_len::Vector{UInt8}
+    pv_offsets::Vector{UInt16}
+    Killers::Vector{Killer}
+end
+
+"Constructor for search info struct"
+function SearchInfo(depth)
+    triangular_pv = nulls(triangle_number(depth))
+    killers = [Killer() for _ in 1:depth]
+    pv_lens = zeros(UInt8, depth)
+    pv_offs = [pv_ind(ply, depth) for ply in 0:depth-1]
+    SearchInfo(triangular_pv, pv_lens, pv_offs, killers)
+end
+
 "triangle number for an index starting from zero"
 triangle_number(x) = Int(0.5 * x * (x + 1))
 
-"find index of PV move at current ply"
+"find the index of the first move in the PV at a given ply"
 pv_ind(ply, maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
 
 "copies line below in triangular PV table"
-function copy_pv!(triangle_pv, ply, pv_len, maxdepth, move)
-    cur_ind = pv_ind(ply, maxdepth)
-    @inbounds triangle_pv[cur_ind + 1] = move
-    for i in (cur_ind + 1):(cur_ind + pv_len - ply - 1)
-        @inbounds triangle_pv[i + 1] = triangle_pv[i + maxdepth - ply]
+function copy_pv!(info::SearchInfo, ply, move)
+    # 1-based indexes of current and next ply
+    ply_cur = ply + 1
+    ply_next = ply + 2
+
+    # 0-based indexes into PV array
+    cur_ind = info.pv_offsets[ply_cur]
+    lower_ind = info.pv_offsets[ply_next]
+
+    @inbounds info.pv[cur_ind + 1] = move
+    lower_pv_len = info.pv_len[ply_next]
+    for i in 1:lower_pv_len # i is a 1-based index
+        @inbounds info.pv[cur_ind + i + 1] = info.pv[lower_ind + i]
     end
+    # update pv len at current ply
+    info.pv_len[ply_cur] = lower_pv_len + 1
 end
 
 "lookup value of capture in MVV_LVA table"

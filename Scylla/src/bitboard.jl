@@ -113,12 +113,3 @@ Base.count_ones(bb::BitBoard) = count_ones(bb.n)
     end
     return bb
 end
-
-"Count the total number of pieces in a vector of bitboards"
-function count_pieces(pieces::AbstractArray{BitBoard})
-    count = 0
-    for bb in pieces
-        count += length(bb)
-    end
-    return count
-end

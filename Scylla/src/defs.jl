@@ -227,7 +227,7 @@ uci_pos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 #maximum search depth
 const MAXDEPTH::UInt8 = UInt8(32)
 const MINDEPTH::UInt8 = UInt8(0)
-const DEFAULTDEPTH::UInt8 = UInt8(20)
+const DEFAULTDEPTH::UInt8 = UInt8(24)
 const DEFAULTTIME::Float64 = Float64(1.5)
 const DEFAULTNODES::UInt32 = UInt32(1e8)
 #check for out of time/quit message every x nodes

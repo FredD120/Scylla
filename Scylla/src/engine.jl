@@ -29,20 +29,6 @@ function reset_config!(config)
     config.nodes = UInt32(0)
 end
 
-mutable struct SearchInfo
-    #Record best moves from root to leaves for move ordering
-    pv::Vector{Move}
-    pv_len::UInt8
-    Killers::Vector{Killer}
-end
-
-"Constructor for search info struct"
-function SearchInfo(depth)
-    triangular_pv = nulls(triangle_number(depth))
-    killers = [Killer() for _ in 1:depth]
-    SearchInfo(triangular_pv, 0, killers)
-end
-
 "holds all information the engine needs to calculate"
 mutable struct EngineState{T <: Union{TranspositionTable, Nothing}, C <: Control, Q <: Union{Channels, Nothing}}
     board::BoardState
@@ -150,7 +136,7 @@ function update_logger!(engine::EngineState, logger::Logger, bestscore)
     
     #PV table + position score is only valid after an exhaustive search of a given depth
     if !logger.stopmidsearch
-        logger.pv = engine.info.pv[1:engine.info.pv_len]
+        logger.pv = engine.info.pv[1:engine.info.pv_len[1]]
         logger.best_score = bestscore
     end
 end
@@ -186,9 +172,17 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
             end
         end
 
+        nps_msg = begin
+            if logger.δt == 0.0
+                ""
+            else
+                "nps $(round(Int64, logger.nodes/logger.δt)) "
+            end
+        end
+
         print(buffer, 
         "nodes $(logger.nodes) ",
-        "nps $(round(Int64, logger.nodes/logger.δt)) ",
+        nps_msg,
         "qnodes $(logger.q_nodes) ",
         "depth $(logger.cur_depth) ",
         "seldepth $(logger.seldepth) ",
@@ -297,7 +291,7 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "Returns score of current position from whites perspective"
 @inline function evaluate(board::BoardState)::Int16
-    num_pieces = count_pieces(board.pieces)
+    num_pieces = count_pieces(board)
     score = board.pst_score[1] * midgame_weighting(num_pieces) +
             board.pst_score[2] * endgame_weighting(num_pieces)
     
@@ -310,21 +304,15 @@ end
     if !isnothing(transposition_data)
         #don't try to cutoff if depth of TT entry is too low
         if transposition_data.depth >= depth 
-            if transposition_data.type == EXACT
+            if (transposition_data.type == EXACT) ||
+               (transposition_data.type == BETA && transposition_score >= β) ||
+               (transposition_data.type == ALPHA && transposition_score <= α)
                 return NULLMOVE, transposition_score, true
-
-            elseif transposition_data.type == BETA && transposition_score >= β
-                return NULLMOVE, β, true
-
-            elseif transposition_data.type == ALPHA && transposition_score <= α 
-                return NULLMOVE, α, true
-                
             end
         end
         #we can only use the move stored if we found BETA or EXACT node
         #otherwise it will be a NULLMOVE so won't match in move scoring
-        best_move = transposition_data.move
-        return best_move, Int16(0), false
+        return transposition_data.move, α, false
     end
     return NULLMOVE, α, false
 end
@@ -426,25 +414,27 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     best_move = NULLMOVE
     best_score = evaluate(LOSS, ply)
     move_made = false
+    engine.info.pv_len[ply + 1] = UInt8(0)
 
     for i in eachindex(moves)
         next_best!(moves, i)
         move = moves[i]
 
         make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
+        score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
+        #score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
-        #only first search is on PV
+        # only first search is on PV
         is_principal = false
         move_made = true
 
         best_score = max(score, best_score)
-        #update alpha (lower bound) when better score is found
+        # update alpha (lower bound) when better score is found
         if score > α
-            #cut when upper bound exceeded
+            # cut when upper bound exceeded
             if score >= β
-                #update killers if exceed β
+                # update killers if exceed β
                 if !is_capture(move)
                     new_killer!(engine.info.Killers, ply, move)
                 end
@@ -456,8 +446,8 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
             node_type = EXACT
             best_move = move
             α = score
-            #exact score found, must copy up PV from further down the tree
-            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
+            # exact score found, must copy up PV from further down the tree
+            copy_pv!(engine.info, ply, move)
         end
     end
 
@@ -480,7 +470,6 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         logger.stopmidsearch = true
         return α
     end 
-    engine.config.nodes += 1
 
     # enter quiescence search if at leaf node
     if depth <= MINDEPTH
@@ -489,26 +478,21 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         else 
             # evaluate whether we are in a terminal node
             gameover!(engine.board)
+            engine.config.nodes += 1
             return evaluate(engine.board)
         end
     end
+    engine.config.nodes += 1
 
     #check for draw by FIDE rules
     if draw_state(engine.board)
         return evaluate(DRAW, ply)
     end
 
-    best_move = NULLMOVE
-    # dont use TT if on PV (still save result of PV search in TT)
-    if is_principal
-        best_move = engine.info.pv[ply + 1]
-    else
-        best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
-
-        if return_early
-            return score
-        end
-    end   
+    best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
+    if return_early
+        return score
+    end  
 
     moves, move_length = generate_legal_moves(engine.board)
     score_moves!(moves, engine.info.Killers[ply + 1], best_move)
@@ -516,6 +500,18 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
 
     clear_current_moves!(engine.board.move_vector, move_length)
     return score
+end
+
+# if not on principle variation, search with a null window. if this fails (score > α), must open window and re-search
+function principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
+    if !is_principal
+        null_window_score = -minimax(engine, -player, -α - 1, -α, depth - 1, ply + 1, is_principal, logger)
+        # have we proved that all other moves are worse than PV move
+        if null_window_score <= α
+            return null_window_score
+        end
+    end
+    return -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
 end
 
 "root of minimax search"
@@ -527,6 +523,8 @@ function root(engine::EngineState, moves, depth, logger::Logger)
     #white is +1, black is -1. this ensures score is always from side-to-moves perspective
     player::Int8 = sgn(engine.board.colour)
     ply = 0
+    # assume new PV length is zero until proven otherwise
+    engine.info.pv_len[ply + 1] = UInt8(0)
     #search PV first, only if it exists
     is_principal = true 
 
@@ -538,7 +536,8 @@ function root(engine::EngineState, moves, depth, logger::Logger)
         move = moves[i]
 
         make_move!(move, engine.board)
-        score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
+        score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
+        #score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
         if stop_early(engine)
@@ -547,7 +546,7 @@ function root(engine::EngineState, moves, depth, logger::Logger)
         end
 
         if score > α
-            copy_pv!(engine.info.pv, ply, engine.info.pv_len, max_depth(engine), move)
+            copy_pv!(engine.info, ply, move)
             α = score
         end
         is_principal = false
@@ -569,12 +568,11 @@ function iterative_deepening(engine::EngineState)
 
         depth += 1
         logger.cur_depth = depth
-        engine.info.pv_len = depth
         bestscore = root(engine, moves, depth, logger)
 
         update_logger!(engine, logger, bestscore)
 
-        if engine.config.verbose && (time() - engine.config.starttime > 0.01)
+        if engine.config.verbose
             report_progress(engine, logger)
         end
     end

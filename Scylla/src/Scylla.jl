@@ -3,6 +3,7 @@ CURRENT CAPABILITIES
 -> Evaluate positions based on piece value and piece square tables
 -> Minimax with alpha beta pruning tree search
 -> Iterative deepening
+-> Principle variation search
 -> Move ordering: 
     -PV
     -MVV-LVA 
@@ -34,7 +35,6 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
--> Fix PV collecting illegal moves - care when copying up the tree
 
 Code Clarity
 -> Unify white/black distinction, ensuring same speed
