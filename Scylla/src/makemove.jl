@@ -234,8 +234,8 @@ end
 
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
 @inline function unmake_move!(board::BoardState)
-    if length(board.move_history) > 0
-        #error("unmake_move called with no move history")
+    if length(board.move_history) == 0
+        error("unmake_move called with no move history")
     end
 
     opposite_colour = opposite(board.colour)

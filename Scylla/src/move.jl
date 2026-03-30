@@ -21,6 +21,7 @@ score(move::Move) = UInt8((move.n >> SCORESHIFT) & SCOREMASK)
 
 "Return move with score set"
 set_score(move::Move, score::UInt8) = Move(move.n | (UInt32(score) << SCORESHIFT))
+remove_score(move::Move) = Move(move.n & MOVEMASK)
 
 "helper functions to determine contents of move struct"
 is_capture(move::Move) = is_capture(cap_type(move))

@@ -11,22 +11,22 @@ Channels() = Channels(Channel{Symbol}(1), Channel{String}(100))
 mutable struct Config{C <: Control}
     control::C
     starttime::Float64
-    nodes_since_time::UInt32
-    nodes::UInt32
+    nodes_since_time::UInt64
+    nodes::UInt64
     quit_now::Bool
     quiescence::Bool
     verbose::Bool
 end
 
 function Config(control::Control, verbose)
-    Config(control, time(), UInt32(0), UInt32(0), false, true, verbose)
+    Config(control, time(), UInt64(0), UInt64(0), false, true, verbose)
 end
 
 "reset all temporary counters/trackers in config struct"
 function reset_config!(config)
     config.quit_now = false
-    config.nodes_since_time = UInt32(0)
-    config.nodes = UInt32(0)
+    config.nodes_since_time = UInt64(0)
+    config.nodes = UInt64(0)
 end
 
 "holds all information the engine needs to calculate"
@@ -39,6 +39,10 @@ mutable struct EngineState{T <: Union{TranspositionTable, Nothing}, C <: Control
     info::SearchInfo
 end
 
+"construct a new engine state from an existing one with a different transposition table"
+new_engine(engine::EngineState, table) = 
+    EngineState(engine.board, table, UInt32(0), engine.config, engine.channel, engine.info)
+
 max_depth(e::EngineState) = e.config.control.maxdepth
 
 "Constructor for enginestate given TT size in Mb and boardstate"
@@ -49,7 +53,7 @@ function EngineState(FEN::AbstractString=START_FEN; verbose=false,
     board = BoardState(FEN)
     TT = TranspositionTable(verbose; size=sizePO2, size_mb=size_mb, type=TT_type)
     config = Config(control, verbose)
-    info = SearchInfo(config.control.maxdepth)
+    info = SearchInfo(config.control.maxdepth + 1)
     return EngineState(board, TT, UInt32(0), config, comms, info)
 end
 
@@ -74,23 +78,18 @@ function assign_control(engine::EngineState{T, C, Q}, new_control) where {T, C, 
 end
 
 "return a new engine with a transposition table"
-function assign_tt(engine::EngineState{Nothing, C, Q}, debug=false;
-    size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
+function assign_tt(engine::EngineState{T, C, Q}, debug=false;
+    size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {T, C, Q}
 
-    TT = TranspositionTable(debug,
+    table = TranspositionTable(debug,
     size_mb=size_mb, size=sizePO2, type=TT_type)
 
-    return EngineState(engine.board, TT, UInt32(0), 
-           engine.config, engine.channel, engine.info)
-end
-
-"modify transposition table if it already exists"
-function assign_tt(engine::EngineState{<:TranspositionTable, C, Q}, debug=false;
-    size_mb = TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {C, Q}
-
-    engine.table = TranspositionTable(debug,
-    size_mb=size_mb, size=sizePO2, type=TT_type)
-    return engine
+    if table isa T
+        engine.table = table
+        return engine
+    else
+        return new_engine(engine, table)
+    end
 end
 
 "Reset entries of engine's TT to default value"
@@ -113,8 +112,8 @@ pv_string(pv::Vector{Move})::Vector{String} = map(m -> long_move(m), pv)
 
 mutable struct Logger
     best_score::Int16
-    nodes::Int32
-    q_nodes::Int32
+    nodes::UInt64
+    q_nodes::UInt64
     cur_depth::UInt8
     stopmidsearch::Bool
     pv::Vector{Move}
@@ -291,6 +290,7 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "Returns score of current position from whites perspective"
 @inline function evaluate(board::BoardState)::Int16
+    # TODO: remove floating-point arithmetic
     num_pieces = count_pieces(board)
     score = board.pst_score[1] * midgame_weighting(num_pieces) +
             board.pst_score[2] * endgame_weighting(num_pieces)
@@ -302,7 +302,7 @@ end
 @inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth)
     transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
     if !isnothing(transposition_data)
-        #don't try to cutoff if depth of TT entry is too low
+        # don't try to cutoff if depth of TT entry is too low
         if transposition_data.depth >= depth 
             if (transposition_data.type == EXACT) ||
                (transposition_data.type == BETA && transposition_score >= β) ||
@@ -310,8 +310,8 @@ end
                 return NULLMOVE, transposition_score, true
             end
         end
-        #we can only use the move stored if we found BETA or EXACT node
-        #otherwise it will be a NULLMOVE so won't match in move scoring
+        # we can only use the move stored if we found BETA or EXACT node
+        # otherwise it will be a NULLMOVE so won't match in move scoring
         return transposition_data.move, α, false
     end
     return NULLMOVE, α, false
@@ -325,7 +325,7 @@ end
     if engine.config.quit_now
         return nothing
     end 
-
+    move = remove_score(move)
     success = store!(engine.table, engine.board.zobrist_hash, depth, score, node_type, move)
     if success
         engine.tt_hashfull += 1
@@ -414,7 +414,6 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     best_move = NULLMOVE
     best_score = evaluate(LOSS, ply)
     move_made = false
-    engine.info.pv_len[ply + 1] = UInt8(0)
 
     for i in eachindex(moves)
         next_best!(moves, i)
@@ -465,12 +464,14 @@ end
 
 "minimax algorithm, tries to maximise eval while constrained by opponent trying to minimise eval"
 function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+    # reset pv length for the current ply
+    engine.info.pv_len[ply + 1] = UInt8(0)
     # stop if out of time/nodes or receive quit message
     if stop_early(engine)
         logger.stopmidsearch = true
         return α
-    end 
-
+    end
+    
     # enter quiescence search if at leaf node
     if depth <= MINDEPTH
         if engine.config.quiescence
@@ -492,7 +493,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
     if return_early
         return score
-    end  
+    end
 
     moves, move_length = generate_legal_moves(engine.board)
     score_moves!(moves, engine.info.Killers[ply + 1], best_move)
@@ -516,16 +517,16 @@ end
 
 "root of minimax search"
 function root(engine::EngineState, moves, depth, logger::Logger)
-    #whites current best score
+    # whites current best score
     α = -INF
-    #whites current worst score (blacks best score)
+    # whites current worst score (blacks best score)
     β = INF
-    #white is +1, black is -1. this ensures score is always from side-to-moves perspective
+    # white is +1, black is -1. this ensures score is always from side-to-moves perspective
     player::Int8 = sgn(engine.board.colour)
     ply = 0
-    # assume new PV length is zero until proven otherwise
+
     engine.info.pv_len[ply + 1] = UInt8(0)
-    #search PV first, only if it exists
+    # search PV first, only if it exists
     is_principal = true 
 
     #root node is always on PV

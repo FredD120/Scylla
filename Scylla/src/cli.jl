@@ -121,7 +121,8 @@ end
 function set_hash_table!(wrapper::EngineWrapper, cli_state, msg_caps)
     ind = get_msg_index(msg_caps, "VALUE")
     if is_valid(ind, msg_caps)
-        wrapper.engine = assign_tt(wrapper.engine, size_mb = tryparse(Int64, msg_caps[ind+1]))
+        size = tryparse(Int64, msg_caps[ind+1])
+        wrapper.engine = assign_tt(wrapper.engine, wrapper.debug; size_mb = size)
         cli_state.TT_SET = true
     end
 end

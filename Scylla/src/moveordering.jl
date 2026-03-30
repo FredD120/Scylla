@@ -15,6 +15,7 @@ const DEFAULT_KILLER = Killer()
 
 "check that new move does not match second best killer, then push first to second and replace first"
 function new_killer!(killer_vec::Vector{Killer}, ply, move)
+    move = remove_score(move)
     if move != killer_vec[ply + 1].first
         @inbounds killer_vec[ply + 1].second = killer_vec[ply + 1].first 
         @inbounds killer_vec[ply + 1].first = move 
@@ -44,6 +45,12 @@ triangle_number(x) = Int(0.5 * x * (x + 1))
 "find the index of the first move in the PV at a given ply"
 pv_ind(ply, maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
 
+"assume new PV length at each ply is zero until proven otherwise"
+function reset_pv_lens!(info::SearchInfo)
+    maxdepth = length(info.pv_len)
+    info.pv_len = zeros(UInt8, maxdepth)
+end
+
 "copies line below in triangular PV table"
 function copy_pv!(info::SearchInfo, ply, move)
     # 1-based indexes of current and next ply
@@ -54,7 +61,7 @@ function copy_pv!(info::SearchInfo, ply, move)
     cur_ind = info.pv_offsets[ply_cur]
     lower_ind = info.pv_offsets[ply_next]
 
-    @inbounds info.pv[cur_ind + 1] = move
+    @inbounds info.pv[cur_ind + 1] = remove_score(move)
     lower_pv_len = info.pv_len[ply_next]
     for i in 1:lower_pv_len # i is a 1-based index
         @inbounds info.pv[cur_ind + i + 1] = info.pv[lower_ind + i]
@@ -93,6 +100,7 @@ end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
 @inline function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best_move::Move=NULLMOVE)
+    # TODO: ensure that wherever moves are stored (PV, TT, killers), their score is removed first
     @inbounds for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move, MAXMOVESCORE)

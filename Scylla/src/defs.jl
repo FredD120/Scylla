@@ -93,10 +93,10 @@ LSB(int::Integer) = UInt8(trailing_zeros(int))
 
 ### Move Features ###
 
-const PIECEMASK = 0x7
-const LOCMASK   = 0x3F
-const FLAGMASK = 0xF
-const SCOREMASK = 0xFF
+const PIECEMASK = UInt32(0x7)
+const LOCMASK   = UInt32(0x3F)
+const FLAGMASK = UInt32(0xF)
+const SCOREMASK = UInt32(0xFF)
 
 const TYPESIZE = 3
 const FROMSIZE = 6
@@ -109,6 +109,8 @@ const TOSHIFT   = TYPESIZE + FROMSIZE
 const CAPSHIFT  = TYPESIZE + FROMSIZE + TOSIZE
 const FLAGSHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE
 const SCORESHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE + FLAGSIZE
+
+const MOVEMASK = UInt32((1 << SCORESHIFT) - 1)
 
 
 ### Move Generator Features ###
