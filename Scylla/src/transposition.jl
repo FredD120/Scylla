@@ -50,14 +50,17 @@ end
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
 function TranspositionTable(verbose=false; 
     size_mb=TT_DEFAULT_MB, size=nothing, type=TT_ENTRY_TYPE)::Union{TranspositionTable, Nothing}
-    if !isnothing(size) && size > 0 && size <= 24 #arbitrary hard limit
-        return TranspositionTable(type, size, verbose)
+    if !isnothing(size) && size > TT_MIN_SIZE
+        return TranspositionTable(type, min(size, TT_MAX_SIZE), verbose)
 
-    elseif size_mb > TT_MIN_MB && size_mb <=  TT_MAX_MB
+    elseif size_mb > TT_MIN_SIZE
         num_entries = fld(size_mb * MB_SIZE, entry_size(type))
         size = floor(Int16, log2(num_entries))
-        return TranspositionTable(type, size, verbose)
+        return TranspositionTable(type, min(size, TT_MAX_MB), verbose)
 
+    end
+    if verbose
+        println("TT size = 0.0 Mb")
     end
     return nothing
 end

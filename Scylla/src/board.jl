@@ -297,12 +297,12 @@ function uci_move(board::BoardState, move::Move)
     F = from(move)
     T = to(move)
 
-    if flg == KING_CASTLE || flg == QUEEN_CASTLE
-        F = locate_king(board)
+    if flg == KING_CASTLE
+        F -= 3
         T = F + 2
-        if flg == QUEEN_CASTLE
-            T = F -2
-        end
+    elseif flg == QUEEN_CASTLE
+        F += 4
+        T = F - 2
     end
 
     p = ""

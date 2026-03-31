@@ -2,15 +2,34 @@ using Scylla
 using Test
 
 @testset "Triangular Table" begin
-    pv_table = zeros(Scylla.triangle_number(Scylla.MAXDEPTH))
-    pv_len = Scylla.MAXDEPTH
-    new_move = 1
-    tri_count = 0
+    @testset "Perfect PV" begin
+        info = Scylla.SearchInfo(4)
+        move = Move(1)
+        
+        for ply in 2:-1:0
+            Scylla.copy_pv!(info, ply, move)
+        end
 
-    for ply in Scylla.MAXDEPTH-1:-1:0
-        tri_count += 1
-        Scylla.copy_pv!(pv_table,ply,pv_len,Scylla.MAXDEPTH,new_move)
-        @test sum(pv_table) == Scylla.triangle_number(tri_count)
+        @test info.pv_len[1] == 3
+        @test info.pv_len[2] == 2
+        @test info.pv_len[3] == 1
+        @test info.pv_len[4] == 0
+        @test all(map(m -> m == move, info.pv[1:3]))
+    end
+
+    @testset "Cut PV" begin
+        info = Scylla.SearchInfo(4)
+        move = Move(1)
+        
+        for ply in 2:-2:0
+            Scylla.copy_pv!(info, ply, move)
+        end
+
+        @test info.pv_len[1] == 1
+        @test info.pv_len[2] == 0
+        @test info.pv_len[3] == 1
+        @test info.pv_len[4] == 0
+        @test all(info.pv[1] == move)
     end
 end
 

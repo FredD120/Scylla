@@ -4,10 +4,14 @@ mutable struct EngineWrapper
 end
 
 "default constructor for EngineWrapper, assumes no transposition table and engine time restricted"
-EngineWrapper() = 
-    EngineWrapper(EngineState(comms = Channels(), 
-    control = Time(GUI_SAFETY_FACTOR), size_mb = 0, verbose = true),
-    debug = false)
+function EngineWrapper()
+    control = Time(GUI_SAFETY_FACTOR)
+    engine = EngineState(
+    comms = Channels(), control = control, size_mb = 0, verbose = false)
+
+    engine.config.verbose = true
+    return EngineWrapper(engine, debug = false)
+end
 
 EngineWrapper(state::EngineState; debug = false) = EngineWrapper(state, debug)
 

@@ -136,6 +136,9 @@ function update_logger!(engine::EngineState, logger::Logger, bestscore)
     #PV table + position score is only valid after an exhaustive search of a given depth
     if !logger.stopmidsearch
         logger.pv = engine.info.pv[1:engine.info.pv_len[1]]
+
+        #println(engine.info.pv_len)
+        #println(engine.info.pv)
         logger.best_score = bestscore
     end
 end
@@ -188,7 +191,7 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
         TT_msg,
         "time $(round(Int64, logger.δt * 1000)) ",
         "pv ")
-
+        
         for move in logger.pv
             print(buffer, uci_move(engine.board, move), " ")
         end
@@ -524,6 +527,10 @@ function root(engine::EngineState, moves, depth, logger::Logger)
     # white is +1, black is -1. this ensures score is always from side-to-moves perspective
     player::Int8 = sgn(engine.board.colour)
     ply = 0
+
+    best = engine.info.pv[1]
+    engine.info.pv = nulls(length(engine.info.pv))
+    engine.info.pv[1] = best
 
     engine.info.pv_len[ply + 1] = UInt8(0)
     # search PV first, only if it exists
