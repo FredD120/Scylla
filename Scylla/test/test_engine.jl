@@ -1,6 +1,28 @@
 using Scylla
 using Test
 
+@testset "Phase" begin
+    @test Scylla.phase(32) == Scylla.QUANTISATION
+    @test Scylla.phase(0) == 0
+
+    @test Scylla.endgame_phase(Scylla.phase(32)) == 0
+    @test Scylla.endgame_phase(Scylla.phase(0)) == Scylla.QUANTISATION
+end
+
+@testset "PST Weighting" begin 
+    eFEN = "4k3/8/8/8/8/8/8/R3K3 w Qkq - 0 1"
+    board = Scylla.BoardState(eFEN)
+    phase = Scylla.phase(Scylla.count_pieces(board))
+    eg_phase = Scylla.endgame_phase(phase)
+
+    @test board.pst_score[1] > 0
+    @test board.pst_score[2] > 0
+
+    score = board.pst_score[1] * phase + board.pst_score[2] * eg_phase
+    @test score > 0
+    @test score << Scylla.QUANTISATION_SHIFT > 0
+end
+
 @testset "Basic Evaluation" begin 
     @testset "Start Position" begin
         eFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -17,17 +39,6 @@ using Test
 
         @test ev >= 100
     end
-end
-
-@testset "PST Weighting" begin 
-    eFEN = "4k3/ppppppp1/8/8/8/8/PPP5/R3K3 w Qkq - 0 1"
-    board = Scylla.BoardState(eFEN)
-    num_pcs = Scylla.count_pieces(board)
-
-    @test Scylla.midgame_weighting(num_pcs) > Scylla.endgame_weighting(num_pcs)
-
-    num_pcs = 10
-    @test Scylla.midgame_weighting(num_pcs) < Scylla.endgame_weighting(num_pcs)
 end
 
 @testset "Positional Evaluation" begin

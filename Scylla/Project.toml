@@ -1,7 +1,7 @@
 name = "Scylla"
 uuid = "24d84680-5a81-11f0-094e-d916aee03220"
+version = "1.2.0"
 authors = ["Freddie Daniels fw.daniels01@gmail.com"]
-version = "1.0.0"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
@@ -10,6 +10,9 @@ PackageCompiler = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[compat]
+StaticArrays = "1.9.18"
 
 [extras]
 InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"

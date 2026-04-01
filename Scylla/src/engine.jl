@@ -293,12 +293,11 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "Returns score of current position from whites perspective"
 @inline function evaluate(board::BoardState)::Int16
-    # TODO: remove floating-point arithmetic
-    num_pieces = count_pieces(board)
-    score = board.pst_score[1] * midgame_weighting(num_pieces) +
-            board.pst_score[2] * endgame_weighting(num_pieces)
+    weight = phase(count_pieces(board))
+    score = board.pst_score[1] * weight +
+            board.pst_score[2] * endgame_phase(weight)
     
-    return Int16(round(score))
+    return Int16(score >> QUANTISATION_SHIFT)
 end
 
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"

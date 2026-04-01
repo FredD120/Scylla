@@ -52,15 +52,6 @@ function get_pst(pieces::AbstractArray{BitBoard})
     return score
 end
 
-"If more than EG_BEGIN+2 pieces lost, set to 0. Between 0 and EG_BEGIN+2 pieces lost, decrease linearly from 1 to 0"
-function midgame_weighting(pc_remaining)::Float32 
-    pc_lost = 24 - pc_remaining
-    weight = 1 + MG_GRADIENT * pc_lost
-    return max(0, weight)
-end
-
-"If more than EG_BEGIN+2 pieces remaining, set to 0. Between EG_BEGIN+2 and 2 remaining increase linearly to 1"
-function endgame_weighting(pc_remaining)::Float32 
-    weight = 1 + EG_GRADIENT * (pc_remaining - 2)
-    return max(0, weight)
-end
+"phase starts at the max in the early game and linearly interpolates to zero in the endgame"
+phase(pieces) = clamp(pieces * GRADIENT + INTERCEPT, Int32(0), QUANTISATION)
+endgame_phase(phase) = QUANTISATION - phase

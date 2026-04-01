@@ -317,12 +317,16 @@ const MVV_LVA = UInt8[
 
 ### PST Features ###
 
+"quantise phase into a byte"
+const QUANTISATION_SHIFT::Int32 =  8
+const QUANTISATION::Int32 = 1 << QUANTISATION_SHIFT
+"number of pieces left when we are fully in endgame"
+const MIN_PIECES::Int32 = 8
 "number of pieces left when endgame begins"
-const EG_BEGIN = 12
+const MAX_PIECES::Int32 = 24
+const GRADIENT::Int32 = QUANTISATION / (MAX_PIECES - MIN_PIECES)
+const INTERCEPT::Int32 = -MIN_PIECES * GRADIENT
 
-const MG_GRADIENT = -1 / (EG_BEGIN+2)
-
-const EG_GRADIENT = -1 / EG_BEGIN
 
 ### CLI Features ###
 
