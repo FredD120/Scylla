@@ -68,7 +68,7 @@ include("cli.jl")
 include("precompile.jl")
 
 export BitBoard, BoardState, setzero, setone,
-       make_move!, unmake_move!, gameover!,
+       make_move!, unmake_move!,
        generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
        Logger, print_log,

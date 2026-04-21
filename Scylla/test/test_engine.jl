@@ -109,19 +109,21 @@ end
 
 @testset "Mate in 2" begin
     #mate in 2
-    for eFEN in ["K7/R7/R7/8/8/8/8/7k w - - 0 1","k7/r7/r7/8/8/8/8/7K b - - 0 1"]
+    for eFEN in ["K7/R7/R7/8/8/8/8/7k w - - 0 1", "k7/r7/r7/8/8/8/8/7K b - - 0 1"]
         engine = Scylla.EngineState(eFEN)
         best,log = Scylla.best_move(engine)
         #rook moves to cut off king
         make_move!(best,engine.board)
         moves, move_count = generate_legal_moves(engine.board)
         #king response doesn't matter
-        make_move!(moves[1],engine.board)
-        best,log = Scylla.best_move(engine)
-        make_move!(best,engine.board)
-        gameover!(engine.board)
+        make_move!(moves[1], engine.board)
+        best, log = Scylla.best_move(engine)
+        make_move!(best, engine.board)
         
-        @test engine.board.state == Scylla.Loss()
+        moves, move_length = generate_legal_moves(engine.board)
+        @test move_length == 0
+        @test Scylla.in_check(engine.board)
+        Scylla.clear_current_moves!(engine.board.move_vector, move_length)
     end
 end
 

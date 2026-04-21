@@ -344,34 +344,6 @@ end
     pinned_bishop_moves!(board, enemy_pcs, all_pcs, bishop_pinned_bb, QUEEN, MODE, info)
 end
 
-"returns true if any queen moves exist"
-@inline function any_queen_moves(piece_bb, all_pcs, ally_pcs_bb, info::LegalInfo)::Bool
-    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
-    for loc in unpinned_bb
-        legal_bitboard = legal_queen_moves(loc, all_pcs, BITBOARD_FULL, BITBOARD_FULL, info)
-        if (legal_bitboard & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-
-    rook_pinned_bb = pinned_rook(piece_bb, info.rookpins)
-    for loc in rook_pinned_bb
-        unpinned_bb = legal_rook_moves(loc, all_pcs, info.rookpins, info)
-        if (unpinned_bb & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-
-    bishop_pinned_bb = pinned_bishop(piece_bb, info.bishoppins)
-    for loc in bishop_pinned_bb
-        unpinned_bb = legal_bishop_moves(loc, all_pcs, info.bishoppins, info)
-        if (unpinned_bb & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-    return false
-end
-
 "iterate through all rooks/queens for side-to-move and add their moves to movelist"
 @inline function all_pseudolegal_rooks!(board::BoardState, piece_bb, enemy_pcs, all_pcs, TYPE, MODE)
     for loc in piece_bb
@@ -398,25 +370,6 @@ end
 
     pinned_rook_moves!(board, enemy_pcs, all_pcs, pinned_bb, ROOK, MODE, info)
     unpinned_rook_moves!(board, enemy_pcs, all_pcs, unpinned_bb, ROOK, MODE, info)
-end
-
-"Returns true if any rook moves exist"
-@inline function any_rook_moves(piece_bb, all_pcs, ally_pcs_bb, info::LegalInfo)::Bool
-    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
-    pinned_bb = pinned_rook(piece_bb, info.rookpins)
-
-    for loc in pinned_bb
-        if (legal_rook_moves(loc, all_pcs, info.rookpins, info) & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-
-    for loc in unpinned_bb
-        if (legal_rook_moves(loc, all_pcs, BITBOARD_FULL, info) & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-    return false
 end
 
 "iterate through all rooks/queens for side-to-move and add their moves to movelist"
@@ -447,25 +400,6 @@ end
     unpinned_bishop_moves!(board, enemy_pcs, all_pcs, unpinned_bb, BISHOP, MODE, info)
 end
 
-"Returns true if any bishop moves exist"
-@inline function any_bishop_moves(piece_bb, all_pcs, ally_pcs_bb, info::LegalInfo)::Bool
-    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
-    pinned_bb = pinned_bishop(piece_bb, info.bishoppins)
-
-    for loc in pinned_bb
-        if (legal_bishop_moves(loc, all_pcs, info.bishoppins, info) & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-
-    for loc in unpinned_bb
-        if (legal_bishop_moves(loc, all_pcs, BITBOARD_FULL, info) & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-    return false
-end
-
 "returns all possible attack/quiet move for all knights of side-to-move, regardless of whether king is left under attack"
 @inline function get_pseudolegal_knight_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
     piece_bb = ally_piece(board, KNIGHT)
@@ -492,17 +426,6 @@ end
         moves_from_location!(KNIGHT, board, quiets, loc, false)
         moves_from_location!(KNIGHT, board, attacks, loc, true)
     end
-end
-
-"Returns true if any knight moves exist"
-@inline function any_knight_moves(piece_bb, ally_pcs_bb, info::LegalInfo)::Bool
-    unpinned_bb = piece_bb & ~(info.rookpins | info.bishoppins)
-    for loc in unpinned_bb
-        if (legal_knight_moves(loc,info) & ~ally_pcs_bb) > 0
-            return true
-        end
-    end
-    return false
 end
 
 "mask out opponents castle rights, retrieve king- and queen-side castling rights index if possible. 
@@ -571,15 +494,6 @@ end
 
         moves_from_location!(KING, board, quiets, loc, false)
         moves_from_location!(KING, board, attacks, loc, true)
-    end
-end
-
-"Returns true if any king moves exist. Don't need to check castles as castle is only legal if sideways moves are"
-@inline function any_king_moves(kingpos, ally_pcs_bb, info::LegalInfo)::Bool
-    if (legal_king_moves(kingpos,info) & ~ally_pcs_bb) > 0
-        return true
-    else
-        return false
     end
 end
 
@@ -745,31 +659,13 @@ end
     enpassant_moves!(board, helper, pawn_masks.shift, board.enpassant_bb, info.attackers, all_pcs, kingpos)
 end
 
-"Return true if any pawn moves exist"
-@inline function any_pawn_moves(piece_bb, all_pcs, ally_pcs_bb, colour::Bool, info::LegalInfo)::Bool
-    helper = PawnMoveHelper(piece_bb, BITBOARD_EMPTY, all_pcs, colour, AllMoves(), info)
-    if (helper.single_push & info.evasion_mask) > 0
-        return true
-    end
-
-    enemy_pieces_bb = all_pcs & ~ally_pcs_bb
-    if ((helper.attack_left & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0
-        return true
-    end
-
-    if ((helper.attack_right & enemy_pieces_bb) & (info.attackers | info.evasion_mask)) > 0
-        return true
-    end
-    return false
-end
-
 #TODO: refactor into separate functions
 @inline function get_pseudolegal_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
     colour = whitesmove(board.colour)    
     pawn_bb = ally_piece(board, PAWN)
     pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
 
-    #single push
+    # single push
     single_push = cond_push(colour, pawn_bb)
     quiet_single = quiet_moves(MODE, single_push, all_pcs)
     single_normal = quiet_single & ~pawn_masks.promote
@@ -777,12 +673,12 @@ end
     push_moves!(board, single_normal, pawn_masks.shift, NOFLAG)
     push_moves!(board, single_promote, pawn_masks.shift, Promote())
 
-    #double push
+    # double push
     double_push = cond_push(colour, quiet_single & pawn_masks.doublepush)
     quiet_double = quiet_moves(MODE, double_push, all_pcs)
     double_push_moves!(board, quiet_double, pawn_masks.shift)
 
-    #attacks
+    # attacks
     attack_normal = enemy_pcs & ~pawn_masks.promote
     attack_promote = enemy_pcs & pawn_masks.promote
     left = attack_left(single_push)
@@ -791,7 +687,7 @@ end
     capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
     capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote())
 
-    #enpassant
+    # enpassant
     left_enpassant = left & board.enpassant_bb
     for to in left_enpassant
         from = UInt8(to + pawn_masks.shift + 1)
@@ -904,32 +800,4 @@ end
         return true
     end
     return false
-end
-
-"evaluates whether we are in a terminal node due to draw conditions, or check/stale-mates"
-@inline function gameover!(board::BoardState, info=LegalInfo(board))
-    if draw_state(board)
-        board.state = Draw()
-    else
-        all_pcs_bb = all_pieces(board)
-        ally_pcs_bb = all_ally_pieces(board)
-        kingpos = locate_king(board)
-
-        if any_king_moves(kingpos, ally_pcs_bb, info) 
-            board.state = Neutral()
-        elseif info.attack_num <= 1 && (
-                any_pawn_moves(ally_piece(board, PAWN), all_pcs_bb, ally_pcs_bb, whitesmove(board.colour), info) ||
-                any_knight_moves(ally_piece(board, KNIGHT), ally_pcs_bb, info) ||
-                any_bishop_moves(ally_piece(board, BISHOP), all_pcs_bb, ally_pcs_bb, info) ||
-                any_rook_moves(ally_piece(board, ROOK), all_pcs_bb, ally_pcs_bb, info) ||
-                any_queen_moves(ally_piece(board, QUEEN), all_pcs_bb, ally_pcs_bb, info))
-            board.state = Neutral() 
-        else
-            if info.attack_num > 0
-                board.state = Loss()
-            else
-                board.state = Draw()
-            end
-        end
-    end
 end

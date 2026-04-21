@@ -397,35 +397,6 @@ end
     @test quiets == 5
 end
 
-@testset "Game Over" begin
-    simpleFEN = "8/8/4nK2/8/8/8/8/8 w - - 0 1"
-    board = Scylla.BoardState(simpleFEN)
-    board.data.half_moves[end] = 100
-    Scylla.gameover!(board)
-    @test board.state == Scylla.Draw()
-
-    @testset "Stalemate" begin
-        slidingFEN = "K7/7r/8/8/8/8/8/1r4k1 w - 0 1"
-        board = Scylla.BoardState(slidingFEN)
-        Scylla.gameover!(board)
-        @test board.state == Scylla.Draw()
-    end
-
-    @testset "King X-ray" begin
-        slidingFEN = "1R4B1/RK6/7r/8/8/8/8/r1r3kq w - 0 1"
-        board = Scylla.BoardState(slidingFEN)
-        Scylla.gameover!(board)
-        @test board.state == Scylla.Neutral()
-    end
-
-    @testset "Blocked and Pinned" begin
-        slidingFEN = "K5Nr/8/8/3B4/8/8/r7/1r5q w - 0 1"
-        board = Scylla.BoardState(slidingFEN)
-        Scylla.gameover!(board)
-        @test board.state == Scylla.Loss()
-    end
-end
-
 @testset "Captures" begin
     @testset "King Takes Knight" begin
         basicFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
@@ -519,8 +490,7 @@ end
             end
         end
     end
-    legal = Scylla.gameover!(board)
-    @test board.state == Scylla.Draw()
+    @test Scylla.draw_state(board)
 end
 
 @testset "Sliding Piece Generation" begin
@@ -648,15 +618,8 @@ end
 function Testing_perft(board::BoardState, depth)
     #could also test incremental Zhash updates here
     legal = Scylla.LegalInfo(board)
-    gameover!(board, legal)
 
     moves, move_count = Scylla.generate_legal_moves(board, legal)
-
-    if board.state == Scylla.Neutral()
-        @assert move_count > 0
-    else
-        @assert move_count == 0
-    end
     
     attacks, attack_count = Scylla.generate_legal_attacks(board)
     num_attacks = count(m->Scylla.cap_type(m) > 0, moves)
