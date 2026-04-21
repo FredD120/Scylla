@@ -27,7 +27,7 @@ mutable struct SearchInfo
     pv::Vector{Move}
     pv_len::Vector{UInt8}
     pv_offsets::Vector{UInt16}
-    Killers::Vector{Killer}
+    killers::Vector{Killer}
 end
 
 "Constructor for search info struct"
@@ -37,6 +37,15 @@ function SearchInfo(depth)
     pv_lens = zeros(UInt8, depth)
     pv_offs = [pv_ind(ply, depth) for ply in 0:depth-1]
     SearchInfo(triangular_pv, pv_lens, pv_offs, killers)
+end
+
+function reset_search_info!(info::SearchInfo)
+    depth = length(info.killers)
+
+    info.pv = nulls(triangle_number(depth))
+    info.killers = [Killer() for _ in 1:depth]
+    info.pv_len = zeros(UInt8, depth)
+    info.pv_offsets = [pv_ind(ply, depth) for ply in 0:depth-1]
 end
 
 "triangle number for an index starting from zero"

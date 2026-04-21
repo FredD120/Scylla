@@ -278,9 +278,8 @@ const EXACT = UInt8(3)
 
 const MB_SIZE = 1048576 #size of a Mb in bytes
 const TT_DEFAULT_MB = 48
-const TT_MIN_SIZE = 0
-const TT_MAX_MB = 192
-const TT_MAX_SIZE = 25
+const TT_MIN_MB = 0
+const TT_MAX_MB = 384
 
 
 ### Heuristic Evaluation Features ###
@@ -335,7 +334,7 @@ const NAME = "Scylla"
 const UCI_OK_MESSAGE = string(
     "id name ", NAME, "\n",
     "pid author FD\n",
-    "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_SIZE max $TT_MAX_MB\n",
+    "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n",
     "option name Clear Hash type button\n",
     "option name Quiescence type check default true",
     "uciok")

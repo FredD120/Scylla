@@ -47,11 +47,11 @@ max_depth(e::EngineState) = e.config.control.maxdepth
 
 "Constructor for enginestate given TT size in Mb and boardstate"
 function EngineState(FEN::AbstractString=START_FEN; verbose=false,
-        size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE,
+        size_mb=TT_DEFAULT_MB, TT_type=TT_ENTRY_TYPE,
         comms::Union{Channels, Nothing}=nothing, control::Control=Time()) 
 
     board = BoardState(FEN)
-    TT = TranspositionTable(verbose; size=sizePO2, size_mb=size_mb, type=TT_type)
+    TT = TranspositionTable(verbose; size_mb=size_mb, type=TT_type)
     config = Config(control, verbose)
     info = SearchInfo(config.control.maxdepth + 1)
     return EngineState(board, TT, UInt32(0), config, comms, info)
@@ -79,10 +79,9 @@ end
 
 "return a new engine with a transposition table"
 function assign_tt(engine::EngineState{T, C, Q}, debug=false;
-    size_mb=TT_DEFAULT_MB, sizePO2=nothing, TT_type=TT_ENTRY_TYPE) where {T, C, Q}
+    size_mb=TT_DEFAULT_MB, TT_type=TT_ENTRY_TYPE) where {T, C, Q}
 
-    table = TranspositionTable(debug,
-    size_mb=size_mb, size=sizePO2, type=TT_type)
+    table = TranspositionTable(debug, size_mb=size_mb, type=TT_type)
 
     if table isa T
         engine.table = table
@@ -104,6 +103,7 @@ reset_tt!(::EngineState{Nothing, C, Q}) where {C, Q} = nothing
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(engine::EngineState)
     reset_tt!(engine)
+    reset_search_info!(engine.info)
     engine.board = BoardState()
 end
 
@@ -456,7 +456,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
             if score >= β
                 # update killers if exceed β
                 if !is_capture(move)
-                    new_killer!(engine.info.Killers, ply, move)
+                    new_killer!(engine.info.killers, ply, move)
                 end
 
                 node_type = BETA
@@ -515,7 +515,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     end
 
     moves, move_length = generate_legal_moves(engine.board)
-    score_moves!(moves, engine.info.Killers[ply + 1], best_move)
+    score_moves!(moves, engine.info.killers[ply + 1], best_move)
     score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
 
     clear_current_moves!(engine.board.move_vector, move_length)
@@ -553,7 +553,7 @@ function root(engine::EngineState, depth, logger::Logger)
 
     moves, move_length = generate_legal_moves(engine.board)
     #root node is always on PV
-    score_moves!(moves, engine.info.Killers[ply + 1], engine.info.pv[ply + 1])
+    score_moves!(moves, engine.info.killers[ply + 1], engine.info.pv[ply + 1])
 
     for i in eachindex(moves)
         next_best!(moves, i)
