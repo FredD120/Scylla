@@ -19,9 +19,8 @@ cap_type(move::Move) = UInt8((move.n >> CAPSHIFT) & PIECEMASK)
 flag(move::Move) = UInt8((move.n >> FLAGSHIFT) & FLAGMASK)
 score(move::Move) = UInt8((move.n >> SCORESHIFT) & SCOREMASK)
 
-"Return move with score set"
-set_score(move::Move, score::UInt8) = Move(move.n | (UInt32(score) << SCORESHIFT))
 remove_score(move::Move) = Move(move.n & MOVEMASK)
+set_score(move::Move, score::UInt8) = Move(remove_score(move).n | (UInt32(score) << SCORESHIFT))
 
 "helper functions to determine contents of move struct"
 is_capture(move::Move) = is_capture(cap_type(move))

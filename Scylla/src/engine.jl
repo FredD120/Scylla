@@ -157,7 +157,8 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
 
         best = begin score = logger.best_score
             if mate_found(score)
-                dist = Int((INF - abs(score)) ÷ 2)
+                mate_ply = INF - abs(score)
+                dist = (mate_ply + 1) ÷ 2
                 score > 0 ? "mate $dist" : "mate -$dist"
             else
                 "cp $score"
@@ -301,8 +302,8 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 end
 
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"
-@inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth)
-    transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, depth)
+@inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth, ply)
+    transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, ply)
     if !isnothing(transposition_data)
         # don't try to cutoff if depth of TT entry is too low
         if transposition_data.depth >= depth 
@@ -319,22 +320,22 @@ end
     return NULLMOVE, α, false
 end
 
-@inline retrieve_from_table(::EngineState{Nothing}, α, β, depth) = (NULLMOVE, α, false)
+@inline retrieve_from_table(::EngineState{Nothing}, α, β, depth, ply) = (NULLMOVE, α, false)
 
 "store position with depth, score and best move in transposition table, logging if successful"
-@inline function store_in_table!(engine::EngineState{<:TranspositionTable}, depth, score, node_type, move)
+@inline function store_in_table!(engine::EngineState{<:TranspositionTable}, depth, ply, score, node_type, move)
     #not safe to store in TT if search is incomplete
     if engine.config.quit_now
         return nothing
     end 
     move = remove_score(move)
-    success = store!(engine.table, engine.board.zobrist_hash, depth, score, node_type, move)
+    success = store!(engine.table, engine.board.zobrist_hash, depth, ply, score, node_type, move)
     if success
         engine.tt_hashfull += 1
     end
 end
 
-@inline store_in_table!(::EngineState{Nothing}, _, _, _, _) = nothing
+@inline store_in_table!(::EngineState{Nothing}, args...) = nothing
 
 "search a set of moves generated during quiescent search. recursively calls quiescence, uses fail-soft"
 function search_quiescent_moves(engine::EngineState, moves, best_score, is_check, player::Int8, α, β, ply, logger::Logger)
@@ -423,7 +424,6 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
 
         make_move!(move, engine.board)
         score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
-        #score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
         # only first search is on PV
@@ -460,7 +460,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         end
     end
 
-    store_in_table!(engine, depth, best_score, node_type, best_move)
+    store_in_table!(engine, depth, ply, best_score, node_type, best_move)
     return best_score
 end
 
@@ -487,12 +487,12 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     end
     engine.config.nodes += 1
 
-    #check for draw by FIDE rules
+    # check for draw by FIDE rules
     if draw_state(engine.board)
         return evaluate(DRAW, ply)
     end
 
-    best_move, score, return_early = retrieve_from_table(engine, α, β, depth)
+    best_move, score, return_early = retrieve_from_table(engine, α, β, depth, ply)
     if return_early
         return score
     end
@@ -505,7 +505,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     return score
 end
 
-# if not on principle variation, search with a null window. if this fails (score > α), must open window and re-search
+"if not on principle variation, search with a null window. if this fails (score > α), must open window and re-search"
 function principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
     if !is_principal
         null_window_score = -minimax(engine, -player, -α - 1, -α, depth - 1, ply + 1, is_principal, logger)
@@ -518,7 +518,7 @@ function principle_variation_search(engine, player, α, β, depth, ply, is_princ
 end
 
 "root of minimax search"
-function root(engine::EngineState, moves, depth, logger::Logger)
+function root(engine::EngineState, depth, logger::Logger)
     # whites current best score
     α = -INF
     # whites current worst score (blacks best score)
@@ -528,13 +528,13 @@ function root(engine::EngineState, moves, depth, logger::Logger)
     ply = 0
 
     best = engine.info.pv[1]
-    engine.info.pv = nulls(length(engine.info.pv))
     engine.info.pv[1] = best
 
     engine.info.pv_len[ply + 1] = UInt8(0)
     # search PV first, only if it exists
     is_principal = true 
 
+    moves, move_length = generate_legal_moves(engine.board)
     #root node is always on PV
     score_moves!(moves, engine.info.Killers[ply + 1], engine.info.pv[ply + 1])
 
@@ -544,7 +544,6 @@ function root(engine::EngineState, moves, depth, logger::Logger)
 
         make_move!(move, engine.board)
         score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
-        #score = -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
         unmake_move!(engine.board)
 
         if stop_early(engine)
@@ -558,24 +557,24 @@ function root(engine::EngineState, moves, depth, logger::Logger)
         end
         is_principal = false
     end
+    clear_current_moves!(engine.board.move_vector, move_length)
     return α
 end
 
-"Run minimax search to fixed depth then increase depth until time runs out"
+"run minimax search to fixed depth then increase depth until time runs out"
 function iterative_deepening(engine::EngineState)
-    moves, _ = generate_legal_moves(engine.board)
     depth = 0
     logger = Logger(num_entries(engine.table))
     bestscore = 0
 
-    #Quit early if we or opponent have mate or if we run out of time
+    # quit early if we or opponent have mate or if we run out of time
     while (depth < max_depth(engine)) &&  
         !(mate_found(bestscore)) &&
         !(stop_early(engine, safety_factor = 0.5, bypass_check=true))
 
         depth += 1
         logger.cur_depth = depth
-        bestscore = root(engine, moves, depth, logger)
+        bestscore = root(engine, depth, logger)
 
         update_logger!(engine, logger, bestscore)
 
@@ -584,10 +583,11 @@ function iterative_deepening(engine::EngineState)
         end
     end
     clear!(engine.board.move_vector)
+    # TODO: could fail if pv is empty - must ensure that depth one is always searched
     return logger.pv[1], logger
 end
 
-"Evaluates the position to return the best move"
+"evaluates the position to return the best move"
 function best_move(engine::EngineState)
     engine.config.starttime = time()
     best_move, logger = iterative_deepening(engine)

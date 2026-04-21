@@ -107,18 +107,18 @@ Bucket() = Bucket(SearchData(), SearchData())
 num_entries(::Bucket) = 2
 const TT_ENTRY_TYPE = Bucket
 
-"add depth to score when storing and remove when retrieving"
-function correct_score(score, depth, sgn)::Int16
+"add ply to score when storing and remove when retrieving"
+function correct_score(score, ply, sgn)::Int16
     if score > MATE
-        score += Int16(sgn * depth)
+        score += Int16(sgn * ply)
     elseif score < -MATE
-        score -= Int16(sgn * depth)
+        score -= Int16(sgn * ply)
     end
     return score
 end
 
 "update entry in transposition table. either greater depth or always replace. return true if successfull"
-@inline function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, score, node_type, best_move)::Bool
+@inline function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, ply, score, node_type, best_move)::Bool
     ind = convert(UInt64, zobrist_mask(zobrist_hash, table.key)) + 1
 
     @inbounds current_entry = table.hash_table[ind]
@@ -128,7 +128,7 @@ end
     new_always = current_entry.always
 
     #correct mate scores in TT
-    score = correct_score(score, depth, -1)
+    score = correct_score(score, ply, -1)
     new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
 
     if depth >= current_entry.depth.depth
@@ -148,16 +148,16 @@ end
 end
 
 "fallback for transposition table store if table doesn't exist"
-@inline store!(::Nothing, _, _, _, _, _)::Bool = false
+@inline store!(::Nothing, args...)::Bool = false
 
 "retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
-function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_depth)
+function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
     bucket = get_entry(table, zobrist_hash)
     #no point using TT if hash collision
     if bucket.depth.zobrist_hash == zobrist_hash
-        return bucket.depth, correct_score(bucket.depth.score, cur_depth, +1)
+        return bucket.depth, correct_score(bucket.depth.score, cur_ply, +1)
     elseif bucket.always.zobrist_hash == zobrist_hash
-        return bucket.always, correct_score(bucket.always.score, cur_depth, +1)
+        return bucket.always, correct_score(bucket.always.score, cur_ply, +1)
     else
         return nothing, nothing
     end

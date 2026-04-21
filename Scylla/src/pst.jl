@@ -31,7 +31,7 @@ const MG_PSTs, EG_PSTs = PST()
 
 "Simulaneously update mid- and end-game PST scores from white's perspective"
 function update_pst_score!(score::Vector{Int32}, colour::UInt8, type_val, pos, add_or_remove)
-    #+1 if adding, -1 if removing * +1 if white, -1 if black
+    # (+1 if adding, -1 if removing) * (+1 if white, -1 if black)
     sign = sgn(colour) * add_or_remove 
     ind = side_index(colour, pos)
 

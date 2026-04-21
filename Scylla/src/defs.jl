@@ -233,7 +233,7 @@ const DEFAULTDEPTH::UInt8 = UInt8(24)
 const DEFAULTTIME::Float64 = Float64(1.5)
 const DEFAULTNODES::UInt32 = UInt32(1e8)
 #check for out of time/quit message every x nodes
-const CHECKNODES::UInt32 = UInt32(1000)
+const CHECKNODES::UInt32 = UInt32(10_000)
 
 abstract type Control end
 
