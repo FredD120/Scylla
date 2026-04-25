@@ -42,6 +42,8 @@ function listen(st::CLI_state)
     for input in eachline()
         put!(st.listen, input)
     end
+    # if input closes, all threads must quit
+    put!(st.listen, "QUIT")
 end
 
 "parse time-control info from CLI, return as time + increment in seconds"
@@ -73,7 +75,7 @@ function estimate_movetime(::EngineState, time, increment)
 end
 
 "send quit message to engine if there is a channel to do so"
-send_quit_msg!(channel::Channels) = put!(channel.quit, :quit)
+send_quit_msg!(channel::Channels) =  put!(channel.quit, :quit)
 send_quit_msg!(::Nothing) = nothing
 
 "find relevant string within message to look for variables on the right"
@@ -341,7 +343,7 @@ end
 "entry point for CLI, uses UCI protocol"
 function run_cli()
     cli_state = CLI_state()
-    cli_state.listener = Threads.@spawn listen(cli_state)
+    cli_state.listener = @async listen(cli_state)
     wrapper = EngineWrapper()
 
     while !cli_state.QUIT
@@ -352,7 +354,11 @@ function run_cli()
         flush(stdout)
         sleep(0.001)
     end
-    cli_state.listener = nothing
+
+    if !isnothing(cli_state.worker)
+        wait(cli_state.worker)
+    end
+    exit()
 end
 
 "try to match given UCI move to a legal move. return null move otherwise"

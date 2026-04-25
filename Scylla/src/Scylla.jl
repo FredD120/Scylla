@@ -36,6 +36,13 @@ TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
 
+Speed
+-> Test whether extensive inlining is necessary
+-> Fixed size board history array - reduce allocations
+-> Try pseudolegal move generation in main search again
+-> Try incrementally updated mailbox for identify_piecetype
+-> Test reverting small castle lookups, bring back on the fly calculation
+
 Code Clarity
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6
