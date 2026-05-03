@@ -336,7 +336,6 @@ const UCI_OK_MESSAGE = string(
     "pid author FD\n",
     "option name Hash type spin default $TT_DEFAULT_MB min $TT_MIN_MB max $TT_MAX_MB\n",
     "option name Clear Hash type button\n",
-    "option name Quiescence type check default true\n",
     "uciok")
 
 # fraction of a second to give time to send info back to GUI

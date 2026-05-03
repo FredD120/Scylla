@@ -135,17 +135,6 @@ function set_hash_table!(wrapper::EngineWrapper, cli_state, msg_caps)
     end
 end
 
-function handle_quiescence!(engine::EngineState, msg_caps)
-    ind = get_msg_index(msg_caps, "VALUE")
-    if is_valid(ind, msg_caps)
-        if msg_caps[ind + 1] == "TRUE"
-            engine.config.quiescence = true
-        elseif msg_caps[ind + 1] == "FALSE"
-            engine.config.quiescence = false
-        end
-    end
-end
-
 "dispatch on commands from GUI given by OPTION"
 function handle_setoption!(wrapper, cli_state, msg_in)
     msg_caps = uppercase.(msg_in)
@@ -155,9 +144,6 @@ function handle_setoption!(wrapper, cli_state, msg_in)
 
     elseif "HASH" in msg_caps
         set_hash_table!(wrapper, cli_state, msg_caps)
-
-    elseif "QUIESCENCE" in msg_caps
-        handle_quiescence!(wrapper.engine, msg_caps)
 
     elseif wrapper.debug
         return "info option not recognised"

@@ -35,17 +35,31 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
+-> Transposition table
+ - Pack TT entries into UInt128
+ - Age out TT entry whenever its accessed but not used
+ - Test accessing TT in quiescence search
+
+Known bugs
+-> Mate scores in transposition table are wrong (off by one?)
 
 Speed
 -> Test whether extensive inlining is necessary
 -> Fixed size board history array - reduce allocations
 -> Try pseudolegal move generation in main search again
 -> Try incrementally updated mailbox for identify_piecetype
--> Test reverting small castle lookups, bring back on the fly calculation
+-> Test small lookups vs on the fly calculation
+-> Faster 3-move repetition detection
+-> Pre-allocate board history data
 
-Code Clarity
+Refactor
 -> Unify white/black distinction, ensuring same speed
- - Three types of indexing: true/false, 0/1, 0/6
+ - Three types of indexing: true/false, 0/1, 0/6 - use enum-style struct
+-> Engine struct
+ - Simplify layout - make more shallow
+ - Remove parametric types on things that change - TT and control
+ - Enable future multi-threading via shared transposition table
+-> Create a with_legal_moves function that handles freeing of move stack
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb

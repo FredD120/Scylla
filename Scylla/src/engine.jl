@@ -301,25 +301,6 @@ mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
     return Int16(score >> QUANTISATION_SHIFT)
 end
 
-"perform evaluation of the boardstate if not performing quiescent search"
-function static_evaluation(board::BoardState, ply)::Int16
-    evaluation = Int16(0)
-    moves, move_length = generate_legal_moves(board)
-
-    if move_length == 0
-        if in_check(board)
-            evaluation = evaluate(LOSS, ply)
-        else
-            evaluation = evaluate(DRAW, ply)
-        end
-    else
-        evaluation = evaluate(board)
-    end
-
-    clear_current_moves!(board.move_vector, move_length)
-    return evaluation
-end
-
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"
 @inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth, ply)
     transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, ply)
@@ -495,12 +476,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     
     # enter quiescence search if at leaf node
     if depth <= MINDEPTH
-        if engine.config.quiescence
-            return quiescence(engine, player, α, β, ply, logger)
-        else 
-            engine.config.nodes += 1
-            return static_evaluation(engine.board, ply)
-        end
+        return quiescence(engine, player, α, β, ply, logger)
     end
     engine.config.nodes += 1
 
