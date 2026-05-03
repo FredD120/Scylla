@@ -133,12 +133,9 @@ function update_logger!(engine::EngineState, logger::Logger, bestscore)
     logger.hashfull = engine.tt_hashfull
     logger.nodes = engine.config.nodes
     
-    #PV table + position score is only valid after an exhaustive search of a given depth
+    # PV table + position score is only valid after an exhaustive search of a given depth
     if !logger.stopmidsearch
         logger.pv = engine.info.pv[1:engine.info.pv_len[1]]
-
-        #println(engine.info.pv_len)
-        #println(engine.info.pv)
         logger.best_score = bestscore
     end
 end
@@ -201,7 +198,6 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
     else
         put!(engine.channel.info, "info no move found")
     end
-    yield()
 end
 
 "print all logging info to StdOut"
@@ -310,7 +306,7 @@ end
             if (transposition_data.type == EXACT) ||
                (transposition_data.type == BETA && transposition_score >= β) ||
                (transposition_data.type == ALPHA && transposition_score <= α)
-                return NULLMOVE, transposition_score, true
+                return transposition_data.move, transposition_score, true
             end
         end
         # we can only use the move stored if we found BETA or EXACT node
@@ -487,6 +483,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
 
     best_move, score, return_early = retrieve_from_table(engine, α, β, depth, ply)
     if return_early
+        set_pv!(engine.info, ply, best_move)
         return score
     end
 
@@ -510,7 +507,7 @@ function principle_variation_search(engine, player, α, β, depth, ply, is_princ
     return -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
 end
 
-"root of minimax search"
+"root of minimax search, define parameters and return result of fixed depth search"
 function root(engine::EngineState, depth, logger::Logger)
     # whites current best score
     α = -INF
@@ -519,39 +516,9 @@ function root(engine::EngineState, depth, logger::Logger)
     # white is +1, black is -1. this ensures score is always from side-to-moves perspective
     player::Int8 = sgn(engine.board.colour)
     ply = 0
+    is_principal = true
 
-    best = engine.info.pv[1]
-    engine.info.pv[1] = best
-
-    engine.info.pv_len[ply + 1] = UInt8(0)
-    # search PV first, only if it exists
-    is_principal = true 
-
-    moves, move_length = generate_legal_moves(engine.board)
-    #root node is always on PV
-    score_moves!(moves, engine.info.killers[ply + 1], engine.info.pv[ply + 1])
-
-    for i in eachindex(moves)
-        next_best!(moves, i)
-        move = moves[i]
-
-        make_move!(move, engine.board)
-        score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
-        unmake_move!(engine.board)
-
-        if stop_early(engine)
-            logger.stopmidsearch = true
-            break
-        end
-
-        if score > α
-            copy_pv!(engine.info, ply, move)
-            α = score
-        end
-        is_principal = false
-    end
-    clear_current_moves!(engine.board.move_vector, move_length)
-    return α
+    return minimax(engine, player, α, β, depth, ply, is_principal, logger)
 end
 
 "run minimax search to fixed depth then increase depth until time runs out"

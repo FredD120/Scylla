@@ -79,6 +79,14 @@ function copy_pv!(info::SearchInfo, ply, move)
     info.pv_len[ply_cur] = lower_pv_len + 1
 end
 
+"set an entry in PV table when a transposition table cut-off occurs"
+function set_pv!(info::SearchInfo, ply, move)
+    ply_cur = ply + 1
+    cur_ind = info.pv_offsets[ply_cur]
+    @inbounds info.pv[cur_ind + 1] = remove_score(move)
+    info.pv_len[ply_cur] = 1
+end
+
 "lookup value of capture in MVV_LVA table"
 most_least_value(victim, attacker)::UInt8 = MINCAPSCORE + MVV_LVA[5 * (attacker - 1) + victim - 1]
 

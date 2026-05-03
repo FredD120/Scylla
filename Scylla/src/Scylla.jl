@@ -42,6 +42,7 @@ TO-DO (general)
 
 Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
+-> Engine will crash if search exited before any moves explored
 
 Speed
 -> Test whether extensive inlining is necessary
