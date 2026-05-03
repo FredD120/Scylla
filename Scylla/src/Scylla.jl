@@ -43,6 +43,7 @@ TO-DO (general)
 Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
 -> Engine will crash if search exited before any moves explored
+ - force at least depth 1 to be searched always
 
 Speed
 -> Test whether extensive inlining is necessary
@@ -72,7 +73,6 @@ module Scylla
 using StaticArrays
 using HDF5
 using Random
-using ArgParse
 
 include("bitboard.jl")
 include("defs.jl")
