@@ -10,12 +10,12 @@ using Test
         @test sz > Scylla.TT_DEFAULT_MB / 2
 
         size = 16
-        TT = Scylla.TranspositionTable(verbose, type=Scylla.SearchData, size=size)
+        TT = Scylla.TranspositionTable(Scylla.SearchData, size, verbose)
         @test length(TT.hash_table) == 2 ^ size
     end
 
     @testset "Use TT" begin
-        TT = Scylla.TranspositionTable(verbose, size=4, type=Scylla.PerftData)
+        TT = Scylla.TranspositionTable(Scylla.PerftData, 4, verbose)
         @testset "Initialise" begin
             for Data in TT.hash_table
                 @test Data.zobrist_hash == 0

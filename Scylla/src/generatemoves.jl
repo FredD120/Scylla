@@ -178,16 +178,12 @@ end
     return rookpins, bishoppins
 end
 
-"create a castling move where from and to is the rook to move"
+"create a castling move where the king is considered to be the piece moving"
 @inline function create_castle(king_or_queen, white_or_black)
-    #king_or_queen is 0 if kingside, 1 if queenside 
-    #white_or_black is 0 if white, 1 if black
-    rook_position_lookup = king_or_queen + white_or_black * 2 + 1
-
-    from = ROOK_START_SQUARES[rook_position_lookup]
-    to = ROOK_CASTLE_SQUARES[rook_position_lookup]
-
-    return Move(KING, from, to, NULL_PIECE, KING_CASTLE + king_or_queen)
+    # king_or_queen is 0 if kingside, 1 if queenside 
+    # white_or_black is 0 if white, 1 if black
+    castle_lookup = king_or_queen + white_or_black * 2 + 1
+    return CASTLE_MOVES[castle_lookup]
 end
 
 "creates a move from a given location using the Move struct, with flag for attacks"

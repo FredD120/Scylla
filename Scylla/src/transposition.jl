@@ -48,8 +48,7 @@ function TranspositionTable(type, size::Integer, verbose::Bool)
 end
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(verbose=false; 
-    size_mb=TT_DEFAULT_MB, type=TT_ENTRY_TYPE)::Union{TranspositionTable, Nothing}
+function TranspositionTable(verbose=false; size_mb=TT_DEFAULT_MB, type=TT_ENTRY_TYPE)::Union{TranspositionTable, Nothing}
 
     if size_mb > TT_MIN_MB
         size_mb = min(size_mb, TT_MAX_MB)

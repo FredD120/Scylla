@@ -9,16 +9,26 @@ using Test
         moves, move_count = generate_legal_moves(board)
 
         move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
-        @test Scylla.uci_move(board, move) == "c8g2"
+        @test Scylla.uci_move(move) == "c8g2"
 
         kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KING_CASTLE, moves)]
-        @test Scylla.uci_move(board, kcastle) == "e1g1"
+        @test Scylla.uci_move(kcastle) == "e1g1"
+        qcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.QUEEN_CASTLE, moves)]
+        @test Scylla.uci_move(qcastle) == "e1c1"
+
+        cFEN = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1"
+        board = Scylla.BoardState(cFEN)
+        moves, move_count = generate_legal_moves(board)
+        kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KING_CASTLE, moves)]
+        @test Scylla.uci_move(kcastle) == "e8g8"
+        qcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.QUEEN_CASTLE, moves)]
+        @test Scylla.uci_move(qcastle) == "e8c8"
 
         promFEN = "K3r3/2r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
         moves, move_count = generate_legal_moves(board)
         move = moves[findfirst(m->Scylla.flag(m)==Scylla.PROMQUEEN, moves)]
-        @test Scylla.uci_move(board, move) == "f7e8q"
+        @test Scylla.uci_move(move) == "f7e8q"
     end
 
     @testset "Convert Algebraic <--> Numeric" begin
@@ -33,9 +43,33 @@ using Test
         moves, move_count = generate_legal_moves(board)
 
         for move in moves 
-            uci = Scylla.uci_move(board,move)
+            uci = Scylla.uci_move(move)
             @test Scylla.identify_uci_move(board,uci) == move
         end
+    end
+
+    @testset "UCI to Internal" begin
+        board = BoardState("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1")
+        kmove = Scylla.identify_uci_move(board, "e8g8")
+        @test Scylla.flag(kmove) == Scylla.KING_CASTLE
+        qmove = Scylla.identify_uci_move(board, "e8c8")
+        @test Scylla.flag(qmove) == Scylla.QUEEN_CASTLE
+    end
+
+    @testset "Move Sequence Input" begin
+        board = BoardState("r1bqkb1r/pp2pp1p/2np1np1/8/2PNP3/2N5/PP2BPPP/R1BQK2R b KQkq - 0 1")
+        moves = ["c6d4", "d1d4", "e7e5", "d4d3", "c8e6", "c1g5", "a8c8", "b2b3", 
+                 "c8c6", "a1d1", "a7a5", "c3d5", "f8g7", "f2f4", "h7h6", "f4e5", 
+                 "h6g5", "e5f6", "g7f6", "g2g4", "f6e5", "h2h3", "e8g8", "e1g1"]
+    
+        for m in moves 
+            move = Scylla.identify_uci_move(board, m)
+            @test Scylla.uci_move(move) == m
+            make_move!(move, board)
+        end
+
+        final_board = BoardState("3q1rk1/1p3p2/2rpb1p1/p2Nb1p1/2P1P1P1/1P1Q3P/P3B3/3R1RK1 b - - 2 13")
+        @test board.pieces == final_board.pieces
     end
 
     @testset "Long UCI Move" begin 
@@ -175,7 +209,7 @@ end
         moves, move_count = Scylla.generate_legal_moves(board)
         for m in moves
             if Scylla.cap_type(m) == 5
-                Scylla.make_move!(m,board)
+                Scylla.make_move!(m, board)
             end
         end
         @test Scylla.ally_pieces(board)[5] == 0

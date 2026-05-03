@@ -35,23 +35,6 @@ end
     board.zobrist_hash ⊻= zobrist_colour()
 end
 
-"shift king pos right for kingside castle"
-@inline king_castle_shift(pos::Integer) = pos + 2
-"shift king pos left for queenside castle"
-@inline queen_castle_shift(pos::Integer) = pos - 2
-
-"make a kingside castle"
-@inline function king_castle!(board::BoardState, colour)
-    kingpos = locate_king(board, colour)
-    move_piece!(board, colour, KING, kingpos, king_castle_shift(kingpos))
-end 
-
-"make a queenside castle"
-@inline function queen_castle!(board::BoardState, colour)
-    kingpos = locate_king(board, colour)
-    move_piece!(board, colour, KING, kingpos, queen_castle_shift(kingpos))
-end
-
 "update castling rights and zobrist hash"
 @inline function update_castle_rights!(board::BoardState, colour_id, side)
     #remove old castling rights from zobrist hash
@@ -72,15 +55,16 @@ end
 "returns location of sqaure behind pawn, either to capture by en-passant or to flag square for attack by en-passant"
 enpassant_location(colour::UInt8, destination) = ifelse(colour==0, destination + 8, destination - 8)
 
-"play a castling move onto the board"
+"play a castling move onto the board. perform lookup of rook square to move from/to"
 @inline function make_castle!(board::BoardState, move_from, move_to, move_flag)
-    move_piece!(board, board.colour, ROOK, move_from, move_to)
+    move_piece!(board, board.colour, KING, move_from, move_to)
+    
+    castle_lookup = (move_flag == QUEEN_CASTLE) + (!whitesmove(board.colour)) * 2 + 1
+    rook_from = ROOK_START_SQUARES[castle_lookup]
+    rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
+    move_piece!(board, board.colour, ROOK, rook_from, rook_to)
+
     update_castle_rights!(board, colour_id(board.colour), 0)
-    if move_flag == KING_CASTLE
-        king_castle!(board, board.colour)
-    else
-        queen_castle!(board, board.colour)
-    end
     #castling does not reset halfmove clock
     board.data.half_moves[end] += 1
 end
@@ -181,14 +165,14 @@ end
     update_history(board, move)
 end
 
-"unmaking a kingside castle is the same as a queenside castle and vice-versa"
+"unmake king- or queen-side castle for opponent"
 @inline function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
-    move_piece!(board, opposite_colour, ROOK, move_to, move_from)
-    if move_flag == KING_CASTLE
-        queen_castle!(board, opposite_colour)
-    else
-        king_castle!(board, opposite_colour)
-    end
+    move_piece!(board, opposite_colour, KING, move_to, move_from)
+    
+    castle_lookup = (move_flag == QUEEN_CASTLE) + (!whitesmove(opposite_colour)) * 2 + 1
+    rook_from = ROOK_START_SQUARES[castle_lookup]
+    rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
+    move_piece!(board, opposite_colour, ROOK, rook_to, rook_from)
 end
 
 "uses opponents colour to create a pawn and destroy promotion piece. uses own colour to undo capture"

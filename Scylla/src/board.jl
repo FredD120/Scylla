@@ -292,18 +292,10 @@ function identify_piecetype(board::BoardState, location::Integer)::UInt8
 end
 
 "convert a move to UCI notation"
-function uci_move(board::BoardState, move::Move)
+function uci_move(move::Move)
     flg = flag(move)
     F = from(move)
     T = to(move)
-
-    if flg == KING_CASTLE
-        F -= 3
-        T = F + 2
-    elseif flg == QUEEN_CASTLE
-        F += 4
-        T = F - 2
-    end
 
     p = ""
     prom_type = promote_type(flg)

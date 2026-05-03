@@ -194,7 +194,7 @@ function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) wh
         "pv ")
         
         for move in logger.pv
-            print(buffer, uci_move(engine.board, move), " ")
+            print(buffer, uci_move(move), " ")
         end
 
         put!(engine.channel.info, String(take!(buffer)))

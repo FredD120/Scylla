@@ -316,7 +316,7 @@ const MVV_LVA = UInt8[
 
 ### PST Features ###
 
-"quantise phase into a byte"
+"quantise game phase into a byte"
 const QUANTISATION_SHIFT::Int32 =  8
 const QUANTISATION::Int32 = 1 << QUANTISATION_SHIFT
 "number of pieces left when we are fully in endgame"

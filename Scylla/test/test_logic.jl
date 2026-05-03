@@ -726,7 +726,7 @@ end
 
 function run_TT_perft(fen, depth, target)
     board = Scylla.BoardState(fen)
-    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=20)
+    table = Scylla.TranspositionTable(Scylla.PerftData, 20, verbose)
     t = time()
     @test Scylla.perft(board, depth, table, verbose) == target
     return  time() - t
@@ -743,7 +743,7 @@ end
 
 function run_pseudolegal_perft(fen, depth, target) 
     board = Scylla.BoardState(fen)
-    table = Scylla.TranspositionTable(verbose; type=Scylla.PerftData, size=22)
+    table = Scylla.TranspositionTable(Scylla.PerftData, 22, verbose)
     t = time()
     @test Scylla.pseudolegal_perft(board, depth, table, verbose) == target
     #@assert Scylla.pseudolegal_perft(board, depth, verbose) == target "Error on $fen"

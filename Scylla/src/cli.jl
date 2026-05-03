@@ -33,7 +33,7 @@ end
 "task to run best_move and put outputs in channel, then close the task"
 function run_engine(engine::EngineState)
     best, _ = best_move(engine)
-    move_str = "bestmove " * uci_move(engine.board, best)
+    move_str = "bestmove " * uci_move(best)
     put!(engine.channel.info, move_str)
 end
 
@@ -115,10 +115,10 @@ end
 
 "assign default TT if not previously set, tell GUI we are ready to compute"
 function handle_isready!(wrapper, cli_st, _)
-    run_short_search(wrapper.engine)
     if !cli_st.TT_SET
         wrapper.engine = assign_tt(wrapper.engine, wrapper.debug)
         cli_st.TT_SET = true
+        run_short_search(wrapper.engine)
     end
     return "readyok"
 end
@@ -215,12 +215,59 @@ function get_control(engine::EngineState, msg_in)
     return control
 end
 
+"print any final messages from engine worker thread then kill the worker"
+function cleanup_worker(worker, cli_st, info)
+    while isready(info)
+        println(take!(info))
+    end
+    flush(stdout)
+
+    if cli_st.worker === worker
+        cli_st.worker = nothing
+    end
+end
+
+"check if engine progress info is in buffer and dump to stdout"
+function fetch_engine_info!(worker, info::Channel{String})
+   while !istaskdone(worker)
+        while isready(info)
+            println(take!(info))
+        end
+        flush(stdout)
+        sleep(0.001)          
+    end
+end
+
+"check for crashed engine and print error message"
+function fetch_error!(worker)
+    if !isnothing(worker) && istaskfailed(worker)
+        try
+            fetch(worker)
+        catch e
+            showerror(stdout, e, catch_backtrace())
+            println()
+        end
+     else
+        wait(worker)
+    end
+end
+
+"monitor runs alongside worker engine thread, passing output/errors to the main thread and then killing the worker"
+function monitor_worker(worker, cli_st, info::Channel{String})
+    fetch_engine_info!(cli_st.worker, info)
+    fetch_error!(cli_st.worker)
+    cleanup_worker(worker, cli_st, info)
+end
+
 "set engine control type to time/depth/nodes based on GUI request and launch worker thread to calculate"
 function handle_go!(wrapper, cli_st, msg_in)
     new_control = get_control(wrapper.engine, msg_in)
     wrapper.engine = assign_control(wrapper.engine, new_control)
 
-    cli_st.worker = Threads.@spawn run_engine(wrapper.engine)
+    worker = Threads.@spawn run_engine(wrapper.engine)
+    cli_st.worker = worker
+    
+    @async monitor_worker(worker, cli_st, wrapper.engine.channel.info)
 
     if wrapper.debug
         return "info calculating best move"
@@ -319,40 +366,20 @@ function fetch_command!(wrapper::EngineWrapper, cli::CLI_state)
     end
 end
 
-"check if engine progress info is in buffer and dump to stdout"
-function fetch_engine_info!(info_channel::Channel{String})
-    while isready(info_channel)
-        info_str = take!(info_channel)
-        println(info_str)
-    end
-end
-
-"check for crashed engine and print error message"
-function fetch_error!(cli::CLI_state)
-    if !isnothing(cli.worker) && istaskfailed(cli.worker)
-        try
-            fetch(cli.worker)
-        catch e
-            showerror(stdout, e, catch_backtrace())
-            println()
-        end
-        cli.worker = nothing
-    end
-end
-
 "entry point for CLI, uses UCI protocol"
 function run_cli()
     cli_state = CLI_state()
     cli_state.listener = @async listen(cli_state)
     wrapper = EngineWrapper()
 
-    while !cli_state.QUIT
-        fetch_command!(wrapper, cli_state)
-        fetch_engine_info!(wrapper.engine.channel.info)
-        fetch_error!(cli_state)
-
-        flush(stdout)
-        sleep(0.001)
+    for instruction in cli_state.listen
+        return_msg = parse_msg!(wrapper, cli_state, instruction)
+        if return_msg isa String
+            println(return_msg)
+            flush(stdout)
+        end
+ 
+        cli_state.QUIT && break
     end
 
     if !isnothing(cli_state.worker)
@@ -367,7 +394,6 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
     num_from = algebraic_to_numeric(uci_move[1:2])
     num_to = algebraic_to_numeric(uci_move[3:4])
     num_promote = NOFLAG
-    kingsmove = num_from == locate_king(board)
     gui_move = NULLMOVE
 
     if length(uci_move) > 4
@@ -382,9 +408,8 @@ function identify_uci_move(board::BoardState, uci_move::AbstractString)
                 break
             end
         #check for castling if the king is moving
-        elseif kingsmove
-            if (flg == KING_CASTLE && num_to == king_castle_shift(num_from)) ||
-                (flg == QUEEN_CASTLE && num_to == queen_castle_shift(num_from))
+        elseif num_from == locate_king(board) && is_castle(flg)
+            if (flg == KING_CASTLE && num_to == num_from + 2) || (flg == QUEEN_CASTLE && num_to == num_from - 2)
                 gui_move = move
                 break
             end
