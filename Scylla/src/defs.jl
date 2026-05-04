@@ -226,47 +226,13 @@ uci_pos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 
 ### Engine Features ###
 
-#maximum search depth
+# maximum search depth
 const MAXDEPTH::UInt8 = UInt8(32)
 const MINDEPTH::UInt8 = UInt8(0)
-const DEFAULTDEPTH::UInt8 = UInt8(24)
 const DEFAULTTIME::Float64 = Float64(1.5)
 const DEFAULTNODES::UInt32 = UInt32(1e8)
-#check for out of time/quit message every x nodes
+# check for out of time/quit message every x nodes
 const CHECKNODES::UInt32 = UInt32(10_000)
-
-abstract type Control end
-
-"Time control for engine, where time is in seconds"
-struct Time <: Control
-    maxtime::Float64
-    maxdepth::UInt8
-end
-Time(;maxdepth = DEFAULTDEPTH) = Time(DEFAULTTIME, maxdepth)
-Time(max_t) = Time(max_t, DEFAULTDEPTH)
-
-"Depth control for engine, where depth is in halfmoves"
-struct Depth <: Control
-    maxdepth::UInt8
-
-    "inner constructor, limits depth to MAXDEPTH"
-    Depth(depth) = new(min(depth, MAXDEPTH))
-end
-Depth(;maxdepth = MAXDEPTH) = Depth(maxdepth)
-
-"Node control for engine, where nodes are any leaf node visited"
-struct Nodes <: Control
-    maxnodes::UInt64
-    maxdepth::UInt8
-end
-Nodes(;maxdepth = DEFAULTDEPTH) = Nodes(DEFAULTNODES, maxdepth)
-Nodes(nodes) = Nodes(nodes, DEFAULTDEPTH)
-
-struct Mate <: Control
-    maxdepth::UInt8
-end
-Mate() = Mate(DEFAULTDEPTH)
-
 
 ### Transposition Table Features ###
 
@@ -341,5 +307,9 @@ const UCI_OK_MESSAGE = string(
 # fraction of a second to give time to send info back to GUI
 const GUI_SAFETY_FACTOR = 0.05
 
-### Test Features ###
-
+"fetch all info from a Channel and print to StdOut"
+function print_channel(info::Channel{String})
+    while isready(info)
+        println(take!(info))
+    end
+end

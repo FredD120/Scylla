@@ -56,11 +56,12 @@ Speed
 
 Refactor
 -> Unify white/black distinction, ensuring same speed
- - Three types of indexing: true/false, 0/1, 0/6 - use enum-style struct
+ - Three types of indexing: true/false, 0/1, 0/6 - use simple boolean
+-> Clarify self_castle_rights name/usage
 -> Engine struct
  - Simplify layout - make more shallow
  - Remove parametric types on things that change - TT and control
- - Enable future multi-threading via shared transposition table
+ - Enable future multi-threading via shared lock-less transposition table
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
@@ -86,7 +87,7 @@ include("moveordering.jl")
 include("engine.jl")
 include("perft.jl")
 include("cli.jl")
-include("precompile.jl")
+#include("precompile.jl")
 
 export BitBoard, BoardState, setzero, setone,
        make_move!, unmake_move!,

@@ -32,3 +32,6 @@ JuliaLocalPreferences.toml
 *.bat
 profile.jl
 executables
+claude
+.claude
+*.json

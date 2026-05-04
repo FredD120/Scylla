@@ -33,9 +33,6 @@ function reset_tt!(table::TranspositionTable{T}) where {T}
     end
 end
 
-"do nothing if no TT to reset"
-reset_tt!(::Nothing) = nothing
-
 "construct TT of a given size (2^N) with entries of a given type"
 function TranspositionTable(type, size::Integer, verbose::Bool)
     actual_len = UInt64(1) << size
@@ -48,8 +45,7 @@ function TranspositionTable(type, size::Integer, verbose::Bool)
 end
 
 "construct TT using its size in Mb and type of data stored. return nothing if length = 0"
-function TranspositionTable(verbose=false; size_mb=TT_DEFAULT_MB, type=TT_ENTRY_TYPE)::Union{TranspositionTable, Nothing}
-
+function TranspositionTable(verbose=false; size_mb=TT_DEFAULT_MB, type=TT_ENTRY_TYPE)
     if size_mb > TT_MIN_MB
         size_mb = min(size_mb, TT_MAX_MB)
         num_entries = fld(size_mb * MB_SIZE, entry_size(type))
@@ -145,9 +141,6 @@ end
     return store_success
 end
 
-"fallback for transposition table store if table doesn't exist"
-@inline store!(::Nothing, args...)::Bool = false
-
 "retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
 function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
     bucket = get_entry(table, zobrist_hash)
@@ -160,6 +153,3 @@ function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
         return nothing, nothing
     end
 end
-
-"retrieve function barrier in case transposition table doesn't exist, returning nothing"
-retrieve(::Nothing, _, _) = (nothing, nothing)

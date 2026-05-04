@@ -23,7 +23,7 @@ function new_killer!(killer_vec::Vector{Killer}, ply, move)
 end
 
 mutable struct SearchInfo
-    #Record best moves from root to leaves for move ordering
+    # record best moves from root to leaves for move ordering
     pv::Vector{Move}
     pv_len::Vector{UInt8}
     pv_offsets::Vector{UInt16}
@@ -31,7 +31,7 @@ mutable struct SearchInfo
 end
 
 "Constructor for search info struct"
-function SearchInfo(depth)
+function SearchInfo(depth = MAXDEPTH + 1)
     triangular_pv = nulls(triangle_number(depth))
     killers = [Killer() for _ in 1:depth]
     pv_lens = zeros(UInt8, depth)
@@ -53,12 +53,6 @@ triangle_number(x) =  x * (x + 1) ÷ 2
 
 "find the index of the first move in the PV at a given ply"
 pv_ind(ply, maxdepth) = (2 * maxdepth + 1 - ply) * ply ÷ 2
-
-"assume new PV length at each ply is zero until proven otherwise"
-function reset_pv_lens!(info::SearchInfo)
-    maxdepth = length(info.pv_len)
-    info.pv_len = zeros(UInt8, maxdepth)
-end
 
 "copies line below in triangular PV table"
 function copy_pv!(info::SearchInfo, ply, move)
@@ -117,7 +111,6 @@ end
 
 "Score moves based on PV/TT move, MVV-LVA and killers"
 @inline function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best_move::Move=NULLMOVE)
-    # TODO: ensure that wherever moves are stored (PV, TT, killers), their score is removed first
     @inbounds for (i, move) in enumerate(moves)
         if move == best_move
             moves[i] = set_score(move, MAXMOVESCORE)

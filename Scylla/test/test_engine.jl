@@ -81,6 +81,7 @@ end
 
 @testset "Easy Best Move" begin
     engine = Scylla.EngineState()
+    engine.config.control = Scylla.DepthControl(4)
 
     @testset "Bxq" begin
         eFEN = "K6Q/8/8/8/8/8/8/b6k b - - 0 1"
@@ -111,6 +112,8 @@ end
     #mate in 2
     for eFEN in ["K7/R7/R7/8/8/8/8/7k w - - 0 1", "k7/r7/r7/8/8/8/8/7K b - - 0 1"]
         engine = Scylla.EngineState(eFEN)
+        engine.config.control = Scylla.DepthControl(6)
+
         best,log = Scylla.best_move(engine)
         #rook moves to cut off king
         make_move!(best,engine.board)

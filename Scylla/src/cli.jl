@@ -5,11 +5,8 @@ end
 
 "default constructor for EngineWrapper, assumes no transposition table and engine time restricted"
 function EngineWrapper()
-    control = Time(GUI_SAFETY_FACTOR)
-    engine = EngineState(
-    comms = Channels(), control = control, size_mb = 0, verbose = false)
-
-    engine.config.verbose = true
+    engine = EngineState(size_mb = 0, verbose = false)
+    engine.verbose = true
     return EngineWrapper(engine, debug = false)
 end
 
@@ -101,16 +98,16 @@ end
 handle_uci(_, _, _) = UCI_OK_MESSAGE
 
 "ensure all functions are compiled into memory before first search is executed"
-function run_short_search(engine::EngineState{T, C, Q}) where {T, C, Q}
-    verbose = engine.config.verbose
+function run_short_search(engine::EngineState)
+    verbose = engine.verbose
     control = engine.config.control
 
-    engine.config.control = C(maxdepth = 4)
-    engine.config.verbose = false
+    engine.config.control = DepthControl(4)
+    engine.verbose = false
 
     _, _ = best_move(engine)
     engine.config.control = control
-    engine.config.verbose = verbose
+    engine.verbose = verbose
 end
 
 "assign default TT if not previously set, tell GUI we are ready to compute"
@@ -165,40 +162,37 @@ function handle_debug!(wrapper, _, msg_in)
     return nothing
 end
 
-"set engine control based on GUI message, may change type of control"
-function get_control(engine::EngineState, msg_in)
+"set engine control based on GUI message, can be nodes, time or depth"
+function set_control!(engine::EngineState, msg_in)
     msg_caps = uppercase.(msg_in)
-    control = engine.config.control
 
     if "MOVETIME" in msg_caps
         ind = get_msg_index(msg_caps, "MOVETIME")
         if is_valid(ind, msg_caps)
             new_time = parse(Float64, msg_in[ind + 1]) / 1000
             actual_time = max(new_time - GUI_SAFETY_FACTOR, GUI_SAFETY_FACTOR)
-            control = Time(actual_time, control.maxdepth)
+            engine.config.control = TimeControl(actual_time)
         end
     
     elseif "WTIME" in msg_caps || "BTIME" in msg_caps
         time, increment = get_time_control(engine.board, msg_caps)
         newtime = estimate_movetime(engine, time, increment)
-        control = Time(newtime, control.maxdepth)
+        engine.config.control = TimeControl(newtime)
 
     elseif "DEPTH" in msg_caps
         ind = get_msg_index(msg_caps, "DEPTH")
         if is_valid(ind, msg_caps)
             new_depth = parse(UInt8, msg_in[ind + 1])
-            control = Depth(new_depth)
+            engine.config.control = DepthControl(new_depth)
         end
 
     elseif "NODES" in msg_caps
         ind = get_msg_index(msg_caps, "NODES")
         if is_valid(ind, msg_caps)
             new_nodecount = parse(UInt64, msg_in[ind + 1])
-            control = Nodes(new_nodecount)
+            engine.config.control = NodesControl(new_nodecount)
         end
     end
-
-    return control
 end
 
 "print any final messages from engine worker thread then kill the worker"
@@ -215,10 +209,8 @@ end
 
 "check if engine progress info is in buffer and dump to stdout"
 function fetch_engine_info!(worker, info::Channel{String})
-   while !istaskdone(worker)
-        while isready(info)
-            println(take!(info))
-        end
+    while !istaskdone(worker)
+        print_channel(info)
         flush(stdout)
         sleep(0.001)          
     end
@@ -247,8 +239,7 @@ end
 
 "set engine control type to time/depth/nodes based on GUI request and launch worker thread to calculate"
 function handle_go!(wrapper, cli_st, msg_in)
-    new_control = get_control(wrapper.engine, msg_in)
-    wrapper.engine = assign_control(wrapper.engine, new_control)
+    set_control!(wrapper.engine, msg_in)
 
     worker = Threads.@spawn run_engine(wrapper.engine)
     cli_st.worker = worker

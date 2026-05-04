@@ -7,81 +7,68 @@ end
 "default constructor for Channels, quit channel is smaller as it doesn't need to buffer any data"
 Channels() = Channels(Channel{Symbol}(1), Channel{String}(100))
 
+mutable struct Control 
+    maxtime::Float64
+    maxnodes::UInt64
+    maxdepth::UInt8
+    iteration_depth::UInt8
+end
+
+"default keyword argument constructor for engine control struct. enforces MAXDEPTH during construction"
+Control(; maxtime=Inf64, maxnodes=typemax(UInt64), maxdepth=MAXDEPTH) =
+    Control(maxtime, maxnodes, min(maxdepth, MAXDEPTH), 0)
+
+"convenience constructor for control with finite time limit"
+TimeControl(t=DEFAULTTIME; maxdepth=MAXDEPTH) = Control(maxtime=t, maxdepth=maxdepth)
+
+"convenience constructor for control with finite node limit"
+NodesControl(n=DEFAULTNODES; maxdepth=MAXDEPTH) = Control(maxnodes=n, maxdepth=maxdepth)
+
+"convenience constructor for control with finite depth limit"
+DepthControl(d=MAXDEPTH) = Control(maxdepth=d)
+
 "different configurations the engine can run in"
-mutable struct Config{C <: Control}
-    control::C
+mutable struct SearchConfig
+    control::Control
     starttime::Float64
-    nodes_since_time::UInt64
+    nodes_since_check::UInt64
     nodes::UInt64
     quit_now::Bool
-    quiescence::Bool
-    verbose::Bool
 end
 
-function Config(control::Control, verbose)
-    Config(control, time(), UInt64(0), UInt64(0), false, true, verbose)
-end
+SearchConfig() = SearchConfig(Control(), time(), UInt64(0), UInt64(0), false)
 
 "reset all temporary counters/trackers in config struct"
-function reset_config!(config)
+function reset_search_config!(config)
     config.quit_now = false
-    config.nodes_since_time = UInt64(0)
+    config.nodes_since_check = UInt64(0)
     config.nodes = UInt64(0)
 end
 
 "holds all information the engine needs to calculate"
-mutable struct EngineState{T <: Union{TranspositionTable, Nothing}, C <: Control, Q <: Union{Channels, Nothing}}
+mutable struct EngineState{T <: Union{TranspositionTable, Nothing}}
     board::BoardState
     table::T
     tt_hashfull::UInt32
-    config::Config{C}
-    channel::Q
+    config::SearchConfig
+    channel::Channels
     info::SearchInfo
+    verbose::Bool
+end
+
+"constructor for enginestate given TT size in Mb and boardstate"
+function EngineState(FEN::AbstractString=START_FEN; verbose=false, size_mb=TT_DEFAULT_MB)
+    board = BoardState(FEN)
+    TT = TranspositionTable(verbose; size_mb=size_mb)
+    return EngineState(board, TT, UInt32(0), SearchConfig(), Channels(), SearchInfo(), verbose)
 end
 
 "construct a new engine state from an existing one with a different transposition table"
-new_engine(engine::EngineState, table) = 
-    EngineState(engine.board, table, UInt32(0), engine.config, engine.channel, engine.info)
-
-max_depth(e::EngineState) = e.config.control.maxdepth
-
-"Constructor for enginestate given TT size in Mb and boardstate"
-function EngineState(FEN::AbstractString=START_FEN; verbose=false,
-        size_mb=TT_DEFAULT_MB, TT_type=TT_ENTRY_TYPE,
-        comms::Union{Channels, Nothing}=nothing, control::Control=Time()) 
-
-    board = BoardState(FEN)
-    TT = TranspositionTable(verbose; size_mb=size_mb, type=TT_type)
-    config = Config(control, verbose)
-    info = SearchInfo(config.control.maxdepth + 1)
-    return EngineState(board, TT, UInt32(0), config, comms, info)
-end
-
-"return a new engine with a new type of control assigned to it"
-function assign_control(engine::EngineState{T, C, Q}, new_control) where {T, C, Q}
-    if new_control isa C 
-        engine.config.control = new_control
-        return engine
-    else
-        new_config = Config(new_control,
-        engine.config.starttime,
-        engine.config.nodes_since_time,
-        engine.config.nodes,
-        engine.config.quit_now,
-        engine.config.quiescence,
-        engine.config.verbose,)  
-
-        return EngineState(engine.board, engine.table, 
-        engine.tt_hashfull, new_config,
-        engine.channel, engine.info)
-    end
-end
+new_engine(e::EngineState, table) = EngineState(e.board, table, UInt32(0), e.config, e.channel, e.info, e.verbose)
 
 "return a new engine with a transposition table"
-function assign_tt(engine::EngineState{T, C, Q}, debug=false;
-    size_mb=TT_DEFAULT_MB, TT_type=TT_ENTRY_TYPE) where {T, C, Q}
-
-    table = TranspositionTable(debug, size_mb=size_mb, type=TT_type)
+function assign_tt(engine::EngineState{T}, debug=false; size_mb=TT_DEFAULT_MB) where {T}
+    table = TranspositionTable(debug, size_mb=size_mb)
 
     if table isa T
         engine.table = table
@@ -92,13 +79,13 @@ function assign_tt(engine::EngineState{T, C, Q}, debug=false;
 end
 
 "Reset entries of engine's TT to default value"
-function reset_tt!(engine::EngineState{<:TranspositionTable, C, Q}) where {C, Q}
+function reset_tt!(engine::EngineState{<:TranspositionTable})
     reset_tt!(engine.table)
     engine.tt_hashfull = UInt32(0)
 end
 
 "fallback if transposition table doesn't exist"
-reset_tt!(::EngineState{Nothing, C, Q}) where {C, Q} = nothing
+reset_tt!(::EngineState{Nothing})= nothing
 
 "Reset engine to default boardstate and empty TT"
 function reset_engine!(engine::EngineState)
@@ -123,9 +110,7 @@ mutable struct Logger
     δt::Float32
 end
 
-Logger(TT_entries) = Logger(0, 0, 0, 0, 
-                     false, Move[], 0, 
-                     TT_entries, 0, 0.0)
+Logger(TT_entries) = Logger(0, 0, 0, 0, false, Move[], 0, TT_entries, 0, 0.0)
 
 "calculate logging values that are not automatically updated during minimax"
 function update_logger!(engine::EngineState, logger::Logger, bestscore)
@@ -140,144 +125,82 @@ function update_logger!(engine::EngineState, logger::Logger, bestscore)
     end
 end
 
-"report state of engine at current depth if verbose"
-function report_progress(engine::EngineState{T, C, Nothing}, logger::Logger) where {T, C}
-    println("Searched depth $(logger.cur_depth) in $(round(time() - engine.config.starttime, sigdigits=4))s. ",
-    "Current maxdepth = $(logger.seldepth). ",
-    "PV so far: ", pv_string(logger.pv))
-end
+"report state of engine at current depth if in verbose mode, putting all output into info Channel"
+function report_progress(engine::EngineState, logger::Logger)
+    buffer = IOBuffer()
 
-"report state of engine at current depth if using UCI protocol in verbose mode"
-function report_progress(engine::EngineState{T, C, Channels}, logger::Logger) where {T, C}
-    if length(logger.pv) > 0 
-        buffer = IOBuffer()
-
-        best = begin score = logger.best_score
-            if mate_found(score)
-                mate_ply = INF - abs(score)
-                dist = (mate_ply + 1) ÷ 2
-                score > 0 ? "mate $dist" : "mate -$dist"
-            else
-                "cp $score"
-            end
+    best = begin score = logger.best_score
+        if mate_found(score)
+            mate_ply = INF - abs(score)
+            dist = (mate_ply + 1) ÷ 2
+            score > 0 ? "mate $dist" : "mate -$dist"
+        else
+            "cp $score"
         end
-        print(buffer, "info score ", best, " ")
-        
-        TT_msg = begin
-            if logger.hashfull == 0 
-                "" 
-            else
-                hashfull = round(Int64, logger.hashfull*1000 / logger.tt_total)
-                "hashfull $(hashfull) "
-            end
-        end
-
-        nps_msg = begin
-            if logger.δt == 0.0
-                ""
-            else
-                "nps $(round(Int64, logger.nodes/logger.δt)) "
-            end
-        end
-
-        print(buffer, 
-        "nodes $(logger.nodes) ",
-        nps_msg,
-        "qnodes $(logger.q_nodes) ",
-        "depth $(logger.cur_depth) ",
-        "seldepth $(logger.seldepth) ",
-        TT_msg,
-        "time $(round(Int64, logger.δt * 1000)) ",
-        "pv ")
-        
-        for move in logger.pv
-            print(buffer, uci_move(move), " ")
-        end
-
-        put!(engine.channel.info, String(take!(buffer)))
-    else
-        put!(engine.channel.info, "info no move found")
     end
-end
-
-"print all logging info to StdOut"
-function print_log(logger::Logger)
-    if length(logger.pv) > 0
-        best = "$(logger.best_score)"
-        if mate_found(logger.best_score)
-            dist = Int((INF - abs(logger.best_score)) ÷ 2)
-            best = logger.best_score > 0 ? "Engine Mate in $dist" : "Opponent Mate in $dist"
+    print(buffer, "info score ", best, " ")
+    
+    TT_msg = begin
+        if logger.hashfull == 0 
+            "" 
+        else
+            hashfull = round(Int64, logger.hashfull*1000 / logger.tt_total)
+            "hashfull $(hashfull) "
         end
-
-        TT_msg = ""
-        if logger.hashfull > 0 
-            TT_msg = "Hash full = $(round(logger.hashfull*100/logger.tt_total, sigdigits=3))%."
-        end
-
-        println("Best = $(long_move(logger.pv[1])). \
-        Score = "*best*". \
-        Nodes = $(logger.nodes) ($(round(logger.nodes/logger.δt,sigdigits=4)) nps). \
-        Quiescent nodes = $(logger.q_nodes) ($(round(100*logger.q_nodes/logger.nodes,sigdigits=3))%). \
-        Depth = $((logger.cur_depth)). \
-        Max ply = $(logger.seldepth). "
-        *TT_msg*
-        " Time = $(round(logger.δt,sigdigits=6))s.")
-
-        if logger.stopmidsearch
-            println("Search exited early.")
-        end
-        println("#"^100)
-    else 
-        println("Failed to find move better than null move")
     end
+
+    nps_msg = begin
+        if logger.δt == 0.0
+            ""
+        else
+            "nps $(round(Int64, logger.nodes/logger.δt)) "
+        end
+    end
+
+    print(buffer, 
+    "nodes $(logger.nodes) ",
+    nps_msg,
+    "qnodes $(logger.q_nodes) ",
+    "depth $(logger.cur_depth) ",
+    "seldepth $(logger.seldepth) ",
+    TT_msg,
+    "time $(round(Int64, logger.δt * 1000)) ",
+    "pv ")
+    
+    for move in logger.pv
+        print(buffer, uci_move(move), " ")
+    end
+
+    put!(engine.channel.info, String(take!(buffer)))
 end
+
+"print all logging info collected during search to StdOut"
+print_search_log(engine::EngineState) = print_channel(engine.channel.info)
 
 "returns true if we have run out of time"
 @inline check_time(config, safety_factor) = (time() - config.starttime) > (config.control.maxtime * safety_factor)
 
 "return true if channel contains :quit message"
-@inline check_quit(channel::Channels) = 
-    isready(channel.quit) && take!(channel.quit) == :quit
+@inline check_quit(channel::Channels) = isready(channel.quit) && take!(channel.quit) == :quit
 
-"return false if channel doesn't exist"
-@inline check_quit(::Nothing) = false
-
-"don't need to handle quitting on depth exept through channel, since it is dealt with in iterative_deepening"
-@inline function stop_early(engine::EngineState{T, Depth, Q}; kwargs...) where {T, Q} 
-    if engine.config.quit_now
+@inline function stop_early(config::SearchConfig, channel::Channels; safety_factor=1.0, always_check=false)
+    if config.quit_now
         return true
     end
 
-    engine.config.quit_now = check_quit(engine.channel)
-    return engine.config.quit_now
-end
-
-"stop when we have reached the limit of positions to evaluate"
-@inline function stop_early(engine::EngineState{T, Nodes, Q}; kwargs...) where {T, Q}
-    if engine.config.quit_now
-        return true
+    # fully search root node to ensure a move is always found
+    if config.control.iteration_depth == 1
+        return false
     end
 
-    if check_quit(engine.channel) || (engine.config.nodes >= engine.config.control.maxnodes)
-        engine.config.quit_now = true
+    config.nodes_since_check += 1
+    if always_check || config.nodes_since_check > CHECKNODES 
+        config.nodes_since_check = 0
+        config.quit_now = check_quit(channel) || 
+                          check_time(config, safety_factor) || 
+                          (config.nodes >= config.control.maxnodes)
     end
-
-    return engine.config.quit_now
-end
-
-"check if we have run out of time to continue searching, safety_factor ensures we don't run over due to overhead"
-@inline function stop_early(engine::EngineState{T, Time, Q}; safety_factor=1.0, bypass_check=false) where {T, Q}
-    if engine.config.quit_now
-        return true
-    end
-
-    #reduce number of sys calls
-    engine.config.nodes_since_time += 1
-    if bypass_check || engine.config.nodes_since_time > CHECKNODES
-        engine.config.nodes_since_time = 0
-        engine.config.quit_now = check_quit(engine.channel) || check_time(engine.config, safety_factor)
-    end
-    return engine.config.quit_now
+    return config.quit_now    
 end
 
 "returns true if score is a mate score"
@@ -360,7 +283,7 @@ end
 
 "Search available (move-ordered) captures until we reach quiet positions to evaluate"
 function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logger)
-    if stop_early(engine)
+    if stop_early(engine.config, engine.channel)
         logger.stopmidsearch = true
         return α
     end 
@@ -369,13 +292,13 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     logger.q_nodes += 1
     logger.seldepth = max(logger.seldepth, ply)
 
-    #still need to check for draws in qsearch
+    # still need to check for draws in qsearch
     if draw_state(engine.board)
         return evaluate(DRAW, ply)
     end
 
     is_check = in_check(engine.board)
-    #not in check, continue quiescence
+    # not in check, continue quiescence
     if !is_check
         # stand-pat evaluation - makes null move assumption
         best_score = player * evaluate(engine.board)
@@ -394,7 +317,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         clear_current_moves!(engine.board.move_vector, attack_count)
         return score
 
-    #in check, must search all legal moves (check extension)
+    # in check, must search all legal moves (check extension)
     else
         best_score = evaluate(LOSS, ply)
         moves, move_length = generate_legal_moves(engine.board)
@@ -448,7 +371,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         end
     end
 
-    #no moves made, either stalemate or checkmate
+    # no moves made, either stalemate or checkmate
     if !move_made
         node_type = EXACT
         if !in_check(engine.board)
@@ -465,7 +388,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     # reset pv length for the current ply
     engine.info.pv_len[ply + 1] = UInt8(0)
     # stop if out of time/nodes or receive quit message
-    if stop_early(engine)
+    if stop_early(engine.config, engine.channel)
         logger.stopmidsearch = true
         return α
     end
@@ -521,37 +444,44 @@ function root(engine::EngineState, depth, logger::Logger)
     return minimax(engine, player, α, β, depth, ply, is_principal, logger)
 end
 
+"checks escape conditions from iterative deepening search, returns true if none are met"
+function continue_deepening(engine::EngineState, depth, bestscore)
+    if depth >= engine.config.control.maxdepth
+        return false
+    elseif mate_found(bestscore)
+        return false
+    elseif stop_early(engine.config, engine.channel, safety_factor = 0.5, always_check=true)
+        return false
+    end
+    return true
+end
+
 "run minimax search to fixed depth then increase depth until time runs out"
 function iterative_deepening(engine::EngineState)
     depth = 0
     logger = Logger(num_entries(engine.table))
     bestscore = 0
 
-    # quit early if we or opponent have mate or if we run out of time
-    while (depth < max_depth(engine)) &&  
-        !(mate_found(bestscore)) &&
-        !(stop_early(engine, safety_factor = 0.5, bypass_check=true))
-
+    while continue_deepening(engine, depth, bestscore)
         depth += 1
         logger.cur_depth = depth
+        engine.config.control.iteration_depth = depth
         bestscore = root(engine, depth, logger)
 
         update_logger!(engine, logger, bestscore)
 
-        if engine.config.verbose
+        if engine.verbose
             report_progress(engine, logger)
         end
     end
-    clear!(engine.board.move_vector)
-    # TODO: could fail if pv is empty - must ensure that depth one is always searched
-    return logger.pv[1], logger
+    return logger
 end
 
 "evaluates the position to return the best move"
 function best_move(engine::EngineState)
     engine.config.starttime = time()
-    best_move, logger = iterative_deepening(engine)
+    logger = iterative_deepening(engine)
 
-    reset_config!(engine.config)
-    return best_move, logger
+    reset_search_config!(engine.config)
+    return logger.pv[1], logger
 end
