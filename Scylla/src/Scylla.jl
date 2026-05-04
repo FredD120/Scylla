@@ -61,7 +61,6 @@ Refactor
  - Simplify layout - make more shallow
  - Remove parametric types on things that change - TT and control
  - Enable future multi-threading via shared transposition table
--> Create a with_legal_moves function that handles freeing of move stack
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb

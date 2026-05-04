@@ -49,10 +49,10 @@ function reset_search_info!(info::SearchInfo)
 end
 
 "triangle number for an index starting from zero"
-triangle_number(x) = Int(0.5 * x * (x + 1))
+triangle_number(x) =  x * (x + 1) ÷ 2
 
 "find the index of the first move in the PV at a given ply"
-pv_ind(ply, maxdepth) = Int(ply / 2 * (2 * maxdepth + 1 - ply))
+pv_ind(ply, maxdepth) = (2 * maxdepth + 1 - ply) * ply ÷ 2
 
 "assume new PV length at each ply is zero until proven otherwise"
 function reset_pv_lens!(info::SearchInfo)
