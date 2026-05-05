@@ -11,12 +11,12 @@ mutable struct Control
     maxtime::Float64
     maxnodes::UInt64
     maxdepth::UInt8
-    iteration_depth::UInt8
+    stoppable::Bool
 end
 
 "default keyword argument constructor for engine control struct. enforces MAXDEPTH during construction"
 Control(; maxtime=Inf64, maxnodes=typemax(UInt64), maxdepth=MAXDEPTH) =
-    Control(maxtime, maxnodes, min(maxdepth, MAXDEPTH), 0)
+    Control(maxtime, maxnodes, min(maxdepth, MAXDEPTH), false)
 
 "convenience constructor for control with finite time limit"
 TimeControl(t=DEFAULTTIME; maxdepth=MAXDEPTH) = Control(maxtime=t, maxdepth=maxdepth)
@@ -36,7 +36,7 @@ mutable struct SearchConfig
     quit_now::Bool
 end
 
-SearchConfig() = SearchConfig(Control(), time(), UInt64(0), UInt64(0), false)
+SearchConfig() = SearchConfig(TimeControl(), time(), UInt64(0), UInt64(0), false)
 
 "reset all temporary counters/trackers in config struct"
 function reset_search_config!(config)
@@ -188,8 +188,7 @@ print_search_log(engine::EngineState) = print_channel(engine.channel.info)
         return true
     end
 
-    # fully search root node to ensure a move is always found
-    if config.control.iteration_depth == 1
+    if !config.control.stoppable
         return false
     end
 
@@ -465,7 +464,6 @@ function iterative_deepening(engine::EngineState)
     while continue_deepening(engine, depth, bestscore)
         depth += 1
         logger.cur_depth = depth
-        engine.config.control.iteration_depth = depth
         bestscore = root(engine, depth, logger)
 
         update_logger!(engine, logger, bestscore)
@@ -473,6 +471,9 @@ function iterative_deepening(engine::EngineState)
         if engine.verbose
             report_progress(engine, logger)
         end
+
+        # fully search root node to ensure a move is always found
+        engine.config.control.stoppable = true
     end
     return logger
 end

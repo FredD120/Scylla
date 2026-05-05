@@ -39,11 +39,10 @@ TO-DO (general)
  - Pack TT entries into UInt128
  - Age out TT entry whenever its accessed but not used
  - Test accessing TT in quiescence search
+ - Enable future multi-threading via shared lock-less transposition table
 
 Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
--> Engine will crash if search exited before any moves explored
- - force at least depth 1 to be searched always
 
 Speed
 -> Test whether extensive inlining is necessary
@@ -58,10 +57,6 @@ Refactor
 -> Unify white/black distinction, ensuring same speed
  - Three types of indexing: true/false, 0/1, 0/6 - use simple boolean
 -> Clarify self_castle_rights name/usage
--> Engine struct
- - Simplify layout - make more shallow
- - Remove parametric types on things that change - TT and control
- - Enable future multi-threading via shared lock-less transposition table
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
@@ -87,15 +82,15 @@ include("moveordering.jl")
 include("engine.jl")
 include("perft.jl")
 include("cli.jl")
-#include("precompile.jl")
+include("precompile.jl")
 
 export BitBoard, BoardState, setzero, setone,
        make_move!, unmake_move!,
        generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
-       Logger, print_log,
+       Logger, print_search_log,
        run_cli, assign_tt!, reset_engine!,
-       Control, Time, Depth, Nodes, Mate,
+       Control, TimeControl, DepthControl, NodesControl,
        estimate_movetime,
        EngineState, Config
 end #module

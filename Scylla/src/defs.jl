@@ -229,7 +229,7 @@ uci_pos(pos) = ('a' + file(pos)) * string(Int(rank(pos) + 1))
 # maximum search depth
 const MAXDEPTH::UInt8 = UInt8(32)
 const MINDEPTH::UInt8 = UInt8(0)
-const DEFAULTTIME::Float64 = Float64(1.5)
+const DEFAULTTIME::Float64 = Float64(5.0)
 const DEFAULTNODES::UInt32 = UInt32(1e8)
 # check for out of time/quit message every x nodes
 const CHECKNODES::UInt32 = UInt32(10_000)
@@ -305,7 +305,7 @@ const UCI_OK_MESSAGE = string(
     "uciok")
 
 # fraction of a second to give time to send info back to GUI
-const GUI_SAFETY_FACTOR = 0.05
+const GUI_SAFETY_FACTOR = 0.01
 
 "fetch all info from a Channel and print to StdOut"
 function print_channel(info::Channel{String})

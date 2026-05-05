@@ -162,7 +162,7 @@ function handle_debug!(wrapper, _, msg_in)
     return nothing
 end
 
-"set engine control based on GUI message, can be nodes, time or depth"
+"set engine control based on GUI message, can be nodes, time or depth. returns false if search type match not found"
 function set_control!(engine::EngineState, msg_in)
     msg_caps = uppercase.(msg_in)
 
@@ -192,7 +192,11 @@ function set_control!(engine::EngineState, msg_in)
             new_nodecount = parse(UInt64, msg_in[ind + 1])
             engine.config.control = NodesControl(new_nodecount)
         end
+    
+    else
+        return false
     end
+    return true
 end
 
 "print any final messages from engine worker thread then kill the worker"
@@ -239,7 +243,10 @@ end
 
 "set engine control type to time/depth/nodes based on GUI request and launch worker thread to calculate"
 function handle_go!(wrapper, cli_st, msg_in)
-    set_control!(wrapper.engine, msg_in)
+    success = set_control!(wrapper.engine, msg_in)
+    if !success
+        return nothing
+    end
 
     worker = Threads.@spawn run_engine(wrapper.engine)
     cli_st.worker = worker
@@ -249,7 +256,6 @@ function handle_go!(wrapper, cli_st, msg_in)
     if wrapper.debug
         return "info calculating best move"
     end
-    return nothing
 end
 
 "set position sent from GUI, either the starting position or a specified FEN. must use lower case message for FEN string"
