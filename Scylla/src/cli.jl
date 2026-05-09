@@ -45,7 +45,7 @@ end
 
 "parse time-control info from CLI, return as time + increment in seconds"
 function get_time_control(board::BoardState, msg_caps)
-    match_colour = whitesmove(board.colour) ? "W" : "B"
+    match_colour = board.colour ? "W" : "B"
 
     time_ind = get_msg_index(msg_caps, match_colour * "TIME")
     inc_ind = get_msg_index(msg_caps, match_colour * "INC")

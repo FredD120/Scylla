@@ -8,7 +8,7 @@ using Test
         board = Scylla.BoardState(cFEN)
         moves, move_count = generate_legal_moves(board)
 
-        move = Scylla.Move(UInt8(1),UInt8(2),UInt8(54),UInt8(0),UInt8(0))
+        move = Scylla.Move(UInt8(1), UInt8(2), UInt8(54), UInt8(0), UInt8(0))
         @test Scylla.uci_move(move) == "c8g2"
 
         kcastle = moves[findfirst(m->Scylla.flag(m)==Scylla.KING_CASTLE, moves)]
@@ -116,7 +116,7 @@ end
             end
         end
 
-        @test Scylla.whitesmove(board.colour) == false
+        @test board.colour == false
         @test board.data.half_moves[end] == UInt8(1)
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
     end
@@ -140,7 +140,7 @@ end
         basicFEN = "1n6/K7/8/8/8/8/8/7k b - - 0 1"
         board = Scylla.BoardState(basicFEN)
         moves, move_count = Scylla.generate_legal_moves(board)
-        @test Scylla.whitesmove(board.colour) == false
+        @test board.colour == false
         @test length(moves) == 6
 
         for m in moves
@@ -149,8 +149,6 @@ end
             end
         end
         @test sum(Scylla.enemy_pieces(board)[2:end]) == 1<<11
-        GUI = Scylla.GUIposition(board)
-        @test GUI[12] == 11
     end
 
     @testset "Multiple Pieces" begin
@@ -164,14 +162,10 @@ end
                 Scylla.make_move!(m,board)
             end
         end
-        @test Scylla.whitesmove(board.colour) == false
+        @test board.colour == false
         @test sum(Scylla.ally_pieces(board)[2:end]) == 0
-
-        GUI = Scylla.GUIposition(board)
-        @test GUI[42] == 5
     end
 end
-
 
 @testset "Unmake Move" begin
     basicFEN = "Kn6/8/8/8/8/8/8/7k w - - 0 1"
@@ -186,7 +180,7 @@ end
         end
         Scylla.unmake_move!(board)
 
-        @test Scylla.whitesmove(board.colour) == true
+        @test board.colour == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
     end
@@ -218,7 +212,7 @@ end
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
 
-        @test Scylla.whitesmove(board.colour) == true
+        @test board.colour == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
         @test length(board.data.half_moves) == 1

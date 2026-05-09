@@ -18,21 +18,14 @@ end
 
 @testset "Board Initialise" begin
     board = Scylla.BoardState(FEN)
-    @test Scylla.whitesmove(board.colour) == true
-    @test board.data.enpassant[end] == UInt64(0)
-    @test Scylla.ally_pieces(board)[3] != UInt64(0)
-    @test Scylla.enemy_pieces(board)[3] != UInt64(0)
-    @test Scylla.enemy_pieces(board)[1] == UInt64(1) << 4
-    @test Scylla.ally_pieces(board)[1] == UInt64(1) << 60
-    @test board.data.half_moves[end] == 0
-end
 
-@testset "GUI from Board" begin
-    board = Scylla.BoardState(FEN)
-    GUIboard = Scylla.GUIposition(board)
-    @test typeof(GUIboard) == typeof(Vector{UInt8}())
-    @test length(GUIboard) == 64
-    @test GUIboard[5] == 7
+    @test board.colour == true
+    @test board.data.enpassant[end] == UInt64(0)
+    @test Scylla.ally_pieces(board)[Scylla.ROOK] != UInt64(0)
+    @test Scylla.enemy_pieces(board)[Scylla.ROOK] != UInt64(0)
+    @test Scylla.enemy_pieces(board)[Scylla.KING] == UInt64(1) << 4
+    @test Scylla.ally_pieces(board)[Scylla.KING] == UInt64(1) << 60
+    @test board.data.half_moves[end] == 0
 end
 
 @testset "Bitboard Union" begin 
@@ -142,8 +135,8 @@ end
 @testset "Castling Rights" begin
     @testset "Self Castle Rights" begin
         castle_rights = UInt8(0b1111)
-        white = Scylla.self_castle_rights(castle_rights, Scylla.colour_id(Scylla.WHITE))
-        black = Scylla.self_castle_rights(castle_rights, Scylla.colour_id(Scylla.BLACK))
+        white = Scylla.self_castle_rights(castle_rights, Scylla.WHITE)
+        black = Scylla.self_castle_rights(castle_rights, Scylla.BLACK)
 
         @test white == UInt8(0b0011)
         @test black == UInt8(0b1100)
@@ -184,7 +177,7 @@ end
     @testset "Asymmetric Castle" begin
         castle_FEN = "r3k2r/pppppppp/8/8/8/8/8/RRRRKRRR b KQkq - 0 1"
         board = Scylla.BoardState(castle_FEN)
-        castle_id = Scylla.self_castle_rights(board.castle, Scylla.colour_id(board.colour))
+        castle_id = Scylla.self_castle_rights(board.castle, board.colour)
         info = Scylla.LegalInfo(board)
 
         for id in castle_id
@@ -415,10 +408,6 @@ end
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
 
         @test length(generate_legal_moves(board)[1]) == 3
-
-        GUI = Scylla.GUIposition(board)
-        @test GUI[2] == 1
-        @test sum(GUI) == 8
     end
 end
 
@@ -516,11 +505,11 @@ end
     legalFEN = "K6Q/8/8/8/8/8/8/7k b - 0 1"
 
     illegal_board = BoardState(illegalFEN)
-    enemy_colour = Scylla.opposite(illegal_board.colour)
+    enemy_colour = !illegal_board.colour
     @test Scylla.in_check(illegal_board, enemy_colour) == true
 
     legal_board = BoardState(legalFEN)
-    enemy_colour = Scylla.opposite(legal_board.colour)
+    enemy_colour = !legal_board.colour
     @test Scylla.in_check(legal_board, enemy_colour) == false   
 end
 

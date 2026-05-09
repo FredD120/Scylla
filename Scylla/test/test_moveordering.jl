@@ -34,18 +34,20 @@ using Test
 end
 
 @testset "MVV-LVA Scoring" begin
-    eFEN = "8/8/8/8/8/8/q1r5/1K6 w - - 0 1"
+    eFEN = "7k/8/8/8/8/8/Q1r5/1K6 b - - 0 1"
     board = Scylla.BoardState(eFEN)
     moves, move_count = Scylla.generate_legal_moves(board)
 
     Scylla.score_moves!(moves)
+    max_score = maximum(m -> Scylla.score(m), moves)
+    min_score = minimum(m -> Scylla.score(m), moves)
     
     for move in moves
         if Scylla.cap_type(move) == Scylla.QUEEN
-            @test Scylla.score(move) == maximum(scores)
+            @test Scylla.score(move) == max_score
             @test Scylla.score(move) > Scylla.MINCAPSCORE
         elseif Scylla.cap_type(move) == Scylla.NULL_PIECE
-            @test Scylla.score(move) == minimum(scores)
+            @test Scylla.score(move) == min_score
             @test Scylla.score(move) < Scylla.MINCAPSCORE
         end
     end

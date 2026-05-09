@@ -16,8 +16,9 @@ const BISHOP = UInt8(4)
 const KNIGHT = UInt8(5)
 const PAWN = UInt8(6)
 
-const FEN_DICT = Dict('K' => KING, 'Q' => QUEEN, 'R' => ROOK, 
-                     'B' => BISHOP, 'N' => KNIGHT, 'P' => PAWN)
+const FEN_DICT = Dict('K' => KING, 'Q' => QUEEN, 'R' => ROOK, 'B' => BISHOP, 'N' => KNIGHT, 'P' => PAWN)
+
+const INV_FEN_DICT = Dict(KING => 'K', QUEEN => 'Q', ROOK => 'R', BISHOP => 'B', KNIGHT => 'N', PAWN => 'P')
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -31,9 +32,9 @@ function piece_letter(p::UInt8)
     return ""
 end
 
-"Colour ID used in movegen/boardstate"
-const WHITE = UInt8(0)
-const BLACK = UInt8(6)
+"definition of white and black side-to-move used in movegen/boardstate"
+const WHITE = true
+const BLACK = false
 
 "instruction to move generator"
 const ATTACKONLY = UInt64(0)
@@ -203,8 +204,9 @@ const PAWN_RIGHT_ATTACK_MASK = BitBoard(0xFEFEFEFEFEFEFEFE)
 
 const PROMOTE_TYPES = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
 
-"max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in move heap"
-const MAXMOVES = 4096
+"max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in move heap
+move heap can be dynamically extended if out-of-bounds, so default is slightly lower"
+const MAXMOVES = 2048
 
 ### Position Descriptions
 

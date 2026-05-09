@@ -2,45 +2,45 @@
 # Define all helper functions to ensure zobrist hash, board position and PST scores are preserved
 
 "utilises setzero to remove a piece from a position"
-@inline function destroy_piece!(board::BoardState, colour::UInt8, piece_type, pos)
-    piece_id = colour_piece_id(colour, piece_type)
+@inline function destroy_piece!(board::BoardState, colour, piece_type, pos)
+    piece_id = long_index(colour) + piece_type
     board.pieces[piece_id] = setzero(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, -1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
 
-    union_id = piece_union_index(colour)
+    union_id = short_index(colour) + 1
     board.piece_union[union_id] = setzero(board.piece_union[union_id], pos)
 end
 
 "utilises setone to create a piece in a position"
-@inline function create_piece!(board::BoardState, colour::UInt8, piece_type, pos)
-    piece_id = colour_piece_id(colour, piece_type)
+@inline function create_piece!(board::BoardState, colour, piece_type, pos)
+    piece_id = long_index(colour) + piece_type
     board.pieces[piece_id] = setone(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, +1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
 
-    union_id = piece_union_index(colour) 
+    union_id = short_index(colour) + 1 
     board.piece_union[union_id] = setone(board.piece_union[union_id], pos)
 end
 
 "utilises create and destroy to move single piece"
-@inline function move_piece!(board::BoardState, colour::UInt8, piece_type, from, to)
+@inline function move_piece!(board::BoardState, colour, piece_type, from, to)
     destroy_piece!(board, colour, piece_type, from)
     create_piece!(board, colour, piece_type, to)
 end
 
 "switch to opposite colour and update hash key"
 @inline function swap_player!(board)
-    board.colour = opposite(board.colour)
-    board.zobrist_hash ⊻= zobrist_colour()
+    board.colour = !board.colour
+    board.zobrist_hash ⊻= ZOBRIST_COLOUR
 end
 
 "update castling rights and zobrist hash"
-@inline function update_castle_rights!(board::BoardState, colour_id, side)
+@inline function update_castle_rights!(board::BoardState, colour, side)
     #remove old castling rights from zobrist hash
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
     #remove ally castling rights by &-ing with opponent mask
-    board.castle = get_castle_rights(board.castle, colour_id, side)
+    board.castle = get_castle_rights(board.castle, colour, side)
     #add new castling rights to zobrist hash
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
 end
@@ -53,18 +53,18 @@ end
 end
 
 "returns location of sqaure behind pawn, either to capture by en-passant or to flag square for attack by en-passant"
-enpassant_location(colour::UInt8, destination) = ifelse(colour==0, destination + 8, destination - 8)
+enpassant_location(colour, destination) = ifelse(colour, destination + 8, destination - 8)
 
 "play a castling move onto the board. perform lookup of rook square to move from/to"
 @inline function make_castle!(board::BoardState, move_from, move_to, move_flag)
     move_piece!(board, board.colour, KING, move_from, move_to)
     
-    castle_lookup = (move_flag == QUEEN_CASTLE) + (!whitesmove(board.colour)) * 2 + 1
+    castle_lookup = (move_flag == QUEEN_CASTLE) + short_index(board.colour) * 2 + 1
     rook_from = ROOK_START_SQUARES[castle_lookup]
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
     move_piece!(board, board.colour, ROOK, rook_from, rook_to)
 
-    update_castle_rights!(board, colour_id(board.colour), 0)
+    update_castle_rights!(board, board.colour, 0)
     #castling does not reset halfmove clock
     board.data.half_moves[end] += 1
 end
@@ -75,24 +75,22 @@ end
         return nothing
     end
 
-    colour_idx = colour_id(board.colour)
     if piece_type == KING
-        update_castle_rights!(board, colour_idx, 0)
+        update_castle_rights!(board, board.colour, 0)
     else
         #lose self castle rights if rook moves
-        if move_from == ROOK_START_SQUARES[2 * colour_idx + 1]     #kingside
-            update_castle_rights!(board, colour_idx, 1)
-        elseif move_from == ROOK_START_SQUARES[2 * colour_idx + 2] #queenside
-            update_castle_rights!(board, colour_idx, 2)
+        if move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 1]     #kingside
+            update_castle_rights!(board, board.colour, 1)
+        elseif move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 2] #queenside
+            update_castle_rights!(board, board.colour, 2)
         end
     end
     
     #remove enemy castle rights if rook captured
-    opponent_idx = (colour_idx + 1) % 2
-    if move_to == ROOK_START_SQUARES[2 * opponent_idx + 1]         #kingside
-        update_castle_rights!(board, opponent_idx, 1)
-    elseif move_to == ROOK_START_SQUARES[2 * opponent_idx + 2]     #queenside
-        update_castle_rights!(board, opponent_idx, 2)
+    if move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 1]         #kingside
+        update_castle_rights!(board, !board.colour, 1)
+    elseif move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 2]     #queenside
+        update_castle_rights!(board, !board.colour, 2)
     end
 end
 
@@ -103,7 +101,7 @@ end
     create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
 
     if is_capture(mv_cap_type)
-        destroy_piece!(board, opposite(board.colour), mv_cap_type, mv_to)
+        destroy_piece!(board, !board.colour, mv_cap_type, mv_to)
     end
 end
 
@@ -116,7 +114,7 @@ end
         if mv_flag == ENPASSANT
             destroy_loc = enpassant_location(board.colour, destroy_loc)
         end
-        destroy_piece!(board, opposite(board.colour), mv_cap_type, destroy_loc)
+        destroy_piece!(board, !board.colour, mv_cap_type, destroy_loc)
         push!(board.data.half_moves, 0)
     elseif mv_pc_type == PAWN
         push!(board.data.half_moves, 0)
@@ -169,7 +167,7 @@ end
 @inline function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
     move_piece!(board, opposite_colour, KING, move_to, move_from)
     
-    castle_lookup = (move_flag == QUEEN_CASTLE) + (!whitesmove(opposite_colour)) * 2 + 1
+    castle_lookup = (move_flag == QUEEN_CASTLE) + short_index(opposite_colour) * 2 + 1
     rook_from = ROOK_START_SQUARES[castle_lookup]
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
     move_piece!(board, opposite_colour, ROOK, rook_to, rook_from)
@@ -222,19 +220,19 @@ end
         error("unmake_move called with no move history")
     end
 
-    opposite_colour = opposite(board.colour)
+
     board.state = Neutral()
     move = pop!(board.move_history)
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
 
     if is_castle(mv_flag)
-        unmake_castle!(board, opposite_colour, mv_from, mv_to, mv_flag)
+        unmake_castle!(board, !board.colour, mv_from, mv_to, mv_flag)
     
     elseif is_promotion(mv_flag)
-        unmake_promotion!(board, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+        unmake_promotion!(board, !board.colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
 
     else
-        unmake_normal_move!(board, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+        unmake_normal_move!(board, !board.colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     end
 
     swap_player!(board)
@@ -250,7 +248,7 @@ function make_pseudolegal_move!(move::Move, board::BoardState, skip_legal_check 
         return true
     end
 
-    success = !in_check(board, opposite(board.colour))
+    success = !in_check(board, !board.colour)
     if !success
         unmake_move!(board)
     end

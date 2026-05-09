@@ -4,12 +4,11 @@
 "return location of king for side to move"
 @inline locate_king(board::BoardState) = locate_king(board, board.colour)
 
-"Masked 4-bit integer representing king- and queen-side castling rights for one side"
-@inline function get_castle_rights(castling, colour_id, king_or_queen_side)
-    #colour_id is 0 for white and 1 for black
+"masked 4-bit integer representing king- and queen-side castling rights for one side"
+@inline function get_castle_rights(castling, colour, king_or_queen_side)
     #king_or_queen_side allows masking out of only king/queen side
     #for a given colour, =0 if both, 1 = king, 2 = queen
-    @inbounds rights = CASTLE_RIGHTS[3 * colour_id + king_or_queen_side + 1]
+    @inbounds rights = CASTLE_RIGHTS[3 * short_index(colour) + king_or_queen_side + 1]
     return castling & rights
 end
 
@@ -30,7 +29,7 @@ function LegalInfo(board::BoardState)
     attacker_num = 0
     
     all_pcs = all_pieces(board)
-    king_bb = board.pieces[board.colour + KING]
+    king_bb = ally_piece(board, KING)
     position = LSB(king_bb)
 
     #construct BB of all enemy attacks, must remove king when checking if square is attacked
@@ -100,7 +99,7 @@ end
     bishop_attackers = (bishop_moves & (enemy_piece(board, BISHOP) | enemy_queen_bb))
     attackers |= bishop_attackers
 
-    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << location, whitesmove(board.colour))
+    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << location, board.colour)
     attackers |= pawn_attackers & enemy_piece(board, PAWN)
 
     return attackers
@@ -130,8 +129,7 @@ end
         attacks |= pseudolegal_queen_moves(location, all_pcs)
     end
 
-    enemy_colour = opposite(whitesmove(board.colour))
-    attacks |= pseudolegal_pawn_moves(enemy_piece(board, PAWN), enemy_colour)
+    attacks |= pseudolegal_pawn_moves(enemy_piece(board, PAWN), !board.colour)
     return attacks
 end
 
@@ -179,10 +177,9 @@ end
 end
 
 "create a castling move where the king is considered to be the piece moving"
-@inline function create_castle(king_or_queen, white_or_black)
+@inline function create_castle(king_or_queen, colour)
     # king_or_queen is 0 if kingside, 1 if queenside 
-    # white_or_black is 0 if white, 1 if black
-    castle_lookup = king_or_queen + white_or_black * 2 + 1
+    castle_lookup = king_or_queen + short_index(colour) * 2 + 1
     return CASTLE_MOVES[castle_lookup]
 end
 
@@ -426,9 +423,8 @@ end
 
 "mask out opponents castle rights, retrieve king- and queen-side castling rights index if possible. 
 must return a Bitboard to iterate through the set bits"
-function self_castle_rights(castle_rights, colour_id)::BitBoard
-    opponent_id = (colour_id + 1) % 2
-    return get_castle_rights(castle_rights, opponent_id, 0)
+function self_castle_rights(castle_rights, colour)::BitBoard
+    return get_castle_rights(castle_rights, !colour, 0)
 end
 
 "return mask for squares that can block castling, either by ally or enemy pieces"
@@ -450,10 +446,9 @@ end
 "generate castling moves for side-to-move if the rights exist and it is legal to do so"
 @inline function get_castle_moves!(::AllMoves, board::BoardState, all_pcs, attacked_squares)
     castle_rights = board.castle
-    colour_index = colour_id(board.colour)
-    for castle_id in self_castle_rights(castle_rights, colour_index)
+    for castle_id in self_castle_rights(castle_rights, board.colour)
         if can_castle(castle_id, all_pcs, attacked_squares)
-            append!(board.move_vector, create_castle(UInt8(castle_id % 2), colour_index))
+            append!(board.move_vector, create_castle(UInt8(castle_id % 2), board.colour))
         end
     end
 end
@@ -643,11 +638,10 @@ end
 
 "returns attack and quiet moves for pawns only if legal, based on checks and pins"
 @inline function get_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE, info::LegalInfo)
-    colour = whitesmove(board.colour)
     piece_bb = ally_piece(board, PAWN)
     kingpos = locate_king(board)
-    pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
-    helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, colour, MODE, info)
+    pawn_masks = ifelse(board.colour, WHITE_MASKS, BLACK_MASKS)
+    helper = PawnMoveHelper(piece_bb, pawn_masks.doublepush, all_pcs, board.colour, MODE, info)
 
     legal_single_push!(board, helper, pawn_masks, info)
     legal_double_push!(board, helper, pawn_masks, info)
@@ -655,14 +649,13 @@ end
     enpassant_moves!(board, helper, pawn_masks.shift, board.enpassant_bb, info.attackers, all_pcs, kingpos)
 end
 
-#TODO: refactor into separate functions
-@inline function get_pseudolegal_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
-    colour = whitesmove(board.colour)    
+
+@inline function get_pseudolegal_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)    
     pawn_bb = ally_piece(board, PAWN)
-    pawn_masks = ifelse(colour, WHITE_MASKS, BLACK_MASKS)
+    pawn_masks = ifelse(board.colour, WHITE_MASKS, BLACK_MASKS)
 
     # single push
-    single_push = cond_push(colour, pawn_bb)
+    single_push = cond_push(board.colour, pawn_bb)
     quiet_single = quiet_moves(MODE, single_push, all_pcs)
     single_normal = quiet_single & ~pawn_masks.promote
     single_promote = quiet_single & pawn_masks.promote
@@ -670,7 +663,7 @@ end
     push_moves!(board, single_promote, pawn_masks.shift, Promote())
 
     # double push
-    double_push = cond_push(colour, quiet_single & pawn_masks.doublepush)
+    double_push = cond_push(board.colour, quiet_single & pawn_masks.doublepush)
     quiet_double = quiet_moves(MODE, double_push, all_pcs)
     double_push_moves!(board, quiet_double, pawn_masks.shift)
 
@@ -766,33 +759,32 @@ end
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
 @inline function in_check(board::BoardState, colour = board.colour)
     king_pos = locate_king(board, colour)
-    enemy_colour = opposite(colour)
 
     knight_moves = pseudolegal_knight_moves(king_pos)
-    if (knight_moves & colour_piece(board, enemy_colour, KNIGHT)) > 0
+    if (knight_moves & colour_piece(board, !colour, KNIGHT)) > 0
         return true
     end
 
     king_moves = pseudolegal_king_moves(king_pos)
-    if (king_moves & colour_piece(board, enemy_colour, KING)) > 0
+    if (king_moves & colour_piece(board, !colour, KING)) > 0
         return true
     end
 
-    queen_bb = colour_piece(board, enemy_colour, QUEEN)
+    queen_bb = colour_piece(board, !colour, QUEEN)
     all_pcs = all_pieces(board)
 
     rook_moves = pseudolegal_rook_moves(king_pos, all_pcs)
-    if (rook_moves & (colour_piece(board, enemy_colour, ROOK) | queen_bb)) > 0
+    if (rook_moves & (colour_piece(board, !colour, ROOK) | queen_bb)) > 0
         return true
     end
 
     bishop_moves = pseudolegal_bishop_moves(king_pos, all_pcs)
-    if (bishop_moves & (colour_piece(board, enemy_colour, BISHOP) | queen_bb)) > 0
+    if (bishop_moves & (colour_piece(board, !colour, BISHOP) | queen_bb)) > 0
         return true
     end
 
-    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << king_pos, whitesmove(colour))
-    if (pawn_attackers & colour_piece(board, enemy_colour, PAWN)) > 0
+    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << king_pos, colour)
+    if (pawn_attackers & colour_piece(board, !colour, PAWN)) > 0
         return true
     end
     return false

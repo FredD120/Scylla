@@ -6,15 +6,25 @@
 mutable struct MoveVec
     moves::Vector{Move}
     ind::UInt16
+    len::Int64
 end
 
 "create array of moves with default length, avoids allocating memory in tight loops"
-MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX)
+MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX, len)
 
 "append move to move vec, increment index by one"
-function append!(m::MoveVec, move::Move)
+@inline function append!(m::MoveVec, move::Move)
     m.ind += 1
-    #=@inbounds=# m.moves[m.ind] = move
+    @boundscheck if m.ind > m.len
+        m.len *= 2
+        new_moves = Vector{Move}(undef, m.len)
+
+        for (i, move) in enumerate(m.moves)
+            new_moves[i] = move
+        end
+        m.moves = new_moves
+    end
+    @inbounds m.moves[m.ind] = move
 end
 
 "reset index of movevec, but don't actually wipe data"
@@ -30,27 +40,17 @@ end
 "return a view into the current moves in move vec"
 current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m.ind]
 
+"index into PST based on side-to-move"
+side_index(colour::Bool, ind) = ifelse(colour, ind, 8 * rank(ind) + file(ind))
+
+"offset for index into piece array based on side-to-move"
+long_index(colour::Bool) = ifelse(colour, 0, 6)
+
+"index either 0 or 1 for white or black, used for indexing small arrays"
+short_index(colour::Bool) = Int(!colour)
+
 "Positive or negative for White/Black respectively"
-sgn(colour::UInt8) = ifelse(colour==0, +1, -1)
-
-#white = true, black = false
-"Boolean representing whose turn it is, chosen based on value on UInt8"
-whitesmove(colour_index::UInt8) = ifelse(colour_index == 0, true, false)
-
-#white = 0, black = 1
-"Colour ID from value stored in board representation"
-colour_id(colour_index::UInt8)::UInt8 = colour_index % 5
-
-#white = 0, black = 6
-"Helper functions to return opposite colour index"
-opposite(colour_index::UInt8)::UInt8 = (colour_index + 6) % 12
-opposite(colour::Bool) = !colour
-
-"Helper functions to return index of piece BB in piece list"
-colour_piece_id(colour::UInt8, piece::Integer) = colour + piece
-
-"Index into PST based on colour index"
-side_index(colour::UInt8, ind) = ifelse(colour==0, ind, 8 * rank(ind) + file(ind))
+sgn(colour::Bool) = ifelse(colour, +1, -1)
 
 mutable struct BoardData
     half_moves::Vector{UInt8}
@@ -76,7 +76,7 @@ end
 mutable struct BoardState
     pieces::Vector{BitBoard}
     piece_union::Vector{BitBoard}
-    colour::UInt8
+    colour::Bool
     castle::UInt8
     enpassant_bb::BitBoard
     state::GameState
@@ -98,12 +98,9 @@ function pc_unions(pieces)::Vector{BitBoard}
     return [white_pc_bb, black_pc_bb, all_pc_bb]
 end
 
-"index of bitboard representing union of all pieces of a given colour"
-piece_union_index(colour::UInt8) = colour_id(colour) + 1
+all_ally_pieces(board::BoardState) = board.piece_union[short_index(board.colour) + 1]
 
-all_ally_pieces(board::BoardState) = board.piece_union[piece_union_index(board.colour)]
-
-all_enemy_pieces(board::BoardState) = board.piece_union[piece_union_index(opposite(board.colour))]
+all_enemy_pieces(board::BoardState) = board.piece_union[short_index(!board.colour) + 1]
 
 all_pieces(board::BoardState) = board.piece_union[end]
 
@@ -138,13 +135,13 @@ function zobrist_enpassant(zobrist_hash, enpassant)
 end
 
 "Returns zobrist key associated with a coloured piece at a location"
-zobrist_piece(colour_id, pos) = ZOBRIST_KEYS[64 * (colour_id - 1) + pos + 1]
+zobrist_piece(piece_id, pos) = ZOBRIST_KEYS[64 * (piece_id - 1) + pos + 1]
 
 "Returns zobrist key associated with whose turn it is (switched on if black)"
-zobrist_colour() = ZOBRIST_KEYS[end]
+const ZOBRIST_COLOUR = ZOBRIST_KEYS[end]
 
 "Generate Zobrist hash of a boardstate"
-function generate_hash(pieces, colour::UInt8, castling, enpassant)
+function generate_hash(pieces, colour, castling, enpassant)
     zobrist_hash = BitBoard()
     for (piece_id, piece_bb) in enumerate(pieces)
         for loc in piece_bb
@@ -157,8 +154,8 @@ function generate_hash(pieces, colour::UInt8, castling, enpassant)
     zobrist_hash = zobrist_enpassant(zobrist_hash, enpassant)
     zobrist_hash = zobrist_castle(zobrist_hash, castling)
 
-    if !whitesmove(colour)
-        zobrist_hash ⊻= zobrist_colour()
+    if !colour
+        zobrist_hash ⊻= ZOBRIST_COLOUR
     end
     return zobrist_hash
 end
@@ -174,8 +171,8 @@ function get_pieces(FEN_board)
     for char in FEN_board
         if isletter(char)
             upper_letter = uppercase(char)
-            piece_colour = char == upper_letter ? WHITE : BLACK
-            place_piece!(pieces, FEN_DICT[upper_letter] + piece_colour, i)
+            colour_ind = long_index(char == upper_letter ? WHITE : BLACK)
+            place_piece!(pieces, FEN_DICT[upper_letter] + colour_ind, i)
             i += 1
         elseif isnumeric(char)
             i += parse(Int, char)
@@ -249,25 +246,28 @@ end
 BoardState() = BoardState(START_FEN)
 
 "helper function to obtain vector of ally bitboards"
-ally_pieces(b::BoardState) = @view b.pieces[b.colour + 1:b.colour + 6]
+function ally_pieces(b::BoardState)
+    ind = long_index(b.colour)
+    return @view b.pieces[ind + 1:ind + 6]
+end
 
 "helper function to obtain vector of enemy bitboards"
 function enemy_pieces(b::BoardState) 
-    enemy_ind = opposite(b.colour)
-    return @view b.pieces[enemy_ind + 1:enemy_ind + 6]
+    ind = long_index(!b.colour)
+    return @view b.pieces[ind + 1:ind + 6]
 end
+
+"helper function to access pieces bitboards for either player"
+@inline colour_piece(b::BoardState, colour, piece) = @inbounds b.pieces[long_index(colour) + piece]
 
 "helper function to obtain bitboard of ally piece"
 @inline ally_piece(b::BoardState, piece) = colour_piece(b, b.colour, piece)
 
 "helper function to obtain bitboard of enemy piece"
-@inline enemy_piece(b::BoardState, piece) = colour_piece(b, opposite(b.colour), piece)
+@inline enemy_piece(b::BoardState, piece) = colour_piece(b, !b.colour, piece)
 
-"helper function to access pieces bitboards for either player"
-@inline colour_piece(b::BoardState, colour, piece) = @inbounds b.pieces[colour + piece]
-
-"create a 64-length vector of where pieces are on the board, useful for a GUI"
-function GUIposition(board::BoardState)
+"create a 64-length vector of where pieces are on the board"
+function offset_board(board::BoardState)
     position = zeros(UInt8, 64)
     for (piece_id, piece) in enumerate(board.pieces)
         for i in 0:63
@@ -288,7 +288,11 @@ function identify_piecetype(board::BoardState, location::Integer)::UInt8
             break
         end
     end
-    return id - opposite(board.colour)
+
+    if id == NULL_PIECE
+        error("Piece not found")
+    end
+    return id - long_index(!board.colour)
 end
 
 "convert a move to UCI notation"
@@ -351,5 +355,27 @@ function short_move(move::Move)
 
         promote = piece_letter(promote_type(flg))
         return P * mid * T * promote
+    end
+end
+
+"print a visualisation of the board to StdOut"
+function print_board(board::BoardState)
+    mailbox = offset_board(board)
+
+    for (pos, piece) in enumerate(mailbox)
+        if piece == NULL_PIECE
+            print(". ")
+        else
+            if piece < 7
+                str = INV_FEN_DICT[piece]
+            else
+                str = lowercase(INV_FEN_DICT[piece - 6])
+            end
+            print(str, " ")
+        end
+
+        if file(pos - 1) == 7
+            println("")
+        end
     end
 end

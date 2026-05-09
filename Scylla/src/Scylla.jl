@@ -36,7 +36,7 @@ TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
 -> Transposition table
- - Pack TT entries into UInt128
+ - Pack TT entries into 2 UInt64s
  - Age out TT entry whenever its accessed but not used
  - Test accessing TT in quiescence search
  - Enable future multi-threading via shared lock-less transposition table
@@ -49,13 +49,11 @@ Speed
 -> Fixed size board history array - reduce allocations
 -> Try pseudolegal move generation in main search again
 -> Try incrementally updated mailbox for identify_piecetype
+-> Test playing TT move immediately if pseudo-legal
 -> Test small lookups vs on the fly calculation
 -> Faster 3-move repetition detection
--> Pre-allocate board history data
 
 Refactor
--> Unify white/black distinction, ensuring same speed
- - Three types of indexing: true/false, 0/1, 0/6 - use simple boolean
 -> Clarify self_castle_rights name/usage
 
 TO THINK ABOUT
@@ -84,7 +82,7 @@ include("perft.jl")
 include("cli.jl")
 include("precompile.jl")
 
-export BitBoard, BoardState, setzero, setone,
+export BitBoard, BoardState, print_board, setzero, setone,
        make_move!, unmake_move!,
        generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
