@@ -36,10 +36,6 @@ end
 const WHITE = true
 const BLACK = false
 
-"instruction to move generator"
-const ATTACKONLY = UInt64(0)
-const ALLMOVES = UInt64(1)
-
 const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
 
 const TYPICAL_GAME_LENGTH = 100
@@ -120,8 +116,10 @@ const MOVEMASK = UInt32((1 << SCORESHIFT) - 1)
 abstract type MoveMode end
 
 struct AllMoves <: MoveMode end
-
 struct AttacksOnly <: MoveMode end
+
+const ALLMOVES = AllMoves()
+const ATTACKSONLY = AttacksOnly()
 
 "read bitboards for king/knight moves from any position"
 function get_normal_masks(piece)
@@ -144,44 +142,48 @@ end
 
 "named tuple storing positions of rook home squares for use when generating castling moves"
 const ROOK_START_SQUARES = (
-    white_kingside = UInt8(63),
-    white_queenside = UInt8(56),
-    black_kingside  = UInt8(7),
-    black_queenside = UInt8(0)
+    UInt8(63), # white kingside
+    UInt8(56), # white queenside
+    UInt8(7),  # black kingside
+    UInt8(0)   # black queenside
 )
 
 "named tuple storing positions of squares the rook finishes on after castling"
 const ROOK_CASTLE_SQUARES = (
-    white_kingside = UInt8(61),
-    white_queenside = UInt8(59),
-    black_kingside  = UInt8(5),
-    black_queenside = UInt8(3)
+    UInt8(61), # white kingside
+    UInt8(59), # white queenside
+    UInt8(5),  # black kingside
+    UInt8(3)   # black queenside
 )
 
-"named tuple storing castling rights masks to check if it is legal for black/white to castle king/queenside"
-const CASTLE_RIGHTS = (
-    white_king_and_queen = UInt8(12),
-    white_king = UInt8(14),
-    white_queen = UInt8(13),
-    black_king_and_queen = UInt8(3),
-    black_king = UInt8(11),
-    black_queen = UInt8(7)
+"mask to extract castle rights for side-to-move"
+const CASTLE_RIGHTS_MASK = (
+    UInt8(3), # white
+    UInt8(12) # black
 )
 
 "named tuple storing masks of squares that can't be blocked for black/white to castle king/queenside"
 const CASTLE_BLOCKS = (
-    white_king = BitBoard(0b01100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    white_queen = BitBoard(0b00001110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    black_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01100000),
-    black_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00001110),
+    # white king
+    BitBoard(0b01100000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    # white queen
+    BitBoard(0b00001110_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    # black king
+    BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01100000),
+    # black queen
+    BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00001110),
 )
 
 "named tuple storing masks of squares that can't be attacked for black/white to castle king/queenside"
 const CASTLE_ATTACKS = (
-    white_king = BitBoard(0b01110000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    white_queen = BitBoard(0b00011100_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
-    black_king = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01110000),
-    black_queen = BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00011100),
+    # white king
+    BitBoard(0b01110000_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    # white queen
+    BitBoard(0b00011100_00000000_00000000_00000000_00000000_00000000_00000000_00000000),
+    # black king
+    BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01110000),
+    # black queen
+    BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00011100),
 )
 
 "bitboard masks for pawn double push and promotion legality

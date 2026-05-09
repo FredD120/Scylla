@@ -53,9 +53,6 @@ Speed
 -> Test small lookups vs on the fly calculation
 -> Faster 3-move repetition detection
 
-Refactor
--> Clarify self_castle_rights name/usage
-
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
 # Do we need to check for FIDE draws like KNk, KBk

@@ -133,58 +133,6 @@ end
 end
 
 @testset "Castling Rights" begin
-    @testset "Self Castle Rights" begin
-        castle_rights = UInt8(0b1111)
-        white = Scylla.self_castle_rights(castle_rights, Scylla.WHITE)
-        black = Scylla.self_castle_rights(castle_rights, Scylla.BLACK)
-
-        @test white == UInt8(0b0011)
-        @test black == UInt8(0b1100)
-    end
-
-    king_set = setone(setone(Scylla.BITBOARD_EMPTY, 4), 60)
-    rook_set = setone(setone(setone(setone(Scylla.BITBOARD_EMPTY, 0), 7), 56), 63)
-    queen_set = setone(setone(Scylla.BITBOARD_EMPTY, 3), 59)
-    white_castle = BitBoard(0b0011)
-    black_castle = BitBoard(0b1100)
-
-    @testset "Castle Blockers" begin
-        for index_bb in [white_castle, black_castle]
-            for (index, is_queen) in zip(index_bb, [false, true])
-                block_mask = Scylla.castle_blocker_mask(index)
-
-                @test block_mask & Scylla.BITBOARD_EMPTY == 0
-                @test block_mask & king_set == 0
-                @test block_mask & rook_set == 0
-                @test (block_mask & queen_set != 0) == is_queen
-            end
-        end
-    end
-
-    @testset "Castle Attackers" begin
-        for index_bb in [white_castle, black_castle]
-            for (index, is_queen) in zip(index_bb, [false, true])
-                attack_mask = Scylla.castle_attacker_mask(index)
-
-                @test attack_mask & Scylla.BITBOARD_EMPTY == 0
-                @test attack_mask & king_set > 0
-                @test attack_mask & rook_set == 0
-                @test (attack_mask & queen_set != 0) == is_queen
-            end
-        end
-    end
-
-    @testset "Asymmetric Castle" begin
-        castle_FEN = "r3k2r/pppppppp/8/8/8/8/8/RRRRKRRR b KQkq - 0 1"
-        board = Scylla.BoardState(castle_FEN)
-        castle_id = Scylla.self_castle_rights(board.castle, board.colour)
-        info = Scylla.LegalInfo(board)
-
-        for id in castle_id
-            @test Scylla.can_castle(id, Scylla.all_pieces(board), info.attack_sqs)
-        end
-    end
-
     cFEN = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
     board = Scylla.BoardState(cFEN)
     moves, move_count = Scylla.generate_legal_moves(board)
@@ -521,14 +469,6 @@ end
     pseudolegal, _ = generate_pseudolegal_moves(all_board)
 
     @test length(legal) == length(pseudolegal)
-
-    attack_FEN = "1n2k3/P7/8/8/8/rrrrrrrr/3PRP2/RNBQKBNR w KQkq - 0 1"
-    attack_board = BoardState(attack_FEN)
-
-    legal, _ = Scylla.generate_legal_attacks(attack_board)
-    pseudolegal, _ = Scylla.generate_pseudolegal_attacks(attack_board)
-
-    @test length(legal) == length(pseudolegal)
 end
 
 @testset "Pseudolegal Enpassant" begin
@@ -609,11 +549,6 @@ function Testing_perft(board::BoardState, depth)
     legal = Scylla.LegalInfo(board)
 
     moves, move_count = Scylla.generate_legal_moves(board, legal)
-    
-    attacks, attack_count = Scylla.generate_legal_attacks(board)
-    num_attacks = count(m->Scylla.cap_type(m) > 0, moves)
-    @assert attack_count == num_attacks "Wrong number of attacks generated. Should be $(num_attacks), got $(attack_count)."
-    Scylla.clear_current_moves!(board.move_vector, attack_count)
 
     if depth > 1
         for move in moves
@@ -629,7 +564,6 @@ end
 
 function test_with_perft()
     #Test that PST values from incremental update are not different from static evaluation
-    #Also that number of attacks from generate_legal_attacks is the same as from Scylla.generate_legal_moves(all)
     #Also that we can identify terminal nodes without running movegen
 
     FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"

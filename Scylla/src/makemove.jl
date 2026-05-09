@@ -35,13 +35,30 @@ end
     board.zobrist_hash ⊻= ZOBRIST_COLOUR
 end
 
-"update castling rights and zobrist hash"
-@inline function update_castle_rights!(board::BoardState, colour, side)
-    #remove old castling rights from zobrist hash
+"remove both castling rights for side-to-move and update zobrist hash"
+@inline function remove_all_castle_rights!(board::BoardState, colour)
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
-    #remove ally castling rights by &-ing with opponent mask
-    board.castle = get_castle_rights(board.castle, colour, side)
-    #add new castling rights to zobrist hash
+
+    # logical AND with NOT of castle rights mask to remove ally bits
+    board.castle &= ~CASTLE_RIGHTS_MASK[short_index(colour) + 1]
+    board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
+end
+
+"remove king castling rights for side-to-move and update zobrist hash"
+@inline function remove_king_castle_rights!(board::BoardState, colour)
+    board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
+
+    # logical AND with all but king castle rights of side-to-move
+    board.castle &= ~(UInt8(1) << (short_index(colour) * 2))
+    board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
+end
+
+"remove queen castling rights for side-to-move and update zobrist hash"
+@inline function remove_queen_castle_rights!(board::BoardState, colour)
+    board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
+
+    # logical AND with all but queen castle rights of side-to-move
+    board.castle &= ~(UInt8(1) << (short_index(colour) * 2 + 1))
     board.zobrist_hash = zobrist_castle(board.zobrist_hash, board.castle)
 end
 
@@ -64,7 +81,7 @@ enpassant_location(colour, destination) = ifelse(colour, destination + 8, destin
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
     move_piece!(board, board.colour, ROOK, rook_from, rook_to)
 
-    update_castle_rights!(board, board.colour, 0)
+    remove_all_castle_rights!(board, board.colour)
     #castling does not reset halfmove clock
     board.data.half_moves[end] += 1
 end
@@ -76,21 +93,22 @@ end
     end
 
     if piece_type == KING
-        update_castle_rights!(board, board.colour, 0)
+        remove_all_castle_rights!(board, board.colour)
     else
-        #lose self castle rights if rook moves
+        # lose self castle rights if rook moves
         if move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 1]     #kingside
-            update_castle_rights!(board, board.colour, 1)
+            remove_king_castle_rights!(board, board.colour)
+            
         elseif move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 2] #queenside
-            update_castle_rights!(board, board.colour, 2)
+            remove_queen_castle_rights!(board, board.colour)
         end
     end
     
     #remove enemy castle rights if rook captured
     if move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 1]         #kingside
-        update_castle_rights!(board, !board.colour, 1)
+        remove_king_castle_rights!(board, !board.colour)
     elseif move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 2]     #queenside
-        update_castle_rights!(board, !board.colour, 2)
+        remove_queen_castle_rights!(board, !board.colour)
     end
 end
 
