@@ -329,7 +329,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 end
 
 "iterate through all moves and recursively call minimax to evaluate the position. returns a score, node type and best move"
-function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, ply, is_principal::Bool, logger::Logger)
+function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, ply, is_principal, is_check, logger::Logger)
     # figure out type of current node for use in TT and best move
     node_type = ALPHA
     best_move = NULLMOVE
@@ -340,7 +340,10 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
         next_best!(moves, i)
         move = moves[i]
 
-        make_move!(move, engine.board)
+        success = make_pseudolegal_move!(move, engine.board, is_check)
+        if !success
+            continue
+        end
         score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
         unmake_move!(engine.board)
 
@@ -409,9 +412,16 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         return score
     end
 
-    moves, move_length = generate_legal_moves(engine.board)
+    is_check = in_check(engine.board)
+
+    (moves, move_length) = if is_check 
+        generate_legal_moves(engine.board)
+    else
+        generate_pseudolegal_moves(engine.board)
+    end
+
     score_moves!(moves, engine.info.killers[ply + 1], best_move)
-    score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, logger)
+    score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, is_check, logger)
 
     clear_current_moves!(engine.board.move_vector, move_length)
     return score

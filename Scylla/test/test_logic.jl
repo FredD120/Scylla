@@ -612,12 +612,6 @@ function test_speed()
     return leaves,Δt
 end
 
-if perft_extra::Bool
-    test_with_perft()
-    leaves, Δt = test_speed()
-    println("Leaves: $leaves. NPS = $(leaves/(Δt * 1e6)) Mnps")
-end
-
 function test_pseudolegal_perft()
     Δt = 0
     leaves = 0
@@ -629,7 +623,7 @@ function test_pseudolegal_perft()
         end
         
         t = time()
-        cur_leaves = Scylla.pseudolegal_perft(board, depth, verbose)
+        cur_leaves = Scylla.pseudolegal_perft(board, depth, nothing, verbose)
         Δt += time() - t
         leaves += cur_leaves
 
@@ -642,11 +636,6 @@ function test_pseudolegal_perft()
     return leaves, Δt
 end
 
-if pseudolegal::Bool
-    leaves, Δt = test_pseudolegal_perft()
-    println("Pseudolegal Perft: Leaves = $leaves. NPS = $(leaves/(Δt * 1e6)) Mnps")
-end
-
 function run_TT_perft(fen, depth, target)
     board = Scylla.BoardState(fen)
     table = Scylla.TranspositionTable(Scylla.PerftData, 20, verbose)
@@ -655,22 +644,12 @@ function run_TT_perft(fen, depth, target)
     return  time() - t
 end
 
-function test_TT_perft()
-    #best speed = 400 Mnps
-    δt = run_TT_perft(FEN, 7, 3195901860)
-    println("Successfully determined perft 7 in $(round(δt,sigdigits=4))s. $(round(3195901860 / (δt * 1e6), sigdigits=6)) Mnps")
-end
-if TT_perft::Bool
-    test_TT_perft()
-end
-
 function run_pseudolegal_perft(fen, depth, target) 
     board = Scylla.BoardState(fen)
     table = Scylla.TranspositionTable(Scylla.PerftData, 22, verbose)
     t = time()
     @test Scylla.pseudolegal_perft(board, depth, table, verbose) == target
-    #@assert Scylla.pseudolegal_perft(board, depth, verbose) == target "Error on $fen"
-    return  time() - t
+    return time() - t
 end
 
 const quick_suite = false
@@ -700,6 +679,20 @@ function test_big_perft_positions()
     println("Perft test suite complete. Searched $total leaf nodes at $speed Mnps")
 end 
 
-if full_perft
+if perft_extra::Bool
+    # test incremental updates of values
+    test_with_perft()
+
+    leaves, Δt = test_pseudolegal_perft()
+    println("Pseudolegal Perft - NPS = $(leaves/(Δt * 1e6)) Mnps")
+    
+    leaves, Δt = test_speed()
+    println("Standard perft - NPS = $(leaves/(Δt * 1e6)) Mnps")
+
+    δt = run_TT_perft(FEN, 7, 3195901860)
+    println("TT perft 7 - NPS = $(round(3195901860 / (δt * 1e6), sigdigits=6)) Mnps")
+end
+
+if expensive
     test_big_perft_positions()
 end

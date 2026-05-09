@@ -158,7 +158,8 @@ function test_positions()
     end
 end
 
-if engine_hard::Bool
+
+if expensive::Bool
     result = @testset "Difficult Engine Tests" begin
         test_positions()
     end

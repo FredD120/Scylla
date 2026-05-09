@@ -47,7 +47,6 @@ Known bugs
 Speed
 -> Test whether extensive inlining is necessary
 -> Fixed size board history array - reduce allocations
--> Try pseudolegal move generation in main search again
 -> Try incrementally updated mailbox for identify_piecetype
 -> Test playing TT move immediately if pseudo-legal
 -> Test small lookups vs on the fly calculation
