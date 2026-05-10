@@ -344,7 +344,7 @@ function offset_board(board::BoardState)
     return position
 end
 
-"loop through a list of piece BBs for one colour and return ID of enemy piece at a location"
+"loop through a list of piece BBs and return ID of enemy piece at a location"
 function identify_piecetype(board::BoardState, location::Integer)::UInt8
     id = NULL_PIECE
     for (piece_id, piece_bb) in enumerate(board.pieces)
@@ -357,6 +357,7 @@ function identify_piecetype(board::BoardState, location::Integer)::UInt8
     if id == NULL_PIECE
         error("Piece not found")
     end
+    # really hacky - always returns a value between 1 and 6
     return id - long_index(!board.colour)
 end
 

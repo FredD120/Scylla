@@ -173,7 +173,6 @@ end
     for loc in destinations
         attacked_piece_id = NULL_PIECE
         if isattack
-            #move struct needs info on piece being attacked
             attacked_piece_id = identify_piecetype(board, loc)
         end
         append!(board.move_vector, Move(type, origin, loc, attacked_piece_id, NOFLAG))
@@ -434,8 +433,13 @@ end
 
 "castling must be legal to be generated, but correctness requirement on all-attacked-sqaures is lower"
 @inline function get_pseudolegal_castle_moves!(::AllMoves, board::BoardState, all_pcs)
-    attacked_squares = enemy_attacks(board, all_pcs)
-    get_castle_moves!(board, all_pcs, attacked_squares)
+    for castle_id in self_castle_rights(board)
+        if CASTLE_BLOCKS[castle_id + 1] & all_pcs == 0
+            if CASTLE_ATTACKS[castle_id + 1] & enemy_attacks(board, all_pcs) == 0
+                append!(board.move_vector, CASTLE_MOVES[castle_id + 1])
+            end
+        end
+    end
 end
 
 "castling is a quiet move, not generated during attack-only move generation"
