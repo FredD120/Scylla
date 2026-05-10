@@ -83,7 +83,7 @@ enpassant_location(colour, destination) = ifelse(colour, destination + 8, destin
 
     remove_all_castle_rights!(board, board.colour)
     #castling does not reset halfmove clock
-    board.data.half_moves[end] += 1
+    board.half_moves += 1
 end
 
 "if not castling, moving the king/rooks or capturing rooks can update castling rights"
@@ -114,7 +114,7 @@ end
 
 "deals with promotions, always resets halfmove clock"
 @inline function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
-    push!(board.data.half_moves, 0)
+    board.half_moves = 0
     destroy_piece!(board, board.colour, mv_pc_type, mv_from)
     create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
 
@@ -133,11 +133,11 @@ end
             destroy_loc = enpassant_location(board.colour, destroy_loc)
         end
         destroy_piece!(board, !board.colour, mv_cap_type, destroy_loc)
-        push!(board.data.half_moves, 0)
+        board.half_moves = 0
     elseif mv_pc_type == PAWN
-        push!(board.data.half_moves, 0)
+        board.half_moves = 0
     else
-        board.data.half_moves[end] += 1
+       board.half_moves += 1
     end
 end
 
@@ -151,16 +151,9 @@ end
     end
 end
 
-"push move to move history and enpassant, zobrist hash and castling rights to BoardData"
-@inline function update_history(board::BoardState, move::Move)
-    push!(board.move_history, move)
-    push!(board.data.enpassant, board.enpassant_bb)
-    push!(board.data.zobrist_hash_history, board.zobrist_hash)
-    push!(board.data.castling, board.castle)
-end
-
 "modify boardstate by making a move. increment halfmove count. add move to move_history. update castling rights"
 @inline function make_move!(move::Move, board::BoardState)
+    update_history!(board, move)
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::Move)
 
     if is_castle(mv_flag)
@@ -178,7 +171,6 @@ end
     enpassant_cleanup!(board, mv_flag, mv_to)
     swap_player!(board)
     update_piece_union!(board)
-    update_history(board, move)
 end
 
 "unmake king- or queen-side castle for opponent"
@@ -214,33 +206,11 @@ end
     end
 end
 
-"update data struct with halfmoves, en-passant, zobrist hash and castling"
-@inline function rollback_history!(board::BoardState)
-    if board.data.half_moves[end] > 0 
-        board.data.half_moves[end] -= 1
-    else
-        pop!(board.data.half_moves)
-    end
-
-    pop!(board.data.castling)
-    board.castle = board.data.castling[end]
-
-    pop!(board.data.enpassant)
-    board.enpassant_bb = board.data.enpassant[end]
-
-    pop!(board.data.zobrist_hash_history)
-    board.zobrist_hash = board.data.zobrist_hash_history[end]
-end
-
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
 @inline function unmake_move!(board::BoardState)
-    if length(board.move_history) == 0
-        error("unmake_move called with no move history")
-    end
-
-
     board.state = Neutral()
-    move = pop!(board.move_history)
+    move = rollback_history!(board)
+    zobrist = board.zobrist_hash
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
 
     if is_castle(mv_flag)
@@ -253,9 +223,9 @@ end
         unmake_normal_move!(board, !board.colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     end
 
-    swap_player!(board)
+    board.colour = !board.colour
     update_piece_union!(board)
-    rollback_history!(board)
+    board.zobrist_hash = zobrist
 end
 
 "attempt to make a pseudolegal move and check if it worked. returns true if successful, false if not and rolls back illegal move"

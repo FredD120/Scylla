@@ -670,15 +670,6 @@ end
     end
 end
 
-#TODO: count backwards from latest position and quit early if halfmove count is reset
-"one-liner to test draw by repetition" 
-@inline three_repetition(board::BoardState) = count(i->(i==board.zobrist_hash), board.data.zobrist_hash_history) >= 3
-
-"implement 50 move rule and 3 position repetition"
-@inline function draw_state(board::BoardState)::Bool
-    return (board.data.half_moves[end] >= 100) || three_repetition(board)
-end
-
 "find locations of owned pieces and create a movelist of all legal moves"
 function generate_legal_moves(board::BoardState, legal_info=LegalInfo(board))
     prev_move_index = board.move_vector.ind

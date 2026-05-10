@@ -6,11 +6,11 @@
 mutable struct MoveVec
     moves::Vector{Move}
     ind::UInt16
-    len::Int64
+    len::UInt16
 end
 
 "create array of moves with default length, avoids allocating memory in tight loops"
-MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), FIRST_MOVE_INDEX, len)
+MoveVec(len = MAXMOVES) = MoveVec(Vector{Move}(undef, len), UInt16(0), len)
 
 "append move to move vec, increment index by one"
 @inline function append!(m::MoveVec, move::Move)
@@ -29,7 +29,7 @@ end
 
 "reset index of movevec, but don't actually wipe data"
 function clear!(m::MoveVec)
-    m.ind = FIRST_MOVE_INDEX
+    m.ind = UInt16(0)
 end
 
 "push pointer back to before current set of moves were generated. must do this at the end of every recursive call"
@@ -52,39 +52,107 @@ short_index(colour::Bool) = Int(!colour)
 "Positive or negative for White/Black respectively"
 sgn(colour::Bool) = ifelse(colour, +1, -1)
 
-mutable struct BoardData
-    half_moves::Vector{UInt8}
-    castling::Vector{UInt8}
-    enpassant::Vector{BitBoard}
-    zobrist_hash_history::Vector{BitBoard}
+"state of non-invertible board information and move that occurred next"
+struct BoardHistory
+    half_moves::UInt8
+    castling::UInt8
+    enpassant::BitBoard
+    zobrist_hash::BitBoard
+    move::Move
 end
 
-"constructor for BoardData using data from an initial Board state. set initial array lengths to avoid later allocation"
-function BoardData(half_moves::UInt8, castling::UInt8, enpassant::BitBoard, zobrist::BitBoard)
-    half_move_hist = Vector{UInt8}([half_moves])
-    castling_hist = Vector{UInt8}([castling])
-    enpassant_hist = Vector{BitBoard}([enpassant])
-    zobrist_hist = Vector{BitBoard}([zobrist])
+"pre-allocated array of board history data"
+mutable struct HistoryVec
+    vec::Vector{BoardHistory}
+    ind::UInt16
+    len::UInt16
+end
 
-    sizehint!(castling_hist, TYPICAL_GAME_LENGTH)
-    sizehint!(enpassant_hist, TYPICAL_GAME_LENGTH)
-    sizehint!(zobrist_hist, TYPICAL_GAME_LENGTH)
+"create array of historic states with default length, avoids allocating memory in tight loops"
+HistoryVec(len = TYPICAL_GAME_LENGTH) = HistoryVec(Vector{BoardHistory}(undef, len), UInt16(0), len)
 
-    return BoardData(half_move_hist, castling_hist, enpassant_hist, zobrist_hist)
+"extend push to add a new board history state to the history stack"
+function Base.push!(history::HistoryVec, state::BoardHistory)
+    history.ind += 1
+    @boundscheck if history.ind > history.len
+        history.len *= 2
+        new_vec = Vector{BoardHistory}(undef, history.len)
+
+        for (i, hist) in enumerate(history.vec)
+            new_vec[i] = hist
+        end
+        history.vec = new_vec
+    end
+    @inbounds history.vec[history.ind] = state
+end
+
+"extend pop to remove a board history state from the history stack and return it"
+function Base.pop!(history::HistoryVec)
+    @boundscheck if history.ind < 1
+        error("No move history to unmake")
+    end
+    state = @inbounds history.vec[history.ind]
+    history.ind -= 1
+    return state
 end
 
 mutable struct BoardState
     pieces::Vector{BitBoard}
     piece_union::Vector{BitBoard}
     colour::Bool
+    half_moves::UInt8
     castle::UInt8
     enpassant_bb::BitBoard
     state::GameState
-    pst_score::Vector{Int32}
+    pst_score::Vector{Int32} # TODO: should be tuple/small struct?
     zobrist_hash::BitBoard
-    move_history::Vector{Move}
-    data::BoardData
+    history::HistoryVec
     move_vector::MoveVec
+end
+
+"extract latest history state and update current board values to reflect it. return move for further unmaking"
+function rollback_history!(board::BoardState)
+    state = pop!(board.history)
+
+    # zobrist hash is reversed automatically when unmaking move
+    board.zobrist_hash = state.zobrist_hash
+    board.half_moves = state.half_moves
+    board.castle = state.castling
+    board.enpassant_bb = state.enpassant
+
+    return state.move
+end
+
+"create history data fromh move, enpassant, zobrist hash and castling rights, push to history stack"
+function update_history!(board::BoardState, move::Move)
+   state = BoardHistory(
+    board.half_moves, 
+    board.castle,
+    board.enpassant_bb,
+    board.zobrist_hash,
+    move)
+
+   push!(board.history, state)
+end
+
+"test draw by repetition of a position three times" 
+@inline function three_repetition(board::BoardState)
+    count = 0
+    history = board.history
+    for i in (history.ind - 1):-2:(history.ind - board.half_moves + 1)
+        if history.vec[i].zobrist_hash == board.zobrist_hash
+            count += 1
+            if count > 1
+                return true
+            end
+        end
+    end
+    return false
+end
+
+"implement 50 move rule and 3 position repetition"
+@inline function draw_state(board::BoardState)::Bool
+    return (board.half_moves >= 100) || three_repetition(board)
 end
 
 "Find position of king on bitboard"
@@ -149,8 +217,8 @@ function generate_hash(pieces, colour, castling, enpassant)
         end
     end
 
-    #the rest of this data is packed in using the fact that neither
-    #black nor white pawns will exist on first or last rank
+    # the rest of this data is packed in using the fact that neither
+    # black nor white pawns will exist on first or last rank
     zobrist_hash = zobrist_enpassant(zobrist_hash, enpassant)
     zobrist_hash = zobrist_castle(zobrist_hash, castling)
 
@@ -219,8 +287,6 @@ end
 
 "Initialise a boardstate from a FEN string"
 function BoardState(FEN)
-    move_history = Vector{Move}()
-
     fen_vec = split(FEN)
 
     pieces = get_pieces(fen_vec[1])
@@ -235,11 +301,10 @@ function BoardState(FEN)
     end
 
     zobrist = generate_hash(pieces, colour, castling, enpassant)
-    board_data = BoardData(half_moves, castling, enpassant, zobrist)
     pst_score = get_pst(pieces)
 
-    BoardState(pieces, pc_unions(pieces), colour, castling, enpassant,
-    Neutral(), pst_score, zobrist, move_history, board_data, MoveVec())
+    BoardState(pieces, pc_unions(pieces), colour, half_moves, castling, enpassant,
+    Neutral(), pst_score, zobrist, HistoryVec(), MoveVec())
 end
 
 "default constructor for BoardState"

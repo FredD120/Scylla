@@ -46,11 +46,9 @@ Known bugs
 
 Speed
 -> Test whether extensive inlining is necessary
--> Fixed size board history array - reduce allocations
 -> Try incrementally updated mailbox for identify_piecetype
 -> Test playing TT move immediately if pseudo-legal
 -> Test small lookups vs on the fly calculation
--> Faster 3-move repetition detection
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb

@@ -38,9 +38,7 @@ const BLACK = false
 
 const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
 
-const TYPICAL_GAME_LENGTH = 100
-
-const FIRST_MOVE_INDEX = 0
+const TYPICAL_GAME_LENGTH = 64
 
 const NOFLAG = UInt8(0)
 const KING_CASTLE = UInt8(1)

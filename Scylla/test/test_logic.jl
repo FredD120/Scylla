@@ -20,12 +20,12 @@ end
     board = Scylla.BoardState(FEN)
 
     @test board.colour == true
-    @test board.data.enpassant[end] == UInt64(0)
+    @test board.enpassant_bb == BitBoard(0)
     @test Scylla.ally_pieces(board)[Scylla.ROOK] != UInt64(0)
     @test Scylla.enemy_pieces(board)[Scylla.ROOK] != UInt64(0)
     @test Scylla.enemy_pieces(board)[Scylla.KING] == UInt64(1) << 4
     @test Scylla.ally_pieces(board)[Scylla.KING] == UInt64(1) << 60
-    @test board.data.half_moves[end] == 0
+    @test board.half_moves == 0
 end
 
 @testset "Bitboard Union" begin 
@@ -186,7 +186,6 @@ end
     @testset "Only Queenside" begin
         @test Kcount == 0
         @test Qcount == 1
-        @test length(board.data.castling) == 3
     end
 
     @testset "Castling Blocked" begin
@@ -514,7 +513,7 @@ end
         Scylla.make_move!(move,board)
        end
     end
-    @test board.zobrist_hash == board.data.zobrist_hash_history[1]
+    @test board.zobrist_hash == board.history.vec[1].zobrist_hash
 
     Scylla.unmake_move!(board)
     Scylla.unmake_move!(board)
@@ -545,16 +544,25 @@ end
 end
 
 function Testing_perft(board::BoardState, depth)
-    #could also test incremental Zhash updates here
-    legal = Scylla.LegalInfo(board)
+    static_eval = Scylla.get_pst(board.pieces)
+    static_zobrist = Scylla.generate_hash(board)
 
-    moves, move_count = Scylla.generate_legal_moves(board, legal)
+    if board.pst_score != static_eval
+        println("Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found in position:")
+        print_board(board)
+        error()
+    elseif board.zobrist_hash != static_zobrist
+        println("Zobrist hash doesn't match in position:")
+        print_board(board)
+        error()
+    end
+
+    moves, move_count = Scylla.generate_legal_moves(board)
 
     if depth > 1
         for move in moves
             Scylla.make_move!(move, board)
-            static_eval = Scylla.get_pst(board.pieces)
-            @assert board.pst_score == static_eval "Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found on move $(Scylla.long_move(move))"
+            
             Testing_perft(board, depth - 1)
             Scylla.unmake_move!(board)
         end

@@ -117,7 +117,7 @@ end
         end
 
         @test board.colour == false
-        @test board.data.half_moves[end] == UInt8(1)
+        @test board.half_moves == UInt8(1)
         @test Scylla.enemy_pieces(board)[1] == UInt64(2)
     end
 
@@ -207,7 +207,6 @@ end
             end
         end
         @test Scylla.ally_pieces(board)[5] == 0
-        @test length(board.data.half_moves) == 2
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
         Scylla.unmake_move!(board)
@@ -215,6 +214,5 @@ end
         @test board.colour == true
         @test Scylla.ally_pieces(board)[1] == UInt64(1)
         @test Scylla.enemy_pieces(board)[5] == UInt64(2)
-        @test length(board.data.half_moves) == 1
     end
 end
