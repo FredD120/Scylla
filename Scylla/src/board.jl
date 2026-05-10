@@ -99,13 +99,14 @@ end
 mutable struct BoardState
     pieces::Vector{BitBoard}
     piece_union::Vector{BitBoard}
+    piece_positions::Vector{UInt8}
     colour::Bool
     half_moves::UInt8
     castle::UInt8
     enpassant_bb::BitBoard
-    state::GameState
-    pst_score::Vector{Int32} # TODO: should be tuple/small struct?
     zobrist_hash::BitBoard
+    state::GameState # TODO: remove?
+    pst_score::Vector{Int32} # TODO: should be tuple/small struct?
     history::HistoryVec
     move_vector::MoveVec
 end
@@ -303,8 +304,8 @@ function BoardState(FEN)
     zobrist = generate_hash(pieces, colour, castling, enpassant)
     pst_score = get_pst(pieces)
 
-    BoardState(pieces, pc_unions(pieces), colour, half_moves, castling, enpassant,
-    Neutral(), pst_score, zobrist, HistoryVec(), MoveVec())
+    BoardState(pieces, pc_unions(pieces), offset_board(pieces), colour, half_moves,
+    castling, enpassant, zobrist, Neutral(), pst_score, HistoryVec(), MoveVec())
 end
 
 "default constructor for BoardState"
@@ -332,34 +333,21 @@ end
 @inline enemy_piece(b::BoardState, piece) = colour_piece(b, !b.colour, piece)
 
 "create a 64-length vector of where pieces are on the board"
-function offset_board(board::BoardState)
+function offset_board(piece_vec::Vector{BitBoard})
     position = zeros(UInt8, 64)
-    for (piece_id, piece) in enumerate(board.pieces)
+    for (piece_id, piece) in enumerate(piece_vec)
         for i in 0:63
             if piece & BitBoard(1) << i > 0
-                position[i + 1] = piece_id
+                colourless_piece = (piece_id - 1) % 6 + 1
+                position[i + 1] = colourless_piece
             end
         end
     end
     return position
 end
 
-"loop through a list of piece BBs and return ID of enemy piece at a location"
-function identify_piecetype(board::BoardState, location::Integer)::UInt8
-    id = NULL_PIECE
-    for (piece_id, piece_bb) in enumerate(board.pieces)
-        if piece_bb & (BitBoard(1) << location) != 0
-            id = piece_id
-            break
-        end
-    end
-
-    if id == NULL_PIECE
-        error("Piece not found")
-    end
-    # really hacky - always returns a value between 1 and 6
-    return id - long_index(!board.colour)
-end
+offset_board(board::BoardState) = offset_board(board.pieces)
+identify_piecetype(board::BoardState, location) = board.piece_positions[location + 1]
 
 "convert a move to UCI notation"
 function uci_move(move::Move)
@@ -425,17 +413,15 @@ function short_move(move::Move)
 end
 
 "print a visualisation of the board to StdOut"
-function print_board(board::BoardState)
-    mailbox = offset_board(board)
-
-    for (pos, piece) in enumerate(mailbox)
+function print_board(piece_positions::Vector{UInt8})
+    for (pos, piece) in enumerate(piece_positions)
         if piece == NULL_PIECE
             print(". ")
         else
-            if piece < 7
-                str = INV_FEN_DICT[piece]
+            str = if piece < 7
+                INV_FEN_DICT[piece]
             else
-                str = lowercase(INV_FEN_DICT[piece - 6])
+                lowercase(INV_FEN_DICT[piece - 6])
             end
             print(str, " ")
         end
@@ -445,3 +431,5 @@ function print_board(board::BoardState)
         end
     end
 end
+
+print_board(board::BoardState) = print_board(board.piece_positions)

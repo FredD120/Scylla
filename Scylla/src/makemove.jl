@@ -7,6 +7,7 @@
     board.pieces[piece_id] = setzero(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, -1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
+    board.piece_positions[pos + 1] = 0
 
     union_id = short_index(colour) + 1
     board.piece_union[union_id] = setzero(board.piece_union[union_id], pos)
@@ -18,6 +19,7 @@ end
     board.pieces[piece_id] = setone(board.pieces[piece_id], pos)
     update_pst_score!(board.pst_score, colour, piece_type, pos, +1)
     board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
+    board.piece_positions[pos + 1] = piece_type
 
     union_id = short_index(colour) + 1 
     board.piece_union[union_id] = setone(board.piece_union[union_id], pos)
@@ -96,37 +98,35 @@ end
         remove_all_castle_rights!(board, board.colour)
     else
         # lose self castle rights if rook moves
-        if move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 1]     #kingside
+        if move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 1]
             remove_king_castle_rights!(board, board.colour)
             
-        elseif move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 2] #queenside
+        elseif move_from == ROOK_START_SQUARES[2 * short_index(board.colour) + 2]
             remove_queen_castle_rights!(board, board.colour)
         end
     end
     
     #remove enemy castle rights if rook captured
-    if move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 1]         #kingside
+    if move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 1]
         remove_king_castle_rights!(board, !board.colour)
-    elseif move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 2]     #queenside
+    elseif move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 2]
         remove_queen_castle_rights!(board, !board.colour)
     end
 end
 
 "deals with promotions, always resets halfmove clock"
 @inline function make_promotion!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
-    board.half_moves = 0
-    destroy_piece!(board, board.colour, mv_pc_type, mv_from)
-    create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
-
     if is_capture(mv_cap_type)
         destroy_piece!(board, !board.colour, mv_cap_type, mv_to)
     end
+
+    destroy_piece!(board, board.colour, mv_pc_type, mv_from)
+    create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
+    board.half_moves = 0
 end
 
 "handle cases where there is no flag, or the pawn moves en-passant and double push"
 @inline function make_normal_move!(board::BoardState, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
-    move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)
-
     if is_capture(mv_cap_type)
         destroy_loc = mv_to
         if mv_flag == ENPASSANT
@@ -139,6 +139,8 @@ end
     else
        board.half_moves += 1
     end
+
+    move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)
 end
 
 "if necessary, push new enpassant location to bitboard, or wipe previous enpassant location"

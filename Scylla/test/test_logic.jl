@@ -543,9 +543,10 @@ end
     @test leaves == 9
 end
 
-function Testing_perft(board::BoardState, depth)
+function testing_perft(board::BoardState, depth)
     static_eval = Scylla.get_pst(board.pieces)
     static_zobrist = Scylla.generate_hash(board)
+    static_positions = Scylla.offset_board(board)
 
     if board.pst_score != static_eval
         println("Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found in position:")
@@ -555,6 +556,12 @@ function Testing_perft(board::BoardState, depth)
         println("Zobrist hash doesn't match in position:")
         print_board(board)
         error()
+    elseif any(map((s, d) -> s != d, static_positions, board.piece_positions))
+        println("Piece positions don't match in position:")
+        print_board(static_positions)
+        println("Comparison:")
+        print_board(board.piece_positions)
+        error()
     end
 
     moves, move_count = Scylla.generate_legal_moves(board)
@@ -563,7 +570,7 @@ function Testing_perft(board::BoardState, depth)
         for move in moves
             Scylla.make_move!(move, board)
             
-            Testing_perft(board, depth - 1)
+            testing_perft(board, depth - 1)
             Scylla.unmake_move!(board)
         end
     end
@@ -576,15 +583,15 @@ function test_with_perft()
 
     FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
     board = Scylla.BoardState(FEN)
-    Testing_perft(board,4)
+    testing_perft(board,4)
 
     FEN = "n1n5/PPPk4/8/8/8/8/4Kppp/5N1N b - - 0 1"
     board = Scylla.BoardState(FEN)
-    Testing_perft(board,5)
+    testing_perft(board,5)
 
     FEN = "RPrk/PP6/8/8/8/8/r7/7K b - - 0 26"
     board = Scylla.BoardState(FEN)
-    Testing_perft(board,5)
+    testing_perft(board,5)
 end
 
 const FENS = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",

@@ -46,7 +46,6 @@ Known bugs
 
 Speed
 -> Test whether extensive inlining is necessary
--> Try incrementally updated mailbox for identify_piecetype
 -> Use super-piece method to check legality of castling (through attacks)
 -> Test playing TT move immediately if pseudo-legal
 -> Test small lookups vs on the fly calculation
