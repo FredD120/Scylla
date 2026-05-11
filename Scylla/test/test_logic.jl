@@ -638,7 +638,8 @@ function test_pseudolegal_perft()
         end
         
         t = time()
-        cur_leaves = Scylla.pseudolegal_perft(board, depth, nothing, verbose)
+        table = nothing #Scylla.TranspositionTable(Scylla.PerftData, 22, verbose)
+        cur_leaves = Scylla.pseudolegal_perft(board, depth, table, verbose)
         Δt += time() - t
         leaves += cur_leaves
 
@@ -655,6 +656,8 @@ function run_TT_perft(fen, depth, target)
     board = Scylla.BoardState(fen)
     table = Scylla.TranspositionTable(Scylla.PerftData, 20, verbose)
     t = time()
+
+    #@test Scylla.pseudolegal_perft(board, depth, table, verbose) == target
     @test Scylla.perft(board, depth, table, verbose) == target
     return  time() - t
 end

@@ -727,7 +727,7 @@ function generate_pseudolegal_attacks(board::BoardState)
 end
 
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
-@inline function in_check(board::BoardState, colour = board.colour)
+@inline function in_check(board::BoardState, colour = board.colour)    
     king_pos = locate_king(board, colour)
 
     knight_moves = pseudolegal_knight_moves(king_pos)

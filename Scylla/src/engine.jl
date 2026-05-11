@@ -428,9 +428,9 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
 end
 
 "if not on principle variation, search with a null window. if this fails (score > α), must open window and re-search"
-function principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
+@inline function principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
     if !is_principal
-        null_window_score = -minimax(engine, -player, -α - 1, -α, depth - 1, ply + 1, is_principal, logger)
+        null_window_score = -minimax(engine, -player, -α - Int16(1), -α, depth - 1, ply + 1, is_principal, logger)
         # have we proved that all other moves are worse than PV move
         if null_window_score <= α
             return null_window_score

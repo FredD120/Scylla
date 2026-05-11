@@ -5,9 +5,9 @@ CURRENT CAPABILITIES
 -> Iterative deepening
 -> Principle variation search
 -> Move ordering: 
-    -PV
-    -MVV-LVA 
-    -Killer moves
+    - PV
+    - MVV-LVA 
+    - Killer moves
 -> Quiescence search
 -> Check extension
 -> Transposition table
@@ -45,10 +45,8 @@ Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
 
 Speed
--> Test whether extensive inlining is necessary
 -> Use super-piece method to check legality of castling (through attacks)
 -> Test playing TT move immediately if pseudo-legal
--> Test small lookups vs on the fly calculation
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
@@ -77,7 +75,7 @@ include("cli.jl")
 include("precompile.jl")
 
 export BitBoard, BoardState, print_board, setzero, setone,
-       make_move!, unmake_move!,
+       make_move!, unmake_move!, make_pseudolegal_move!,
        generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
        Logger, print_search_log,
