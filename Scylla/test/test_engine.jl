@@ -15,10 +15,10 @@ end
     phase = Scylla.phase(Scylla.count_pieces(board))
     eg_phase = Scylla.endgame_phase(phase)
 
-    @test board.pst_score[1] > 0
-    @test board.pst_score[2] > 0
+    @test board.pst_score.midgame > 0
+    @test board.pst_score.endgame > 0
 
-    score = board.pst_score[1] * phase + board.pst_score[2] * eg_phase
+    score = board.pst_score.midgame * phase + board.pst_score.endgame * eg_phase
     @test score > 0
     @test score << Scylla.QUANTISATION_SHIFT > 0
 end

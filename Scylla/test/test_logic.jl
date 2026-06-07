@@ -525,13 +525,13 @@ end
     nFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     board = Scylla.BoardState(nFEN)
 
-    @test board.pst_score == [0,0]
-
+    @test board.pst_score == Scylla.PieceScore()
+    
     nFEN = "8/P6k/K7/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(nFEN)
     
-    @test board.pst_score[1] >= 100
-    @test board.pst_score[2] >= 100
+    @test board.pst_score.midgame >= 100
+    @test board.pst_score.endgame >= 100
 end
 
 

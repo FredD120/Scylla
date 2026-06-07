@@ -5,7 +5,7 @@ CURRENT CAPABILITIES
 -> Iterative deepening
 -> Principle variation search
 -> Move ordering: 
-    - PV
+    - PVS
     - MVV-LVA 
     - Killer moves
 -> Quiescence search
@@ -18,7 +18,7 @@ Pruning
 -> Null move pruning
 -> SEE in quiescence
 -> TT in quiescence
--> PVS/aspiration windows
+-> Aspiration windows
 -> Razoring
 
 Move Ordering

@@ -105,8 +105,7 @@ mutable struct BoardState
     castle::UInt8
     enpassant_bb::BitBoard
     zobrist_hash::BitBoard
-    state::GameState # TODO: remove?
-    pst_score::Vector{Int32} # TODO: should be tuple/small struct?
+    pst_score::PieceScore
     history::HistoryVec
     move_vector::MoveVec
 end
@@ -305,7 +304,7 @@ function BoardState(FEN)
     pst_score = get_pst(pieces)
 
     BoardState(pieces, pc_unions(pieces), offset_board(pieces), colour, half_moves,
-    castling, enpassant, zobrist, Neutral(), pst_score, HistoryVec(), MoveVec())
+    castling, enpassant, zobrist, pst_score, HistoryVec(), MoveVec())
 end
 
 "default constructor for BoardState"

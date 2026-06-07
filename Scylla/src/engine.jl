@@ -206,15 +206,15 @@ end
 mate_found(score) = abs(score) >= INF - MAXMATEDEPTH
 
 "Constant evaluation of stalemate"
-@inline evaluate(::Draw, ply) = Int16(0)
+const DRAW_SCORE = Int16(0)
 "Constant evaluation of being checkmated (favour quicker mates)"
-@inline evaluate(::Loss, ply) = -INF + Int16(ply)
+@inline evaluate_loss(ply) = -INF + Int16(ply)
 
 "Returns score of current position from whites perspective"
 @inline function evaluate(board::BoardState)::Int16
     weight = phase(count_pieces(board))
-    score = board.pst_score[1] * weight +
-            board.pst_score[2] * endgame_phase(weight)
+    score = board.pst_score.midgame * weight +
+            board.pst_score.endgame * endgame_phase(weight)
     
     return Int16(score >> QUANTISATION_SHIFT)
 end
@@ -293,7 +293,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     # still need to check for draws in qsearch
     if draw_state(engine.board)
-        return evaluate(DRAW, ply)
+        return DRAW_SCORE
     end
 
     is_check = in_check(engine.board)
@@ -318,7 +318,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 
     # in check, must search all legal moves (check extension)
     else
-        best_score = evaluate(LOSS, ply)
+        best_score = evaluate_loss(ply)
         moves, move_length = generate_legal_moves(engine.board)
         score_moves!(moves)
 
@@ -333,7 +333,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     # figure out type of current node for use in TT and best move
     node_type = ALPHA
     best_move = NULLMOVE
-    best_score = evaluate(LOSS, ply)
+    best_score = evaluate_loss(ply)
     move_made = false
 
     for i in eachindex(moves)
@@ -377,7 +377,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     if !move_made
         node_type = EXACT
         if !in_check(engine.board)
-            best_score = evaluate(DRAW, ply)
+            best_score = DRAW_SCORE
         end
     end
 
@@ -403,7 +403,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
 
     # check for draw by FIDE rules
     if draw_state(engine.board)
-        return evaluate(DRAW, ply)
+        return DRAW_SCORE
     end
 
     best_move, score, return_early = retrieve_from_table(engine, α, β, depth, ply)

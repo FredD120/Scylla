@@ -210,7 +210,6 @@ end
 
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
 @inline function unmake_move!(board::BoardState)
-    board.state = Neutral()
     move = rollback_history!(board)
     zobrist = board.zobrist_hash
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
