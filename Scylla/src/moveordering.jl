@@ -3,7 +3,7 @@
 #Dynamically push next best move to top of list
 
 "store two best quiet moves for a given ply"
-mutable struct Killer
+struct Killer
     first::Move
     second::Move
 end
@@ -14,11 +14,12 @@ Killer() = Killer(NULLMOVE, NULLMOVE)
 const DEFAULT_KILLER = Killer()
 
 "check that new move does not match second best killer, then push first to second and replace first"
-function new_killer!(killer_vec::Vector{Killer}, ply, move)
+function new_killer!(killer_vec, ply, move)
     move = remove_score(move)
-    if move != killer_vec[ply + 1].first
-        @inbounds killer_vec[ply + 1].second = killer_vec[ply + 1].first 
-        @inbounds killer_vec[ply + 1].first = move 
+    old = @inbounds killer_vec[ply + 1]
+
+    if move != old.first
+        @inbounds killer_vec[ply + 1] = Killer(move, old.first)
     end
 end
 

@@ -59,7 +59,6 @@ end
     board = Scylla.BoardState(FEN)
     pieces = board.pieces
     @test length(pieces) == 12
-    pieces::Vector{BitBoard}
     wpieces = Scylla.ally_pieces(board)
     @test length(wpieces) == 6
     bpieces = Scylla.enemy_pieces(board)

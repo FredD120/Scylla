@@ -97,9 +97,9 @@ function Base.pop!(history::HistoryVec)
 end
 
 mutable struct BoardState
-    pieces::Vector{BitBoard}
-    piece_union::Vector{BitBoard}
-    piece_positions::Vector{UInt8}
+    pieces::MVector{12, BitBoard}
+    piece_union::MVector{3, BitBoard}
+    piece_positions::MVector{64, UInt8}
     colour::Bool
     half_moves::UInt8
     castle::UInt8
