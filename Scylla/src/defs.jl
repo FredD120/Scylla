@@ -248,11 +248,6 @@ const MAXMATEDEPTH::Int16 = Int16(100)
 const INF::Int16 = typemax(Int16)
 const MATE::Int16 = INF - MAXMATEDEPTH
 
-"Score of PV/TT move = 255"
-const MAXMOVESCORE::UInt8 = typemax(UInt8)
-"Minimum score of a capture move = 199"
-const MINCAPSCORE::UInt8 = MAXMOVESCORE - 56
-
 """ 
 Used for move ordering
 

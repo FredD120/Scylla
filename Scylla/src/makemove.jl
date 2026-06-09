@@ -106,7 +106,7 @@ end
         end
     end
     
-    #remove enemy castle rights if rook captured
+    # remove enemy castle rights if rook captured
     if move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 1]
         remove_king_castle_rights!(board, !board.colour)
     elseif move_to == ROOK_START_SQUARES[2 * short_index(!board.colour) + 2]

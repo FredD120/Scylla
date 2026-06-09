@@ -407,7 +407,7 @@ end
 end
 
 "mask out opponents castle rights, retrieve bitboard to iterate through king- and queen-side castling rights"
-function self_castle_rights(board::BoardState)::BitBoard
+function self_castle_rights(board::BoardState)
     ind = short_index(board.colour) + 1
     return board.castle & CASTLE_RIGHTS_MASK[ind]
 end
@@ -424,7 +424,7 @@ end
 
 "generate castling moves for side-to-move if the rights exist and it is legal to do so"
 @inline function get_castle_moves!(board::BoardState, all_pcs, attacked_squares)
-    for castle_id in self_castle_rights(board)
+    for castle_id in BitBoard(self_castle_rights(board))
         if can_castle(castle_id, all_pcs, attacked_squares)
             append!(board.move_vector, CASTLE_MOVES[castle_id + 1])
         end
@@ -433,7 +433,7 @@ end
 
 "castling must be legal to be generated, but correctness requirement on all-attacked-sqaures is lower"
 @inline function get_pseudolegal_castle_moves!(::AllMoves, board::BoardState, all_pcs)
-    for castle_id in self_castle_rights(board)
+    for castle_id in BitBoard(self_castle_rights(board))
         if CASTLE_BLOCKS[castle_id + 1] & all_pcs == 0
             if CASTLE_ATTACKS[castle_id + 1] & enemy_attacks(board, all_pcs) == 0
                 append!(board.move_vector, CASTLE_MOVES[castle_id + 1])

@@ -45,10 +45,10 @@ end
     for move in moves
         if Scylla.cap_type(move) == Scylla.QUEEN
             @test Scylla.score(move) == max_score
-            @test Scylla.score(move) > Scylla.MINCAPSCORE
+            @test Scylla.score(move) > 0
         elseif Scylla.cap_type(move) == Scylla.NULL_PIECE
             @test Scylla.score(move) == min_score
-            @test Scylla.score(move) < Scylla.MINCAPSCORE
+            @test Scylla.score(move) == 0
         end
     end
 end
@@ -64,18 +64,6 @@ end
         Scylla.next_best!(moves,i)
         @test Scylla.score(moves[i]) == 4-i
     end
-end
-
-@testset "Score Killers" begin
-    killer_vec = [Scylla.Killer() for _ in 1:3]
-    ply = 2
-
-    killer_vec[ply+1] = Scylla.Killer(Move(1),Move(2))
-    moves = [Move(3),Move(5),Move(2)]
-
-    Scylla.score_moves!(moves, killer_vec[ply+1])
-    @test Scylla.score(moves[3]) > Scylla.score(moves[2]) 
-    @test Scylla.score(moves[3]) > Scylla.score(moves[1]) 
 end
 
 @testset "Update Killers" begin 

@@ -348,6 +348,51 @@ end
 offset_board(board::BoardState) = offset_board(board.pieces)
 identify_piecetype(board::BoardState, location) = board.piece_positions[location + 1]
 
+"check if a given move is possible to play on the current boardstate"
+function is_pseudolegal(move, board::BoardState)
+    if move == NULLMOVE
+        return false
+    end
+    mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::Move)
+    positions = board.piece_positions
+
+    if positions[mv_from + 1] != mv_pc_type
+        return false
+    end
+
+    # need to make move/capture types have colour and only PST access is colourless
+    if is_capture(mv_cap_type)
+        if positions[mv_to + 1] != mv_cap_type
+            return false
+        end
+    else 
+        if positions[mv_to + 1] != NULL_PIECE
+            return false
+        end
+    end
+
+    if is_castle(mv_flag)
+        castle_id = mv_flag + 2 * !board.colour
+        if ((UInt8(1) << castle_id) & self_castle_rights(board)) == UInt8(0)
+            return false
+        end
+
+        all_pcs = all_pieces(board)
+        if CASTLE_BLOCKS[castle_id + 1] & all_pcs != 0
+            return false
+        end
+
+        if CASTLE_ATTACKS[castle_id + 1] & enemy_attacks(board, all_pcs) != 0
+            return false
+        end
+    end
+
+    # need to check en passant availability
+    # need to check double push is not blocked
+
+    return true
+end
+
 "convert a move to UCI notation"
 function uci_move(move::Move)
     flg = flag(move)

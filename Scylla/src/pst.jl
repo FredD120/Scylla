@@ -39,13 +39,13 @@ PieceScore() = PieceScore(Int32(0), Int32(0))
 ==(a::PieceScore, b::PieceScore) = (a.midgame == b.midgame) && (a.endgame == b.endgame)
 
 "Simulaneously update mid- and end-game PST scores from white's perspective"
-function update_pst_score!(score::PieceScore, colour, type_val, pos, add_or_remove)
+function update_pst_score!(score::PieceScore, colour, type, pos, add_or_remove)
     # (+1 if adding, -1 if removing) * (+1 if white, -1 if black)
     sign = sgn(colour) * add_or_remove 
     ind = side_index(colour, pos)
 
-    @inbounds score.midgame += sign * MG_PSTs[type_val][ind+1]
-    @inbounds score.endgame += sign * EG_PSTs[type_val][ind+1]
+    @inbounds score.midgame += sign * MG_PSTs[type][ind+1]
+    @inbounds score.endgame += sign * EG_PSTs[type][ind+1]
 end
 
 "returns score of current position from whites perspective for mid and endgame. used when initialising boardstate"

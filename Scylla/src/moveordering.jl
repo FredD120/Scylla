@@ -83,13 +83,88 @@ function set_pv!(info::SearchInfo, ply, move)
 end
 
 "lookup value of capture in MVV_LVA table"
-most_least_value(victim, attacker)::UInt8 = MINCAPSCORE + MVV_LVA[5 * (attacker - 1) + victim - 1]
+@inline most_least_value(victim, attacker)::UInt8 = @inbounds MVV_LVA[5 * (attacker - 1) + victim - 1]
+
+const STAGE_TT = UInt8(0)
+const STAGE_KILLER_1 = UInt8(1)
+const STAGE_KILLER_2 = UInt8(2)
+const STAGE_GENERATE = UInt8(3)
+const STAGE_MOVES = UInt8(4)
+
+mutable struct MoveStager
+    stage::UInt8
+    tt_move::Move
+    killers::Killer
+    is_check::Bool
+    is_done::Bool
+    board::BoardState
+    cur_ind::UInt16
+    move_length::UInt16
+end
+
+function MoveStager(tt_move, killers, board, is_check)
+    return MoveStager(UInt8(0), tt_move, killers, is_check, false, board, 1, 0)
+end
+
+"if there is a specific move to look for at this stage, return that move"
+function select_staged_move(stager::MoveStager)
+    if stager.stage == STAGE_TT
+        return stager.tt_move
+        
+    elseif stager.stage == STAGE_KILLER_1
+        move = stager.killers.first
+        if is_pseudolegal(move, stager.board)
+            return move
+        end
+
+    elseif stager.stage == STAGE_KILLER_2
+        move = stager.killers.second
+        if is_pseudolegal(move, stager.board)
+            return move
+        end
+    end
+    return NULLMOVE
+end
 
 "swap the positions of two entries in a vector"
 function swap!(list, ind1, ind2)
     temp = list[ind1]
     list[ind1] = list[ind2]
     list[ind2] = temp
+end
+
+"lazily search for tt move/killers before move scoring to try to avoid O(m^2) lookup"
+function next_best!(st::MoveStager)
+    while st.stage < STAGE_GENERATE
+        next_move = select_staged_move(st)
+        st.stage += 1
+
+        if next_move != NULLMOVE
+            return next_move
+        end
+    end
+
+    if st.stage == STAGE_GENERATE
+        (moves, move_length) = if st.is_check 
+            generate_legal_moves(st.board)
+        else
+            generate_pseudolegal_moves(st.board)
+        end
+        score_moves!(moves)
+        st.move_length = move_length
+        st.stage += 1
+    end
+
+    if st.cur_ind > st.move_length
+        st.is_done = true
+        return NULLMOVE
+    end
+
+    moves = current_moves(st.board.move_vector, st.move_length)
+    next_best!(moves, st.cur_ind)
+    next_move = moves[st.cur_ind]
+    st.cur_ind += 1
+    return next_move
 end
 
 "iterates through scores and swaps next best score and move to top of list"
@@ -110,23 +185,11 @@ function next_best!(moves, cur_ind)
     end
 end
 
-"Score moves based on PV/TT move, MVV-LVA and killers"
-@inline function score_moves!(moves::AbstractArray, killers::Killer=DEFAULT_KILLER, best_move::Move=NULLMOVE)
+"Score moves based MVV-LVA"
+@inline function score_moves!(moves::AbstractArray)
     @inbounds for (i, move) in enumerate(moves)
-        if move == best_move
-            moves[i] = set_score(move, MAXMOVESCORE)
-
-        #sort captures
-        elseif is_capture(move)
+        if is_capture(move)
             moves[i] = set_score(move, most_least_value(cap_type(move), pc_type(move)))
-
-        #sort quiet moves
-        else
-            if move == killers.first
-                moves[i] = set_score(move, MINCAPSCORE - UInt8(1))
-            elseif move == killers.second
-                moves[i] = set_score(move, MINCAPSCORE - UInt8(2))
-            end
         end
     end
 end

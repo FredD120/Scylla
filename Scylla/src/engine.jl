@@ -329,21 +329,20 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
 end
 
 "iterate through all moves and recursively call minimax to evaluate the position. returns a score, node type and best move"
-function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, ply, is_principal, is_check, logger::Logger)
+function search_moves(engine::EngineState, stager, player::Int8, α, β, depth, ply, is_principal, logger::Logger)
     # figure out type of current node for use in TT and best move
     node_type = ALPHA
     best_move = NULLMOVE
     best_score = evaluate_loss(ply)
     move_made = false
 
-    for i in eachindex(moves)
-        next_best!(moves, i)
-        move = moves[i]
+    while !stager.is_done
+        move = next_best!(stager)
+        move == NULLMOVE && continue
 
-        success = make_pseudolegal_move!(move, engine.board, is_check)
-        if !success
-            continue
-        end
+        success = make_pseudolegal_move!(move, engine.board, false)#stager.is_check)
+        success || continue
+        
         score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
         unmake_move!(engine.board)
 
@@ -382,6 +381,7 @@ function search_moves(engine::EngineState, moves, player::Int8, α, β, depth, p
     end
 
     store_in_table!(engine, depth, ply, best_score, node_type, best_move)
+    clear_current_moves!(stager.board.move_vector, stager.move_length)
     return best_score
 end
 
@@ -413,17 +413,8 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
     end
 
     is_check = in_check(engine.board)
-
-    (moves, move_length) = if is_check 
-        generate_legal_moves(engine.board)
-    else
-        generate_pseudolegal_moves(engine.board)
-    end
-
-    score_moves!(moves, engine.info.killers[ply + 1], best_move)
-    score = search_moves(engine, moves, player, α, β, depth, ply, is_principal, is_check, logger)
-
-    clear_current_moves!(engine.board.move_vector, move_length)
+    stager = MoveStager(best_move, engine.info.killers[ply + 1], engine.board, is_check)
+    score = search_moves(engine, stager, player, α, β, depth, ply, is_principal, logger)
     return score
 end
 
