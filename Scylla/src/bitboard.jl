@@ -91,7 +91,7 @@ Base.convert(::Type{BitBoard}, int::Integer) = BitBoard(int)
 Base.convert(::Type{UInt64}, b::BitBoard) = b.n
 Base.promote_rule(::Type{BitBoard}, ::Type{<:Integer}) = BitBoard
 
-Base.parse(::Type{BitBoard},s::String) = BitBoard(parse(UInt64,s))
+Base.parse(::Type{BitBoard}, s::String) = BitBoard(parse(UInt64, s))
 
 "Define length of occupied positions in bb"
 Base.length(bb::BitBoard) = count_ones(bb)

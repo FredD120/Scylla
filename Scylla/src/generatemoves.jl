@@ -633,7 +633,6 @@ end
     enpassant_moves!(board, helper, pawn_masks.shift, board.enpassant_bb, info.attackers, all_pcs, kingpos)
 end
 
-
 @inline function get_pseudolegal_pawn_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)    
     pawn_bb = ally_piece(board, PAWN)
     pawn_masks = ifelse(board.colour, WHITE_MASKS, BLACK_MASKS)

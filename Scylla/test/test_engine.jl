@@ -99,7 +99,7 @@ end
         @test Scylla.long_move(best) == "Ba1xh8"
     end
 
-    @testset "Queen Evade Capture" begin
+    @testset "Queen Cuts off King" begin
         eFEN = "k7/8/8/8/8/8/5K2/7q b - - 0 1"
         engine.board = BoardState(eFEN)
         best, log = Scylla.best_move(engine)

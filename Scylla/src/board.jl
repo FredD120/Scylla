@@ -348,31 +348,25 @@ end
 offset_board(board::BoardState) = offset_board(board.pieces)
 identify_piecetype(board::BoardState, location) = board.piece_positions[location + 1]
 
-"check if a given move is possible to play on the current boardstate"
-function is_pseudolegal(move, board::BoardState)
+"check if a given quiet move is possible to play on the current boardstate"
+function is_quiet_move_possible(move, board::BoardState)
     if move == NULLMOVE
         return false
     end
-    mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move::Move)
+    mv_pc_type, mv_from, mv_to, _, mv_flag = unpack_move(move)
     positions = board.piece_positions
 
+    # need to make move types have colour and only PST access is colourless
     if positions[mv_from + 1] != mv_pc_type
         return false
     end
 
-    # need to make move/capture types have colour and only PST access is colourless
-    if is_capture(mv_cap_type)
-        if positions[mv_to + 1] != mv_cap_type
-            return false
-        end
-    else 
-        if positions[mv_to + 1] != NULL_PIECE
-            return false
-        end
+    if positions[mv_to + 1] != NULL_PIECE
+        return false
     end
 
     if is_castle(mv_flag)
-        castle_id = mv_flag + 2 * !board.colour
+        castle_id = mv_flag - 1 + 2 * !board.colour
         if ((UInt8(1) << castle_id) & self_castle_rights(board)) == UInt8(0)
             return false
         end
@@ -387,8 +381,31 @@ function is_pseudolegal(move, board::BoardState)
         end
     end
 
-    # need to check en passant availability
-    # need to check double push is not blocked
+    if mv_flag == DOUBLE_PUSH
+        push_mask = ifelse(board.colour, WHITE_MASKS, BLACK_MASKS).shift
+        if positions[mv_from + 1 - push_mask] != NULL_PIECE
+            return false
+        end
+    end
+
+    if mv_pc_type == ROOK
+        moves = pseudolegal_rook_moves(mv_from, all_pieces(board))
+        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+            return false
+        end
+
+    elseif mv_pc_type == BISHOP
+        moves = pseudolegal_bishop_moves(mv_from, all_pieces(board))
+        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+            return false
+        end
+
+    elseif mv_pc_type == QUEEN
+        moves = pseudolegal_queen_moves(mv_from, all_pieces(board))
+        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+            return false
+        end
+    end
 
     return true
 end

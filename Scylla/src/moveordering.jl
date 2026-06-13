@@ -113,13 +113,13 @@ function select_staged_move(stager::MoveStager)
         
     elseif stager.stage == STAGE_KILLER_1
         move = stager.killers.first
-        if is_pseudolegal(move, stager.board)
+        if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
             return move
         end
 
     elseif stager.stage == STAGE_KILLER_2
         move = stager.killers.second
-        if is_pseudolegal(move, stager.board)
+        if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
             return move
         end
     end
