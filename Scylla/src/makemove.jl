@@ -3,10 +3,9 @@
 
 "utilises setzero to remove a piece from a position"
 @inline function destroy_piece!(board::BoardState, colour, piece_type, pos)
-    piece_id = long_index(colour) + piece_type
-    board.pieces[piece_id] = setzero(board.pieces[piece_id], pos)
-    update_pst_score!(board.pst_score, colour, piece_type, pos, -1)
-    board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
+    board.pieces[piece_type] = setzero(board.pieces[piece_type], pos)
+    update_pst_score!(board.pst_score, colour, colourless_piecetype(piece_type), pos, -1)
+    board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = 0
 
     union_id = short_index(colour) + 1
@@ -15,10 +14,9 @@ end
 
 "utilises setone to create a piece in a position"
 @inline function create_piece!(board::BoardState, colour, piece_type, pos)
-    piece_id = long_index(colour) + piece_type
-    board.pieces[piece_id] = setone(board.pieces[piece_id], pos)
-    update_pst_score!(board.pst_score, colour, piece_type, pos, +1)
-    board.zobrist_hash ⊻= zobrist_piece(piece_id, pos)
+    board.pieces[piece_type] = setone(board.pieces[piece_type], pos)
+    update_pst_score!(board.pst_score, colour, colourless_piecetype(piece_type), pos, +1)
+    board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = piece_type
 
     union_id = short_index(colour) + 1 
@@ -76,12 +74,13 @@ enpassant_location(colour, destination) = ifelse(colour, destination + 8, destin
 
 "play a castling move onto the board. perform lookup of rook square to move from/to"
 @inline function make_castle!(board::BoardState, move_from, move_to, move_flag)
-    move_piece!(board, board.colour, KING, move_from, move_to)
+    colour_shift = long_index(board.colour)
+    move_piece!(board, board.colour, KING + colour_shift, move_from, move_to)
     
     castle_lookup = (move_flag == QUEEN_CASTLE) + short_index(board.colour) * 2 + 1
     rook_from = ROOK_START_SQUARES[castle_lookup]
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
-    move_piece!(board, board.colour, ROOK, rook_from, rook_to)
+    move_piece!(board, board.colour, ROOK + colour_shift, rook_from, rook_to)
 
     remove_all_castle_rights!(board, board.colour)
     #castling does not reset halfmove clock
@@ -94,7 +93,7 @@ end
         return nothing
     end
 
-    if piece_type == KING
+    if is_piecetype(piece_type, KING)
         remove_all_castle_rights!(board, board.colour)
     else
         # lose self castle rights if rook moves
@@ -120,8 +119,9 @@ end
         destroy_piece!(board, !board.colour, mv_cap_type, mv_to)
     end
 
+    promoted_type = promote_type(mv_flag) + long_index(board.colour)
     destroy_piece!(board, board.colour, mv_pc_type, mv_from)
-    create_piece!(board, board.colour, promote_type(mv_flag), mv_to)
+    create_piece!(board, board.colour, promoted_type, mv_to)
     board.half_moves = 0
 end
 
@@ -134,7 +134,7 @@ end
         end
         destroy_piece!(board, !board.colour, mv_cap_type, destroy_loc)
         board.half_moves = 0
-    elseif mv_pc_type == PAWN
+    elseif is_piecetype(mv_pc_type, PAWN)
         board.half_moves = 0
     else
        board.half_moves += 1
@@ -177,18 +177,20 @@ end
 
 "unmake king- or queen-side castle for opponent"
 @inline function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
-    move_piece!(board, opposite_colour, KING, move_to, move_from)
+    colour_shift = long_index(opposite_colour)
+    move_piece!(board, opposite_colour, KING + colour_shift, move_to, move_from)
     
     castle_lookup = (move_flag == QUEEN_CASTLE) + short_index(opposite_colour) * 2 + 1
     rook_from = ROOK_START_SQUARES[castle_lookup]
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
-    move_piece!(board, opposite_colour, ROOK, rook_to, rook_from)
+    move_piece!(board, opposite_colour, ROOK + colour_shift, rook_to, rook_from)
 end
 
 "uses opponents colour to create a pawn and destroy promotion piece. uses own colour to undo capture"
 @inline function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
+    promoted_type = promote_type(mv_flag) + long_index(opposite_colour)
     create_piece!(board, opposite_colour, mv_pc_type, mv_from)
-    destroy_piece!(board, opposite_colour, promote_type(mv_flag), mv_to)
+    destroy_piece!(board, opposite_colour, promoted_type, mv_to)
 
     if is_capture(mv_cap_type)
         create_piece!(board, board.colour, mv_cap_type, mv_to)

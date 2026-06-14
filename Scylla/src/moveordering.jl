@@ -15,7 +15,7 @@ const DEFAULT_KILLER = Killer()
 
 "check that new move does not match second best killer, then push first to second and replace first"
 function new_killer!(killer_vec, ply, move)
-    move = remove_score(move)
+    move = strip_move(move)
     old = @inbounds killer_vec[ply + 1]
 
     if move != old.first
@@ -65,7 +65,7 @@ function copy_pv!(info::SearchInfo, ply, move)
     cur_ind = info.pv_offsets[ply_cur]
     lower_ind = info.pv_offsets[ply_next]
 
-    @inbounds info.pv[cur_ind + 1] = remove_score(move)
+    @inbounds info.pv[cur_ind + 1] = strip_move(move)
     lower_pv_len = info.pv_len[ply_next]
     for i in 1:lower_pv_len # i is a 1-based index
         @inbounds info.pv[cur_ind + i + 1] = info.pv[lower_ind + i]
@@ -78,12 +78,13 @@ end
 function set_pv!(info::SearchInfo, ply, move)
     ply_cur = ply + 1
     cur_ind = info.pv_offsets[ply_cur]
-    @inbounds info.pv[cur_ind + 1] = remove_score(move)
+    @inbounds info.pv[cur_ind + 1] = strip_move(move)
     info.pv_len[ply_cur] = 1
 end
 
-"lookup value of capture in MVV_LVA table"
-@inline most_least_value(victim, attacker)::UInt8 = @inbounds MVV_LVA[5 * (attacker - 1) + victim - 1]
+"lookup value of capture in MVV_LVA table, removing colour of attacker/victim in the process"
+@inline most_least_value(victim, attacker)::UInt8 = 
+    @inbounds MVV_LVA[5 * (colourless_piecetype(attacker) - 1) + colourless_piecetype(victim) - 1]
 
 const STAGE_TT = UInt8(0)
 const STAGE_KILLER_1 = UInt8(1)

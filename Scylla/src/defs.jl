@@ -80,25 +80,30 @@ LSB(int::Integer) = UInt8(trailing_zeros(int))
 
 ### Move Features ###
 
-const PIECEMASK = UInt32(0x7)
-const LOCMASK   = UInt32(0x3F)
-const FLAGMASK = UInt32(0xF)
-const SCOREMASK = UInt32(0xFF)
+const PIECEMASK = UInt32(0xF)  # width = 4
+const LOCMASK   = UInt32(0x3F) # width = 6
+const FLAGMASK  = UInt32(0xF)  # width = 4
+const LEGALMASK = UInt32(0x1)  # width = 1
+const SCOREMASK = UInt32(0x7F) # width = 7 -> move score <= 127
 
-const TYPESIZE = 3
+const TYPESIZE = 4
 const FROMSIZE = 6
 const TOSIZE   = 6
-const CAPSIZE  = 3
+const CAPSIZE  = 4
 const FLAGSIZE = 4
+const LEGALSIZE = 1
 
 const FROMSHIFT = TYPESIZE
-const TOSHIFT   = TYPESIZE + FROMSIZE
-const CAPSHIFT  = TYPESIZE + FROMSIZE + TOSIZE
-const FLAGSHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE
-const SCORESHIFT = TYPESIZE + FROMSIZE + TOSIZE + CAPSIZE + FLAGSIZE
+const TOSHIFT   = FROMSHIFT + FROMSIZE
+const CAPSHIFT  = TOSHIFT + TOSIZE
+const FLAGSHIFT = CAPSHIFT + CAPSIZE
+const LEGALSHIFT = FLAGSHIFT + FLAGSIZE
+const SCORESHIFT = LEGALSHIFT + LEGALSIZE
 
-const MOVEMASK = UInt32((1 << SCORESHIFT) - 1)
-
+# mask out all features not intrinsic to a move for storage
+const MOVEMASK = UInt32((1 << LEGALSHIFT) - 1)
+# mask used to set score to zero
+const ZEROMASK = UInt32((1 << SCORESHIFT) - 1)
 
 ### Move Generator Features ###
 

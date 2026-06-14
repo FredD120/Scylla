@@ -246,7 +246,7 @@ end
     if engine.config.quit_now
         return nothing
     end 
-    move = remove_score(move)
+    move = strip_move(move)
     success = store!(engine.table, engine.board.zobrist_hash, depth, ply, score, node_type, move)
     if success
         engine.tt_hashfull += 1

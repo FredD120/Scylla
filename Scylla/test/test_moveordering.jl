@@ -43,10 +43,10 @@ end
     min_score = minimum(m -> Scylla.score(m), moves)
     
     for move in moves
-        if Scylla.cap_type(move) == Scylla.QUEEN
+        if Scylla.is_piecetype(Scylla.cap_type(move), Scylla.QUEEN)    
             @test Scylla.score(move) == max_score
             @test Scylla.score(move) > 0
-        elseif Scylla.cap_type(move) == Scylla.NULL_PIECE
+        elseif Scylla.is_piecetype(Scylla.cap_type(move), Scylla.NULL_PIECE) 
             @test Scylla.score(move) == min_score
             @test Scylla.score(move) == 0
         end

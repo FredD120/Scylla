@@ -26,6 +26,17 @@ end
     @test Scylla.enemy_pieces(board)[Scylla.KING] == UInt64(1) << 4
     @test Scylla.ally_pieces(board)[Scylla.KING] == UInt64(1) << 60
     @test board.half_moves == 0
+
+    b = 6
+    @test all(board.piece_positions .== [
+    b + Scylla.ROOK, b + Scylla.KNIGHT, b + Scylla.BISHOP, b + Scylla.QUEEN, b + Scylla.KING, b + Scylla.BISHOP, b + Scylla.KNIGHT, b + Scylla.ROOK, 
+    b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN, b + Scylla.PAWN,
+    Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE,
+    Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE,
+    Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE,
+    Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE, Scylla.NULL_PIECE,
+    Scylla.PAWN, Scylla.PAWN, Scylla.PAWN, Scylla.PAWN, Scylla.PAWN, Scylla.PAWN, Scylla.PAWN, Scylla.PAWN,
+    Scylla.ROOK, Scylla.KNIGHT, Scylla.BISHOP, Scylla.QUEEN, Scylla.KING, Scylla.BISHOP, Scylla.KNIGHT, Scylla.ROOK])
 end
 
 @testset "Bitboard Union" begin 
@@ -143,7 +154,7 @@ end
             Kcount +=1
         elseif Scylla.flag(m) == Scylla.QUEEN_CASTLE
             Qcount +=1
-        elseif (Scylla.from(m) == 63) & (Scylla.cap_type(m) == Scylla.ROOK)
+        elseif (Scylla.from(m) == 63) & Scylla.is_piecetype(Scylla.cap_type(m), Scylla.ROOK)
             Scylla.make_move!(m,board)
         end
     end
@@ -221,19 +232,19 @@ end
         board = Scylla.BoardState(pFEN)
         moves, move_count = Scylla.generate_legal_moves(board)
 
-        @test count(i -> (Scylla.pc_type(i)==Scylla.PAWN), moves) == 3
-        @test count(i -> (Scylla.cap_type(i)==Scylla.BISHOP), moves) == 1
+        @test count(i -> Scylla.is_piecetype(Scylla.pc_type(i), Scylla.PAWN), moves) == 3
+        @test count(i -> Scylla.is_piecetype(Scylla.cap_type(i), Scylla.BISHOP), moves) == 1
     end
 
     @testset "Forced Promotion" begin
         promFEN = "K3r4/1r2P3/8/8/8/8/8/8 w - - 0 1"
         board = Scylla.BoardState(promFEN)
         moves, move_count = Scylla.generate_legal_moves(board)
-        @test length(findall(i -> Scylla.flag(i)==Scylla.PROMQUEEN, moves)) == 1
-        @test length(findall(i -> Scylla.flag(i)==Scylla.PROMROOK, moves)) == 1
-        @test length(findall(i -> Scylla.flag(i)==Scylla.PROMBISHOP, moves)) == 1
-        @test length(findall(i -> Scylla.flag(i)==Scylla.PROMKNIGHT, moves)) == 1
-        @test length(findall(i -> Scylla.cap_type(i)==Scylla.ROOK, moves)) == 4
+        @test length(findall(i -> Scylla.flag(i) == Scylla.PROMQUEEN, moves)) == 1
+        @test length(findall(i -> Scylla.flag(i) == Scylla.PROMROOK, moves)) == 1
+        @test length(findall(i -> Scylla.flag(i) == Scylla.PROMBISHOP, moves)) == 1
+        @test length(findall(i -> Scylla.flag(i) == Scylla.PROMKNIGHT, moves)) == 1
+        @test length(findall(i -> Scylla.is_piecetype(Scylla.cap_type(i), Scylla.ROOK), moves)) == 4
     end
 
     @testset "Forced Capture" begin
@@ -241,7 +252,7 @@ end
         board = Scylla.BoardState(checkFEN)
         moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
-        @test Scylla.pc_type(moves[1]) == Scylla.PAWN
+        @test Scylla.is_piecetype(Scylla.pc_type(moves[1]), Scylla.PAWN)
     end
 
     @testset "En-Passant" begin 
@@ -262,7 +273,8 @@ end
             board = Scylla.BoardState(EPfen)
             moves, move_count = Scylla.generate_legal_moves(board)
             @test length(findall(i -> Scylla.flag(i)==Scylla.ENPASSANT, moves)) == 1
-            kingmv = findfirst(i -> Scylla.pc_type(i)==Scylla.KING, moves)
+            
+            kingmv = findfirst(i -> Scylla.is_piecetype(Scylla.pc_type(i), Scylla.KING), moves)
             Scylla.make_move!(moves[kingmv], board)
             @test board.enpassant_bb == 0
         end
@@ -365,7 +377,7 @@ end
         moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
         @test Scylla.cap_type(moves[1]) > 0
-        @test Scylla.pc_type(moves[1]) == Scylla.KNIGHT
+        @test Scylla.is_piecetype(Scylla.pc_type(moves[1]), Scylla.KNIGHT)
     end
 
     @testset "Stalemate" begin
@@ -380,7 +392,7 @@ end
         board = Scylla.BoardState(slidingFEN)
         moves, move_count = Scylla.generate_legal_moves(board)
         @test length(moves) == 1
-        @test Scylla.pc_type(moves[1]) == Scylla.BISHOP 
+        @test Scylla.is_piecetype(Scylla.pc_type(moves[1]), Scylla.BISHOP)
     end
 
     @testset "Checkmate" begin
@@ -403,7 +415,7 @@ end
     basicFEN = "1n7/8/8/8/8/8/8/8 w - - 0 1"
     board = Scylla.BoardState(basicFEN)
     ID = Scylla.identify_piecetype(board, 1)
-    @test ID == 5
+    @test ID == Scylla.KNIGHT + UInt8(6)
 end
 
 @testset "Repetition" begin
@@ -437,13 +449,13 @@ end
     @test count(i->(Scylla.cap_type(i) > 0),moves) == 2
 
     for m in moves
-        if Scylla.cap_type(m) == Scylla.ROOK
+        if Scylla.is_piecetype(Scylla.cap_type(m), Scylla.ROOK)
             Scylla.make_move!(m,board)
         end
     end
     newmoves, move_count = Scylla.generate_legal_moves(board)
     @test length(newmoves) == 12
-    @test count(i->(Scylla.cap_type(i) == Scylla.QUEEN),newmoves) == 1
+    @test count(i->(Scylla.is_piecetype(Scylla.cap_type(i), Scylla.QUEEN)), newmoves) == 1
 end
 
 @testset "Illegal Move" begin
@@ -577,20 +589,20 @@ function testing_perft(board::BoardState, depth)
 end
 
 function test_with_perft()
-    #Test that PST values from incremental update are not different from static evaluation
-    #Also that we can identify terminal nodes without running movegen
+    # test that PST values from incremental update are not different from static evaluation
+    # also that we can identify terminal nodes without running movegen
 
     FEN = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
     board = Scylla.BoardState(FEN)
-    testing_perft(board,4)
+    testing_perft(board, 4)
 
     FEN = "n1n5/PPPk4/8/8/8/8/4Kppp/5N1N b - - 0 1"
     board = Scylla.BoardState(FEN)
-    testing_perft(board,5)
+    testing_perft(board, 5)
 
     FEN = "RPrk/PP6/8/8/8/8/r7/7K b - - 0 26"
     board = Scylla.BoardState(FEN)
-    testing_perft(board,5)
+    testing_perft(board, 5)
 end
 
 const FENS = ["nnnnknnn/8/8/8/8/8/8/NNNNKNNN w - - 0 1",
@@ -620,7 +632,7 @@ function test_speed()
         if target == 0
             println(cur_leaves)
         else
-            @assert cur_leaves == target "failed on FEN $FEN, missing $(target-cur_leaves) nodes"
+            @assert cur_leaves == target "failed on FEN $FEN, missing $(target - cur_leaves) nodes"
         end
     end
     return leaves,Δt

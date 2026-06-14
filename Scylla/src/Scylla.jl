@@ -35,18 +35,23 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
--> Transposition table
- - Pack TT entries into 2 UInt64s
- - Age out TT entry whenever its accessed but not used
- - Test accessing TT in quiescence search
- - Enable future multi-threading via shared lock-less transposition table
 
 Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
 
 Speed
 -> Use super-piece method to check legality of castling (through attacks)
--> Test playing TT move immediately if pseudo-legal
+-> Separate make/unmake create/destroy piece to avoid repeated work unmaking PST score and zhash
+-> Play TT move and killers before movegen if pseudolegal
+    - requires colour-aware piece_positions
+    - requires marking moves as legal/pseudolegal
+    - enables separate quiet/capture generation
+    - enables scoring captures during generation
+-> Transposition table
+    - Pack TT entries into 2 UInt64s
+    - Age out TT entry whenever its accessed but not used
+    - Test accessing TT in quiescence search
+    - Enable future multi-threading via shared lock-less transposition table
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb

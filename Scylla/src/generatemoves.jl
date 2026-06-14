@@ -170,6 +170,7 @@ end
 
 "creates a move from a given location using the Move struct, with flag for attacks"
 @inline function moves_from_location!(type::UInt8, board::BoardState, destinations::BitBoard, origin, isattack::Bool)
+    type += long_index(board.colour)
     for loc in destinations
         attacked_piece_id = NULL_PIECE
         if isattack
@@ -480,7 +481,7 @@ end
 @inline attack_right(piece_bb) = (piece_bb << 1) & PAWN_RIGHT_ATTACK_MASK
 
 "appends 4 promotion moves"
-@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type,::Promote)
+@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type, ::Promote)
     for flag in PROMOTE_TYPES
         append!(board.move_vector, Move(piece_type, from, to, capture_type, flag))
     end
@@ -493,27 +494,30 @@ end
 
 "Create list of pawn push moves with a given flag"
 @inline function push_moves!(board::BoardState, single_push, shift, flag)
+    type = PAWN + long_index(board.colour)
     for q1 in single_push
-        append_moves!(board, PAWN, UInt8(q1 + shift), q1, NULL_PIECE, flag)
+        append_moves!(board, type, UInt8(q1 + shift), q1, NULL_PIECE, flag)
     end
 end
 
 "Create list of double pawn push moves"
 @inline function double_push_moves!(board::BoardState, double_push, shift)
+    type = PAWN + long_index(board.colour)
     for q2 in double_push
-        append!(board.move_vector, Move(PAWN, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
+        append!(board.move_vector, Move(type, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
     end
 end
 
 "Create list of pawn capture moves with a given flag"
 @inline function capture_moves!(board::BoardState, attackable_mask, attack_left, attack_right, shift, flag)
+    type = PAWN + long_index(board.colour)
     for la in (attack_left & attackable_mask)
         attack_piece_id = identify_piecetype(board, la)
-        append_moves!(board, PAWN, UInt8(la + shift + 1), la, attack_piece_id, flag)
+        append_moves!(board, type, UInt8(la + shift + 1), la, attack_piece_id, flag)
     end
     for ra in (attack_right & attackable_mask)
         attack_piece_id = identify_piecetype(board, ra)
-        append_moves!(board, PAWN, UInt8(ra + shift - 1), ra, attack_piece_id, flag)
+        append_moves!(board, type, UInt8(ra + shift - 1), ra, attack_piece_id, flag)
     end
 end
 
@@ -537,7 +541,9 @@ end
     enpassant_capture = to + shift
     if checks & (BitBoard(1) << enpassant_capture) > 0
         if enpassant_edge_case(board, from, enpassant_capture, kingpos, all_pcs)
-            append!(board.move_vector, Move(PAWN, from, to, PAWN, ENPASSANT))
+            ally_type = PAWN + long_index(board.colour)
+            enemy_type = PAWN + long_index(!board.colour)
+            append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT))
         end
     end
 end
@@ -728,6 +734,17 @@ end
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
 @inline function in_check(board::BoardState, colour = board.colour)    
     king_pos = locate_king(board, colour)
+
+    if king_pos == 64
+        print_board(board.piece_positions)
+
+        for _ in 1:5
+            move = rollback_history!(board)
+            println(long_move(move))
+            println("Moving: ", pc_type(move))
+            println("Capturing: ", cap_type(move))
+        end
+    end
 
     knight_moves = pseudolegal_knight_moves(king_pos)
     if (knight_moves & colour_piece(board, !colour, KNIGHT)) > 0

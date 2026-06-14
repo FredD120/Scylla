@@ -83,17 +83,33 @@ end
 @testset "Move Struct" begin 
     pc = UInt8(1)
     from = UInt8(10)
-    to = UInt8(11)
-    cap = UInt8(3)
-    flag = UInt8(1)
-    mv = Scylla.Move(pc,from,to,cap,flag)
+    to = UInt8(12)
+    cap = UInt8(15)
+    flag = UInt8(14)
+    mv = Scylla.Move(pc, from, to, cap, flag)
 
-    P,F,T,C,Fl = Scylla.unpack_move(mv)
+    P, F, T, C, Fl = Scylla.unpack_move(mv)
     @test P == pc
     @test F == from
     @test T == to
     @test C == cap
     @test Fl == flag
+
+    mv = Move(UInt32(0))
+    @test mv == Scylla.NULLMOVE
+    score = UInt8(124)
+    mv = Scylla.set_score(mv, score)
+    @test Scylla.score(mv) == score
+
+    mv = Scylla.set_legal(mv)
+    @test Scylla.is_legal(mv)
+    @test Scylla.score(mv) == score
+    @test Scylla.strip_move(mv) == Scylla.NULLMOVE
+    mv = Scylla.remove_score(mv)
+    @test Scylla.is_legal(mv)
+
+    mv = Scylla.set_pseudolegal(mv)
+    @test !Scylla.is_legal(mv)
 end
 
 @testset "Move Bitboard" begin 
@@ -202,7 +218,7 @@ end
         @test Scylla.enemy_pieces(board)[5] == UInt(1) << 16
         moves, move_count = Scylla.generate_legal_moves(board)
         for m in moves
-            if Scylla.cap_type(m) == 5
+            if Scylla.is_piecetype(Scylla.cap_type(m), Scylla.KNIGHT)
                 Scylla.make_move!(m, board)
             end
         end

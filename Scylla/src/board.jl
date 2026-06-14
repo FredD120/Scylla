@@ -44,7 +44,7 @@ current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m
 side_index(colour::Bool, ind) = ifelse(colour, ind, 8 * rank(ind) + file(ind))
 
 "offset for index into piece array based on side-to-move"
-long_index(colour::Bool) = ifelse(colour, 0, 6)
+long_index(colour::Bool) = ifelse(colour, UInt8(0), UInt8(6))
 
 "index either 0 or 1 for white or black, used for indexing small arrays"
 short_index(colour::Bool) = Int(!colour)
@@ -332,13 +332,12 @@ end
 @inline enemy_piece(b::BoardState, piece) = colour_piece(b, !b.colour, piece)
 
 "create a 64-length vector of where pieces are on the board"
-function offset_board(piece_vec::Vector{BitBoard})
+function offset_board(piece_vec::AbstractArray{BitBoard})
     position = zeros(UInt8, 64)
     for (piece_id, piece) in enumerate(piece_vec)
         for i in 0:63
             if piece & BitBoard(1) << i > 0
-                colourless_piece = (piece_id - 1) % 6 + 1
-                position[i + 1] = colourless_piece
+                position[i + 1] = piece_id
             end
         end
     end
@@ -347,6 +346,17 @@ end
 
 offset_board(board::BoardState) = offset_board(board.pieces)
 identify_piecetype(board::BoardState, location) = board.piece_positions[location + 1]
+
+"remove colour based indexing from piece type - fails if piece type is NULL_PIECE"
+colourless_piecetype(type::UInt8) = UInt8((type - 1) % 6 + 1)
+
+function is_piecetype(type::UInt8, comparison::UInt8)
+    if comparison == NULLMOVE
+        return type == comparison
+    else
+        return (type == comparison) || (type == comparison + UInt8(6))
+    end
+end
 
 "check if a given quiet move is possible to play on the current boardstate"
 function is_quiet_move_possible(move, board::BoardState)
@@ -434,7 +444,7 @@ function long_move(move::Move)
     else
         F = uci_pos(from(move))
         T = uci_pos(to(move))
-        P = piece_letter(pc_type(move))
+        P = piece_letter(colourless_piecetype(pc_type(move)))
         mid = "-"
         if cap_type(move) > 0
             mid = "x"
@@ -474,7 +484,7 @@ function short_move(move::Move)
 end
 
 "print a visualisation of the board to StdOut"
-function print_board(piece_positions::Vector{UInt8})
+function print_board(piece_positions::MVector{64, UInt8})
     for (pos, piece) in enumerate(piece_positions)
         if piece == NULL_PIECE
             print(". ")
