@@ -84,8 +84,8 @@ const MOVESET = Move_BB()
 
 "tuple storing castling moves for white and black king-/queen-side"
 const CASTLE_MOVES = (
-    Move(KING, UInt8(60), UInt8(62), NULL_PIECE, KING_CASTLE),           # white kingside
-    Move(KING, UInt8(60), UInt8(58), NULL_PIECE, QUEEN_CASTLE),          # white queenside
-    Move(KING + UInt8(6), UInt8(4), UInt8(6), NULL_PIECE, KING_CASTLE),  # black kingside
-    Move(KING + UInt8(6), UInt8(4), UInt8(2), NULL_PIECE, QUEEN_CASTLE)  # black queenside
+    Move(KING, UInt8(60), UInt8(62), NULL_PIECE, KING_CASTLE),               # white kingside
+    Move(KING, UInt8(60), UInt8(58), NULL_PIECE, QUEEN_CASTLE),              # white queenside
+    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(6), NULL_PIECE, KING_CASTLE),  # black kingside
+    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(2), NULL_PIECE, QUEEN_CASTLE)  # black queenside
 )

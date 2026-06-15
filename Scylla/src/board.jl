@@ -44,7 +44,7 @@ current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m
 side_index(colour::Bool, ind) = ifelse(colour, ind, 8 * rank(ind) + file(ind))
 
 "offset for index into piece array based on side-to-move"
-long_index(colour::Bool) = ifelse(colour, UInt8(0), UInt8(6))
+long_index(colour::Bool) = ifelse(colour, UInt8(0), BLACK_OFFSET)
 
 "index either 0 or 1 for white or black, used for indexing small arrays"
 short_index(colour::Bool) = Int(!colour)
@@ -354,7 +354,7 @@ function is_piecetype(type::UInt8, comparison::UInt8)
     if comparison == NULLMOVE
         return type == comparison
     else
-        return (type == comparison) || (type == comparison + UInt8(6))
+        return (type == comparison) || (type == comparison + BLACK_OFFSET)
     end
 end
 
@@ -365,6 +365,11 @@ function is_quiet_move_possible(move, board::BoardState)
     end
     mv_pc_type, mv_from, mv_to, _, mv_flag = unpack_move(move)
     positions = board.piece_positions
+
+    # black pieces cannot move on white's turn & vice versa
+    if board.colour != (mv_pc_type <= BLACK_OFFSET)
+        return false
+    end
 
     # need to make move types have colour and only PST access is colourless
     if positions[mv_from + 1] != mv_pc_type
@@ -398,19 +403,19 @@ function is_quiet_move_possible(move, board::BoardState)
         end
     end
 
-    if mv_pc_type == ROOK
+    if is_piecetype(mv_pc_type, ROOK)
         moves = pseudolegal_rook_moves(mv_from, all_pieces(board))
         if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
             return false
         end
 
-    elseif mv_pc_type == BISHOP
+    elseif is_piecetype(mv_pc_type, BISHOP)
         moves = pseudolegal_bishop_moves(mv_from, all_pieces(board))
         if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
             return false
         end
 
-    elseif mv_pc_type == QUEEN
+    elseif is_piecetype(mv_pc_type, QUEEN)
         moves = pseudolegal_queen_moves(mv_from, all_pieces(board))
         if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
             return false

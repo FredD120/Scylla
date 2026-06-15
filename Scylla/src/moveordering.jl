@@ -107,6 +107,22 @@ function MoveStager(tt_move, killers, board, is_check)
     return MoveStager(UInt8(0), tt_move, killers, is_check, false, board, 1, 0)
 end
 
+function is_illegal(move, board)
+    moves, move_length = generate_pseudolegal_moves(board)
+    is_legal = any(m -> m == move, moves)
+    clear_current_moves!(board.move_vector, move_length)
+    if !is_legal
+        println(long_move(move))
+        println(pc_type(move))
+        print_board(board.piece_positions)
+        println(board.colour)
+
+        while true
+            println(long_move(rollback_history!(board)))
+        end
+    end
+end
+
 "if there is a specific move to look for at this stage, return that move"
 function select_staged_move(stager::MoveStager)
     if stager.stage == STAGE_TT
@@ -115,12 +131,14 @@ function select_staged_move(stager::MoveStager)
     elseif stager.stage == STAGE_KILLER_1
         move = stager.killers.first
         if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
+            is_illegal(move, stager.board)
             return move
         end
 
     elseif stager.stage == STAGE_KILLER_2
         move = stager.killers.second
         if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
+            is_illegal(move, stager.board)
             return move
         end
     end

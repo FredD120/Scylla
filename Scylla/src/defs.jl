@@ -35,6 +35,7 @@ end
 "definition of white and black side-to-move used in movegen/boardstate"
 const WHITE = true
 const BLACK = false
+const BLACK_OFFSET = UInt8(6)
 
 const ZOBRIST_KEYS = rand(rng, BitBoard, 12 * 64 + 9)
 
