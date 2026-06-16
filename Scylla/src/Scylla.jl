@@ -43,8 +43,6 @@ Speed
 -> Use super-piece method to check legality of castling (through attacks)
 -> Separate make/unmake create/destroy piece to avoid repeated work unmaking PST score and zhash
 -> Play TT move and killers before movegen if pseudolegal
-    - requires colour-aware piece_positions
-    - requires marking moves as legal/pseudolegal
     - enables separate quiet/capture generation
     - enables scoring captures during generation
 -> Transposition table

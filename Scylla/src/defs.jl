@@ -113,9 +113,11 @@ abstract type MoveMode end
 
 struct AllMoves <: MoveMode end
 struct AttacksOnly <: MoveMode end
+struct QuietsOnly <: MoveMode end
 
 const ALLMOVES = AllMoves()
 const ATTACKSONLY = AttacksOnly()
+const QUIETSONLY = QuietsOnly()
 
 "read bitboards for king/knight moves from any position"
 function get_normal_masks(piece)

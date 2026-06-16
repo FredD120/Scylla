@@ -183,8 +183,11 @@ end
 "bitboard containing only the attacks by a particular piece"
 @inline attack_moves(::MoveMode, move_bb, enemy_bb) = move_bb & enemy_bb
 
+"bitboard containing no moves if we only want to generate quiets"
+@inline attack_moves(::QuietsOnly, move_bb, enemy_bb) = BITBOARD_EMPTY
+
 "bitboard containing only the quiets by a particular piece"
-@inline quiet_moves(::AllMoves, move_bb, all_pcs) = move_bb & ~all_pcs
+@inline quiet_moves(::MoveMode, move_bb, all_pcs) = move_bb & ~all_pcs
 
 "bitboard containing no moves if we only want to generate attacks"
 @inline quiet_moves(::AttacksOnly, move_bb, all_pcs) = BITBOARD_EMPTY
@@ -433,7 +436,7 @@ end
 end
 
 "castling must be legal to be generated, but correctness requirement on all-attacked-sqaures is lower"
-@inline function get_pseudolegal_castle_moves!(::AllMoves, board::BoardState, all_pcs)
+@inline function get_pseudolegal_castle_moves!(::MoveMode, board::BoardState, all_pcs)
     for castle_id in BitBoard(self_castle_rights(board))
         if CASTLE_BLOCKS[castle_id + 1] & all_pcs == 0
             if CASTLE_ATTACKS[castle_id + 1] & enemy_attacks(board, all_pcs) == 0
@@ -444,7 +447,7 @@ end
 end
 
 "castling is a quiet move, not generated during attack-only move generation"
-get_pseudolegal_castle_moves!(::AttacksOnly, _, _) = nothing
+get_pseudolegal_castle_moves!(::AttacksOnly, ::BoardState, _) = nothing
 
 "returns all possible attack/quiet move for the king for side-to-move, regardless of whether it is left under attack"
 @inline function get_pseudolegal_king_moves!(board::BoardState, enemy_pcs, all_pcs, MODE)
@@ -492,8 +495,11 @@ end
     append!(board.move_vector, Move(piece_type, from, to, capture_type, flag, islegal))
 end
 
+"fallback for generating enpassant pawn captures when only generating quiets"
+append_enpassant!(::QuietsOnly, ::BoardState, _, _, _) = nothing
+
 "calculate colour-indexed piece types of enpassant attacker/victim and append to movelist"
-@inline function append_enpassant!(board::BoardState, from, to, islegal=false)
+@inline function append_enpassant!(::MoveMode, board::BoardState, from, to, islegal=false)
     ally_type = PAWN + long_index(board.colour)
     enemy_type = PAWN + long_index(!board.colour)
     append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT, islegal))
@@ -517,8 +523,11 @@ end
     end
 end
 
+"fallback for generating pawn captures when only generating quiets"
+capture_moves!(::QuietsOnly, ::BoardState, _, _, _, _, _, _) = nothing
+
 "Create list of pawn capture moves with a given flag"
-@inline function capture_moves!(board::BoardState, attackable_mask, attack_left, attack_right, shift, flag, islegal=false)
+@inline function capture_moves!(::MoveMode, board::BoardState, attackable_mask, attack_left, attack_right, shift, flag, islegal=false)
     type = PAWN + long_index(board.colour)
     for la in (attack_left & attackable_mask)
         attack_piece_id = identify_piecetype(board, la)
@@ -550,7 +559,7 @@ end
     enpassant_capture = to + shift
     if checks & (BitBoard(1) << enpassant_capture) > 0
         if enpassant_edge_case(board, from, enpassant_capture, kingpos, all_pcs)
-            append_enpassant!(board, from, to, true)
+            append_enpassant!(ALLMOVES, board, from, to, true)
         end
     end
 end
@@ -629,8 +638,8 @@ end
     left = helper.attack_left
     right = helper.attack_right
 
-    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG, true)
-    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote(), true)
+    capture_moves!(ALLMOVES, board, attack_normal, left, right, pawn_masks.shift, NOFLAG, true)
+    capture_moves!(ALLMOVES, board, attack_promote, left, right, pawn_masks.shift, Promote(), true)
 end
 
 "returns attack and quiet moves for pawns only if legal, based on checks and pins"
@@ -669,20 +678,20 @@ end
     left = attack_left(single_push)
     right = attack_right(single_push)
 
-    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
-    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote())
+    capture_moves!(MODE, board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
+    capture_moves!(MODE, board, attack_promote, left, right, pawn_masks.shift, Promote())
 
     # enpassant
     left_enpassant = left & board.enpassant_bb
     for to in left_enpassant
         from = UInt8(to + pawn_masks.shift + 1)
-        append_enpassant!(board, from, to)
+        append_enpassant!(MODE, board, from, to)
     end
 
     right_enpassant = right & board.enpassant_bb
     for to in right_enpassant
         from = UInt8(to + pawn_masks.shift - 1)
-        append_enpassant!(board, from, to)
+        append_enpassant!(MODE, board, from, to)
     end
 end
 
@@ -736,6 +745,11 @@ end
 "helper function that uses generate moves to create a movelist of all pseudolegal attacking moves (no quiets)"
 function generate_pseudolegal_attacks(board::BoardState)
     return generate_pseudolegal_moves(board, ATTACKSONLY)
+end
+
+"helper function that uses generate moves to create a movelist of all pseudolegal quiet moves (no attacks)"
+function generate_pseudolegal_quiets(board::BoardState)
+    return generate_pseudolegal_moves(board, QUIETSONLY)
 end
 
 "scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"

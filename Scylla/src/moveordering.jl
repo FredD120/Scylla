@@ -89,8 +89,13 @@ end
 const STAGE_TT = UInt8(0)
 const STAGE_KILLER_1 = UInt8(1)
 const STAGE_KILLER_2 = UInt8(2)
-const STAGE_GENERATE = UInt8(3)
-const STAGE_MOVES = UInt8(4)
+const STAGE_GENERATE_ATTACKS = UInt8(3)
+const STAGE_ATTACKS = UInt8(4)
+const STAGE_GENERATE_QUIETS = UInt8(5)
+const STAGE_QUIETS = UInt8(6)
+
+# type of view into MoveVec, used to persistently store generated moves for staging
+const MoveView = SubArray{Move, 1, Vector{Move}, Tuple{UnitRange{Int}}, true}
 
 mutable struct MoveStager
     stage::UInt8
@@ -99,12 +104,13 @@ mutable struct MoveStager
     is_check::Bool
     is_done::Bool
     board::BoardState
+    moves::Union{Nothing, MoveView}
     cur_ind::UInt16
     move_length::UInt16
 end
 
 function MoveStager(tt_move, killers, board, is_check)
-    return MoveStager(UInt8(0), tt_move, killers, is_check, false, board, 1, 0)
+    return MoveStager(UInt8(0), tt_move, killers, is_check, false, board, nothing, 1, 0)
 end
 
 "if there is a specific move to look for at this stage, return that move"
@@ -136,7 +142,7 @@ end
 
 "lazily search for tt move/killers before move scoring to try to avoid O(m^2) lookup"
 function next_best!(st::MoveStager)
-    while st.stage < STAGE_GENERATE
+    while st.stage < STAGE_GENERATE_ATTACKS
         next_move = select_staged_move(st)
         st.stage += 1
 
@@ -145,31 +151,48 @@ function next_best!(st::MoveStager)
         end
     end
 
-    if st.stage == STAGE_GENERATE
-        (moves, move_length) = if st.is_check 
+    if st.stage == STAGE_GENERATE_ATTACKS
+        (moves, move_length) = if st.is_check
             generate_legal_moves(st.board)
         else
-            generate_pseudolegal_moves(st.board)
+            generate_pseudolegal_attacks(st.board)
         end
         score_moves!(moves)
+        st.moves = moves
         st.move_length = move_length
         st.stage += 1
     end
 
+    if st.stage == STAGE_GENERATE_QUIETS
+        (moves, move_length) = generate_pseudolegal_quiets(st.board)
+        st.moves = moves
+        st.move_length = move_length
+        st.stage += 1
+        st.cur_ind = 1
+    end
+
+    if st.stage == STAGE_ATTACKS
+        next_best!(st.moves, st.cur_ind)
+    end
+
     if st.cur_ind > st.move_length
-        st.is_done = true
-        return NULLMOVE
-    end
+        if st.is_check || (st.stage == STAGE_QUIETS)
+            st.is_done = true
+            return NULLMOVE
+        else
+            clear_current_moves!(st.board.move_vector, st.move_length)
+            st.stage += 1
+            return next_best!(st)
+        end
+    else
+        next_move = st.moves[st.cur_ind]
+        st.cur_ind += 1
 
-    moves = current_moves(st.board.move_vector, st.move_length)
-    next_best!(moves, st.cur_ind)
-    next_move = moves[st.cur_ind]
-    st.cur_ind += 1
-
-    if is_move_equal(next_move, st.tt_move, st.killers.first, st.killers.second)
-        return next_best!(st)
+        if is_move_equal(next_move, st.tt_move, st.killers.first, st.killers.second)
+            return next_best!(st)
+        end
+        return next_move
     end
-    return next_move
 end
 
 "iterates through scores and swaps next best score and move to top of list"

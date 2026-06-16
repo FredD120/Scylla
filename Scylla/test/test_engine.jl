@@ -158,7 +158,6 @@ function test_positions()
     end
 end
 
-
 if expensive::Bool
     result = @testset "Difficult Engine Tests" begin
         test_positions()
@@ -167,6 +166,3 @@ if expensive::Bool
         Test.print_test_results(result)
     end
 end
-
-
-
