@@ -232,10 +232,10 @@ end
 end
 
 "attempt to make a pseudolegal move and check if it worked. returns true if successful, false if not and rolls back illegal move"
-function make_pseudolegal_move!(move::Move, board::BoardState, skip_legal_check = false)
+function make_pseudolegal_move!(move::Move, board::BoardState)
     make_move!(move, board)
 
-    if skip_legal_check
+    if is_legal(move)
         return true
     end
 

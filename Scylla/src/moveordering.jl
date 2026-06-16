@@ -166,7 +166,7 @@ function next_best!(st::MoveStager)
     next_move = moves[st.cur_ind]
     st.cur_ind += 1
 
-    if (next_move == st.tt_move) || (next_move == st.killers.first) || (next_move == st.killers.second)
+    if is_move_equal(next_move, st.tt_move, st.killers.first, st.killers.second)
         return next_best!(st)
     end
     return next_move

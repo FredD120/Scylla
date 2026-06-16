@@ -25,6 +25,9 @@ set_score(move::Move, score::UInt8) = Move(remove_score(move).n | (UInt32(score)
 # remove features not intrinsic to a move for storage
 strip_move(move::Move) = Move(move.n & MOVEMASK)
 
+"check if a move is identical to a one or more other moves"
+is_move_equal(move::Move, moves...) = any(m -> m == strip_move(move), moves)
+
 "helper functions to determine contents of move struct"
 is_capture(move::Move) = is_capture(cap_type(move))
 is_capture(cap_type::UInt8) = cap_type > 0
@@ -84,8 +87,8 @@ const MOVESET = Move_BB()
 
 "tuple storing castling moves for white and black king-/queen-side"
 const CASTLE_MOVES = (
-    Move(KING, UInt8(60), UInt8(62), NULL_PIECE, KING_CASTLE),               # white kingside
-    Move(KING, UInt8(60), UInt8(58), NULL_PIECE, QUEEN_CASTLE),              # white queenside
-    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(6), NULL_PIECE, KING_CASTLE),  # black kingside
-    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(2), NULL_PIECE, QUEEN_CASTLE)  # black queenside
+    Move(KING, UInt8(60), UInt8(62), NULL_PIECE, KING_CASTLE, true),               # white kingside
+    Move(KING, UInt8(60), UInt8(58), NULL_PIECE, QUEEN_CASTLE, true),              # white queenside
+    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(6), NULL_PIECE, KING_CASTLE, true),  # black kingside
+    Move(KING + BLACK_OFFSET, UInt8(4), UInt8(2), NULL_PIECE, QUEEN_CASTLE, true)  # black queenside
 )

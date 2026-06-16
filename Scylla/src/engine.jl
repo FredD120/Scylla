@@ -256,12 +256,12 @@ end
 @inline store_in_table!(::EngineState{Nothing}, args...) = nothing
 
 "search a set of moves generated during quiescent search. recursively calls quiescence, uses fail-soft"
-function search_quiescent_moves(engine::EngineState, moves, best_score, is_check, player::Int8, α, β, ply, logger::Logger)
+function search_quiescent_moves(engine::EngineState, moves, best_score, player::Int8, α, β, ply, logger::Logger)
     for i in eachindex(moves)
         next_best!(moves,i)
         move = moves[i]
 
-        success = make_pseudolegal_move!(move, engine.board, is_check)
+        success = make_pseudolegal_move!(move, engine.board)
         if !success
             continue
         end
@@ -312,7 +312,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         moves, attack_count = generate_pseudolegal_attacks(engine.board)
         score_moves!(moves)
 
-        score = search_quiescent_moves(engine, moves, best_score, is_check, player, α, β, ply, logger)
+        score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
         clear_current_moves!(engine.board.move_vector, attack_count)
         return score
 
@@ -322,7 +322,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
         moves, move_length = generate_legal_moves(engine.board)
         score_moves!(moves)
 
-        score = search_quiescent_moves(engine, moves, best_score, is_check, player, α, β, ply, logger)
+        score = search_quiescent_moves(engine, moves, best_score, player, α, β, ply, logger)
         clear_current_moves!(engine.board.move_vector, move_length)
         return score
     end
@@ -340,7 +340,7 @@ function search_moves(engine::EngineState, stager, player::Int8, α, β, depth, 
         move = next_best!(stager)
         move == NULLMOVE && continue
 
-        success = make_pseudolegal_move!(move, engine.board, false)#stager.is_check)
+        success = make_pseudolegal_move!(move, engine.board)
         success || continue
         
         score = principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)

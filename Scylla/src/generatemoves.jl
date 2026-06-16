@@ -169,14 +169,14 @@ end
 end
 
 "creates a move from a given location using the Move struct, with flag for attacks"
-@inline function moves_from_location!(type::UInt8, board::BoardState, destinations::BitBoard, origin, isattack::Bool)
+@inline function moves_from_location!(type::UInt8, board::BoardState, destinations::BitBoard, origin, isattack, islegal=false)
     type += long_index(board.colour)
     for loc in destinations
         attacked_piece_id = NULL_PIECE
         if isattack
             attacked_piece_id = identify_piecetype(board, loc)
         end
-        append!(board.move_vector, Move(type, origin, loc, attacked_piece_id, NOFLAG))
+        append!(board.move_vector, Move(type, origin, loc, attacked_piece_id, NOFLAG, islegal))
     end
 end
 
@@ -246,8 +246,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(TYPE, board, quiets, loc, false)
-        moves_from_location!(TYPE, board, attacks, loc, true)
+        moves_from_location!(TYPE, board, quiets, loc, false, true)
+        moves_from_location!(TYPE, board, attacks, loc, true, true)
     end
 end
 
@@ -258,8 +258,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(TYPE, board, quiets, loc, false)
-        moves_from_location!(TYPE, board, attacks, loc, true)
+        moves_from_location!(TYPE, board, quiets, loc, false, true)
+        moves_from_location!(TYPE, board, attacks, loc, true, true)
     end
 end
 
@@ -270,8 +270,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(TYPE, board, quiets, loc, false)
-        moves_from_location!(TYPE, board, attacks, loc, true)
+        moves_from_location!(TYPE, board, quiets, loc, false, true)
+        moves_from_location!(TYPE, board, attacks, loc, true, true)
     end
 end
 
@@ -282,8 +282,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(TYPE, board, quiets, loc, false)
-        moves_from_location!(TYPE, board, attacks, loc, true)
+        moves_from_location!(TYPE, board, quiets, loc, false, true)
+        moves_from_location!(TYPE, board, attacks, loc, true, true)
     end
 end
 
@@ -294,8 +294,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(QUEEN, board, quiets, loc, false)
-        moves_from_location!(QUEEN, board, attacks, loc, true)
+        moves_from_location!(QUEEN, board, quiets, loc, false, true)
+        moves_from_location!(QUEEN, board, attacks, loc, true, true)
     end
 end
 
@@ -402,8 +402,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(KNIGHT, board, quiets, loc, false)
-        moves_from_location!(KNIGHT, board, attacks, loc, true)
+        moves_from_location!(KNIGHT, board, quiets, loc, false, true)
+        moves_from_location!(KNIGHT, board, attacks, loc, true, true)
     end
 end
 
@@ -468,8 +468,8 @@ end
         attacks = attack_moves(ALLMOVES, legal, enemy_pcs)
         quiets = quiet_moves(ALLMOVES, legal, all_pcs)
 
-        moves_from_location!(KING, board, quiets, loc, false)
-        moves_from_location!(KING, board, attacks, loc, true)
+        moves_from_location!(KING, board, quiets, loc, false, true)
+        moves_from_location!(KING, board, attacks, loc, true, true)
     end
 end
 
@@ -481,50 +481,52 @@ end
 @inline attack_right(piece_bb) = (piece_bb << 1) & PAWN_RIGHT_ATTACK_MASK
 
 "appends 4 promotion moves"
-@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type, ::Promote)
+@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type, ::Promote, islegal=false)
     for flag in PROMOTE_TYPES
-        append!(board.move_vector, Move(piece_type, from, to, capture_type, flag))
+        append!(board.move_vector, Move(piece_type, from, to, capture_type, flag, islegal))
     end
 end
 
 "appends a non-promote move with a given flag"
-@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type, flag::UInt8)
-    append!(board.move_vector, Move(piece_type, from, to, capture_type, flag))
+@inline function append_moves!(board::BoardState, piece_type, from, to, capture_type, flag::UInt8, islegal=false)
+    append!(board.move_vector, Move(piece_type, from, to, capture_type, flag, islegal))
 end
 
 "calculate colour-indexed piece types of enpassant attacker/victim and append to movelist"
-@inline function append_enpassant!(board::BoardState, from, to)
+@inline function append_enpassant!(board::BoardState, from, to, islegal=false)
     ally_type = PAWN + long_index(board.colour)
     enemy_type = PAWN + long_index(!board.colour)
-    append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT))
+    append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT, islegal))
 end
 
 "Create list of pawn push moves with a given flag"
-@inline function push_moves!(board::BoardState, single_push, shift, flag)
+@inline function push_moves!(board::BoardState, single_push, shift, flag, islegal=false)
     type = PAWN + long_index(board.colour)
     for q1 in single_push
-        append_moves!(board, type, UInt8(q1 + shift), q1, NULL_PIECE, flag)
+        from = UInt8(q1 + shift)
+        append_moves!(board, type, from, q1, NULL_PIECE, flag, islegal)
     end
 end
 
 "Create list of double pawn push moves"
-@inline function double_push_moves!(board::BoardState, double_push, shift)
+@inline function double_push_moves!(board::BoardState, double_push, shift, islegal=false)
     type = PAWN + long_index(board.colour)
     for q2 in double_push
-        append!(board.move_vector, Move(type, UInt8(q2 + 2 * shift), q2, NULL_PIECE, DOUBLE_PUSH))
+        from = UInt8(q2 + 2 * shift)
+        append!(board.move_vector, Move(type, from, q2, NULL_PIECE, DOUBLE_PUSH, islegal))
     end
 end
 
 "Create list of pawn capture moves with a given flag"
-@inline function capture_moves!(board::BoardState, attackable_mask, attack_left, attack_right, shift, flag)
+@inline function capture_moves!(board::BoardState, attackable_mask, attack_left, attack_right, shift, flag, islegal=false)
     type = PAWN + long_index(board.colour)
     for la in (attack_left & attackable_mask)
         attack_piece_id = identify_piecetype(board, la)
-        append_moves!(board, type, UInt8(la + shift + 1), la, attack_piece_id, flag)
+        append_moves!(board, type, UInt8(la + shift + 1), la, attack_piece_id, flag, islegal)
     end
     for ra in (attack_right & attackable_mask)
         attack_piece_id = identify_piecetype(board, ra)
-        append_moves!(board, type, UInt8(ra + shift - 1), ra, attack_piece_id, flag)
+        append_moves!(board, type, UInt8(ra + shift - 1), ra, attack_piece_id, flag, islegal)
     end
 end
 
@@ -548,7 +550,7 @@ end
     enpassant_capture = to + shift
     if checks & (BitBoard(1) << enpassant_capture) > 0
         if enpassant_edge_case(board, from, enpassant_capture, kingpos, all_pcs)
-            append_enpassant!(board, from, to)
+            append_enpassant!(board, from, to, true)
         end
     end
 end
@@ -608,14 +610,14 @@ end
     single_normal = single_legal & ~pawn_masks.promote
     single_promote = single_legal & pawn_masks.promote
 
-    push_moves!(board, single_normal, pawn_masks.shift, NOFLAG)
-    push_moves!(board, single_promote, pawn_masks.shift, Promote())
+    push_moves!(board, single_normal, pawn_masks.shift, NOFLAG, true)
+    push_moves!(board, single_promote, pawn_masks.shift, Promote(), true)
 end
 
 "add all legal double pawn pushes to move list"
 @inline function legal_double_push!(board::BoardState, helper, pawn_masks, info::LegalInfo)
     double_legal = helper.double_push & info.evasion_mask
-    double_push_moves!(board, double_legal, pawn_masks.shift)
+    double_push_moves!(board, double_legal, pawn_masks.shift, true)
 end
 
 "add all legal pawn attacks to move list"
@@ -627,8 +629,8 @@ end
     left = helper.attack_left
     right = helper.attack_right
 
-    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG)
-    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote())
+    capture_moves!(board, attack_normal, left, right, pawn_masks.shift, NOFLAG, true)
+    capture_moves!(board, attack_promote, left, right, pawn_masks.shift, Promote(), true)
 end
 
 "returns attack and quiet moves for pawns only if legal, based on checks and pins"
