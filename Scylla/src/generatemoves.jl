@@ -492,6 +492,13 @@ end
     append!(board.move_vector, Move(piece_type, from, to, capture_type, flag))
 end
 
+"calculate colour-indexed piece types of enpassant attacker/victim and append to movelist"
+@inline function append_enpassant!(board::BoardState, from, to)
+    ally_type = PAWN + long_index(board.colour)
+    enemy_type = PAWN + long_index(!board.colour)
+    append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT))
+end
+
 "Create list of pawn push moves with a given flag"
 @inline function push_moves!(board::BoardState, single_push, shift, flag)
     type = PAWN + long_index(board.colour)
@@ -541,9 +548,7 @@ end
     enpassant_capture = to + shift
     if checks & (BitBoard(1) << enpassant_capture) > 0
         if enpassant_edge_case(board, from, enpassant_capture, kingpos, all_pcs)
-            ally_type = PAWN + long_index(board.colour)
-            enemy_type = PAWN + long_index(!board.colour)
-            append!(board.move_vector, Move(ally_type, from, to, enemy_type, ENPASSANT))
+            append_enpassant!(board, from, to)
         end
     end
 end
@@ -669,13 +674,13 @@ end
     left_enpassant = left & board.enpassant_bb
     for to in left_enpassant
         from = UInt8(to + pawn_masks.shift + 1)
-        append!(board.move_vector, Move(PAWN, from, to, PAWN, ENPASSANT))
+        append_enpassant!(board, from, to)
     end
 
     right_enpassant = right & board.enpassant_bb
     for to in right_enpassant
         from = UInt8(to + pawn_masks.shift - 1)
-        append!(board.move_vector, Move(PAWN, from, to, PAWN, ENPASSANT))
+        append_enpassant!(board, from, to)
     end
 end
 
@@ -713,13 +718,13 @@ function generate_pseudolegal_moves(board::BoardState, MODE=ALLMOVES)
     enemy_pcs_bb = all_enemy_pieces(board)
     all_pcs_bb = all_pieces(board)
 
-    get_pseudolegal_king_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_castle_moves!(MODE, board, all_pcs_bb)
     get_pseudolegal_knight_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_bishop_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_rook_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_queen_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
     get_pseudolegal_pawn_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
+    get_pseudolegal_king_moves!(board, enemy_pcs_bb, all_pcs_bb, MODE)
 
     move_count = board.move_vector.ind - prev_move_index
     move_view = current_moves(board.move_vector, move_count)

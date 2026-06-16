@@ -137,7 +137,7 @@ end
     elseif is_piecetype(mv_pc_type, PAWN)
         board.half_moves = 0
     else
-       board.half_moves += 1
+        board.half_moves += 1
     end
 
     move_piece!(board, board.colour, mv_pc_type, mv_from, mv_to)

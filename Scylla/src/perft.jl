@@ -75,7 +75,7 @@ function pseudolegal_perft(board::BoardState, depth, TT::Union{TranspositionTabl
         nodecount = pseudolegal_perft(board, depth - 1, TT, TT_enabled=TT_enabled)
         
         if verbose == true
-            println(long_move(move) * ": " * string(nodecount))
+            println(long_move(move), ": ", uci_move(move), " : ", string(nodecount))
         end
         
         leaf_nodes += nodecount
