@@ -412,8 +412,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         return score
     end
 
-    is_check = in_check(engine.board)
-    stager = MoveStager(best_move, engine.info.killers[ply + 1], engine.board, is_check)
+    stager = MoveStager(best_move, engine.info.killers[ply + 1], engine.board)
     score = search_moves(engine, stager, player, α, β, depth, ply, is_principal, logger)
     return score
 end

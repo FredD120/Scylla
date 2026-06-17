@@ -87,10 +87,10 @@ end
     @inbounds MVV_LVA[5 * (colourless_piecetype(attacker) - 1) + colourless_piecetype(victim) - 1]
 
 const STAGE_TT = UInt8(0)
-const STAGE_KILLER_1 = UInt8(1)
-const STAGE_KILLER_2 = UInt8(2)
-const STAGE_GENERATE_ATTACKS = UInt8(3)
-const STAGE_ATTACKS = UInt8(4)
+const STAGE_GENERATE_ATTACKS = UInt8(1)
+const STAGE_ATTACKS = UInt8(2)
+const STAGE_KILLER_1 = UInt8(3)
+const STAGE_KILLER_2 = UInt8(4)
 const STAGE_GENERATE_QUIETS = UInt8(5)
 const STAGE_QUIETS = UInt8(6)
 
@@ -101,7 +101,6 @@ mutable struct MoveStager
     stage::UInt8
     tt_move::Move
     killers::Killer
-    is_check::Bool
     is_done::Bool
     board::BoardState
     moves::Union{Nothing, MoveView}
@@ -109,28 +108,8 @@ mutable struct MoveStager
     move_length::UInt16
 end
 
-function MoveStager(tt_move, killers, board, is_check)
-    return MoveStager(UInt8(0), tt_move, killers, is_check, false, board, nothing, 1, 0)
-end
-
-"if there is a specific move to look for at this stage, return that move"
-function select_staged_move(stager::MoveStager)
-    if stager.stage == STAGE_TT
-        return stager.tt_move
-        
-    elseif stager.stage == STAGE_KILLER_1
-        move = stager.killers.first
-        if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
-            return move
-        end
-
-    elseif stager.stage == STAGE_KILLER_2
-        move = stager.killers.second
-        if (move != stager.tt_move) && is_quiet_move_possible(move, stager.board)
-            return move
-        end
-    end
-    return NULLMOVE
+function MoveStager(tt_move, killers, board)
+    return MoveStager(UInt8(0), tt_move, killers, false, board, nothing, 1, 0)
 end
 
 "swap the positions of two entries in a vector"
@@ -140,52 +119,62 @@ function swap!(list, ind1, ind2)
     list[ind2] = temp
 end
 
-"lazily search for tt move/killers before move scoring to try to avoid O(m^2) lookup"
+"lazily search for tt move/killers before move generation/scoring"
 function next_best!(st::MoveStager)
-    while st.stage < STAGE_GENERATE_ATTACKS
-        next_move = select_staged_move(st)
+    if st.stage == STAGE_TT
         st.stage += 1
-
-        if next_move != NULLMOVE
-            return next_move
-        end
-    end
-
-    if st.stage == STAGE_GENERATE_ATTACKS
-        (moves, move_length) = if st.is_check
-            generate_legal_moves(st.board)
-        else
-            generate_pseudolegal_attacks(st.board)
-        end
+        return st.tt_move
+    
+    elseif st.stage == STAGE_GENERATE_ATTACKS
+        st.stage += 1
+        (moves, move_length) = generate_pseudolegal_attacks(st.board)
         score_moves!(moves)
         st.moves = moves
         st.move_length = move_length
-        st.stage += 1
-    end
+        return next_best!(st)
+    
+    elseif st.stage == STAGE_ATTACKS
+        next_best!(st.moves, st.cur_ind)
 
-    if st.stage == STAGE_GENERATE_QUIETS
+    elseif st.stage == STAGE_KILLER_1
+        st.stage += 1
+        move = st.killers.first
+        if (move != st.tt_move) && is_quiet_move_possible(move, st.board)
+            return move
+        else
+            return next_best!(st)
+        end
+
+    elseif st.stage == STAGE_KILLER_2
+        st.stage += 1
+        move = st.killers.second
+        if (move != st.tt_move) && is_quiet_move_possible(move, st.board)
+            return move
+        else
+            return next_best!(st)
+        end
+
+    elseif st.stage == STAGE_GENERATE_QUIETS
+        st.stage += 1
         (moves, move_length) = generate_pseudolegal_quiets(st.board)
         st.moves = moves
         st.move_length = move_length
-        st.stage += 1
         st.cur_ind = 1
-    end
-
-    if st.stage == STAGE_ATTACKS
-        next_best!(st.moves, st.cur_ind)
+        return next_best!(st)
     end
 
     if st.cur_ind > st.move_length
-        if st.is_check || (st.stage == STAGE_QUIETS)
+        if st.stage == STAGE_QUIETS
             st.is_done = true
             return NULLMOVE
         else
             clear_current_moves!(st.board.move_vector, st.move_length)
             st.stage += 1
+            st.move_length = 0
             return next_best!(st)
         end
     else
-        next_move = st.moves[st.cur_ind]
+        next_move = @inbounds st.moves[st.cur_ind]
         st.cur_ind += 1
 
         if is_move_equal(next_move, st.tt_move, st.killers.first, st.killers.second)
