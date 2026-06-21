@@ -102,9 +102,9 @@ const LEGALSHIFT = FLAGSHIFT + FLAGSIZE
 const SCORESHIFT = LEGALSHIFT + LEGALSIZE
 
 # mask out all features not intrinsic to a move for storage
-const MOVEMASK = UInt32((1 << LEGALSHIFT) - 1)
+const MOVEMASK = UInt32((1 << LEGALSHIFT) - 1) # width = 24
 # mask used to set score to zero
-const ZEROMASK = UInt32((1 << SCORESHIFT) - 1)
+const ZEROMASK = UInt32((1 << SCORESHIFT) - 1) # width = 25
 
 ### Move Generator Features ###
 
@@ -202,7 +202,7 @@ const PAWN_LEFT_ATTACK_MASK = BitBoard(0x7F7F7F7F7F7F7F7F)
 
 const PAWN_RIGHT_ATTACK_MASK = BitBoard(0xFEFEFEFEFEFEFEFE)
 
-const PROMOTE_TYPES = [PROMQUEEN, PROMROOK, PROMBISHOP, PROMKNIGHT]
+const PROMOTE_TYPES = SVector{4, UInt8}([PROMQUEEN, PROMKNIGHT, PROMROOK, PROMBISHOP])
 
 "max theoretical number of moves in a boardstate is ≈ 200, assuming 20 move depth gives ≈ 4000 total moves in move heap
 move heap can be dynamically extended if out-of-bounds, so default is slightly lower"
@@ -245,10 +245,21 @@ const BETA = UInt8(2)
 const EXACT = UInt8(3)
 
 const MB_SIZE = 1048576 #size of a Mb in bytes
-const TT_DEFAULT_MB = 48
+const TT_DEFAULT_MB = 32
 const TT_MIN_MB = 0
-const TT_MAX_MB = 384
+const TT_MAX_MB = 512
 
+const DEPTHMASK = UInt64(0xFF)        # width = 8
+const EVALUATIONMASK = UInt64(0xFFFF) # width = 16
+const NODEMASK = UInt64(0xFF)         # width = 8
+
+const DEPTHSIZE = 8
+const EVALUATIONSIZE = 16
+const NODESIZE = 8
+
+const EVALUATIONSHIFT = DEPTHSIZE
+const NODESHIFT = EVALUATIONSHIFT + EVALUATIONSIZE
+const MOVESHIFT = NODESHIFT + NODESIZE
 
 ### Heuristic Evaluation Features ###
 

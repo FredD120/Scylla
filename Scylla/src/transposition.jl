@@ -80,15 +80,34 @@ end
 
 "data describing a node, to be stored in TT"
 struct SearchData
-    zobrist_hash::BitBoard
-    depth::UInt8
-    score::Int16
-    type::UInt8
-    move::Move
+    zobrist_hash::UInt64
+    data::UInt64
 end
 
 "generic constructor for search data"
-SearchData() = SearchData(BitBoard(), UInt8(0), Int16(0), NONE, NULLMOVE)
+SearchData() = SearchData(UInt64(0), UInt64(0))
+
+function SearchData(zobrist::BitBoard, depth::UInt8, score::Int16, type::UInt8, move::Move)  
+    score = UInt64(reinterpret(UInt16, score))
+
+    data = UInt64(depth) |
+    (score << EVALUATIONSHIFT) |
+    (UInt64(type) << NODESHIFT) |
+    (UInt64(move.n & MOVEMASK) << MOVESHIFT)
+    
+    return SearchData(zobrist.n, data)
+end
+
+get_zobrist(d::SearchData) = BitBoard(d.zobrist_hash)
+get_depth(d::SearchData) = UInt8(d.data & DEPTHMASK)
+get_type(d::SearchData) = UInt8((d.data >> NODESHIFT) & NODEMASK)
+get_move(d::SearchData) = Move(UInt32((d.data >> MOVESHIFT) & MOVEMASK))
+
+"reinterpret raw bits as a signed int after unpacking from unsigned int"
+function score(d::SearchData)
+    score_bits = (d.data >> EVALUATIONSHIFT) & EVALUATIONMASK
+    return reinterpret(Int16, UInt16(score_bits))
+end
 
 "store multiple entries at same Zkey, with different replace schemes"
 struct Bucket
@@ -125,13 +144,13 @@ end
     score = correct_score(score, ply, -1)
     new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
 
-    if depth >= current_entry.depth.depth
-        if current_entry.depth.type == NONE
+    if depth >= get_depth(current_entry.depth)
+        if get_type(current_entry.depth) == NONE
             store_success = true
         end  
         new_depth = new_data
     else
-        if current_entry.always.type == NONE
+        if get_type(current_entry.always) == NONE
             store_success = true
         end
         new_always = new_data
@@ -145,10 +164,10 @@ end
 function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
     bucket = get_entry(table, zobrist_hash)
     #no point using TT if hash collision
-    if bucket.depth.zobrist_hash == zobrist_hash
-        return bucket.depth, correct_score(bucket.depth.score, cur_ply, +1)
-    elseif bucket.always.zobrist_hash == zobrist_hash
-        return bucket.always, correct_score(bucket.always.score, cur_ply, +1)
+    if get_zobrist(bucket.depth) == zobrist_hash
+        return bucket.depth, correct_score(score(bucket.depth), cur_ply, +1)
+    elseif get_zobrist(bucket.always) == zobrist_hash
+        return bucket.always, correct_score(score(bucket.always), cur_ply, +1)
     else
         return nothing, nothing
     end

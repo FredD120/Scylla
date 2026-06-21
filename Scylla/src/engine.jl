@@ -224,16 +224,17 @@ end
     transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, ply)
     if !isnothing(transposition_data)
         # don't try to cutoff if depth of TT entry is too low
-        if transposition_data.depth >= depth 
-            if (transposition_data.type == EXACT) ||
-               (transposition_data.type == BETA && transposition_score >= β) ||
-               (transposition_data.type == ALPHA && transposition_score <= α)
-                return transposition_data.move, transposition_score, true
+        if get_depth(transposition_data) >= depth
+            data_type = get_type(transposition_data)
+            if (data_type == EXACT) ||
+               (data_type == BETA && transposition_score >= β) ||
+               (data_type == ALPHA && transposition_score <= α)
+                return get_move(transposition_data), transposition_score, true
             end
         end
         # we can only use the move stored if we found BETA or EXACT node
         # otherwise it will be a NULLMOVE so won't match in move scoring
-        return transposition_data.move, α, false
+        return get_move(transposition_data), α, false
     end
     return NULLMOVE, α, false
 end
@@ -420,13 +421,13 @@ end
 "if not on principle variation, search with a null window. if this fails (score > α), must open window and re-search"
 @inline function principle_variation_search(engine, player, α, β, depth, ply, is_principal, logger)
     if !is_principal
-        null_window_score = -minimax(engine, -player, -α - Int16(1), -α, depth - 1, ply + 1, is_principal, logger)
+        null_window_score = -minimax(engine, -player, -α - Int16(1), -α, depth - UInt8(1), ply + UInt8(1), is_principal, logger)
         # have we proved that all other moves are worse than PV move
         if null_window_score <= α
             return null_window_score
         end
     end
-    return -minimax(engine, -player, -β, -α, depth - 1, ply + 1, is_principal, logger)
+    return -minimax(engine, -player, -β, -α, depth - UInt8(1), ply + UInt8(1), is_principal, logger)
 end
 
 "root of minimax search, define parameters and return result of fixed depth search"
@@ -437,7 +438,7 @@ function root(engine::EngineState, depth, logger::Logger)
     β = INF
     # white is +1, black is -1. this ensures score is always from side-to-moves perspective
     player::Int8 = sgn(engine.board.colour)
-    ply = 0
+    ply = UInt8(0)
     is_principal = true
 
     return minimax(engine, player, α, β, depth, ply, is_principal, logger)
@@ -457,12 +458,12 @@ end
 
 "run minimax search to fixed depth then increase depth until time runs out"
 function iterative_deepening(engine::EngineState)
-    depth = 0
+    depth = UInt8(0)
     logger = Logger(num_entries(engine.table))
-    bestscore = 0
+    bestscore = Int16(0)
 
     while continue_deepening(engine, depth, bestscore)
-        depth += 1
+        depth += UInt8(1)
         logger.cur_depth = depth
         bestscore = root(engine, depth, logger)
 
