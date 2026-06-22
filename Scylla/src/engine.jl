@@ -259,7 +259,7 @@ end
 "search a set of moves generated during quiescent search. recursively calls quiescence, uses fail-soft"
 function search_quiescent_moves(engine::EngineState, moves, best_score, player::Int8, α, β, ply, logger::Logger)
     for i in eachindex(moves)
-        next_best!(moves,i)
+        swap_next_move!(moves,i)
         move = moves[i]
 
         success = make_pseudolegal_move!(move, engine.board)

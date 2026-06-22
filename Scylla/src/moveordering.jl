@@ -119,60 +119,56 @@ function swap!(list, ind1, ind2)
     list[ind2] = temp
 end
 
-"lazily search for tt move/killers before move generation/scoring"
-function next_best!(st::MoveStager)
-    if st.stage == STAGE_TT
-        st.stage += 1
-        return st.tt_move
-    
-    elseif st.stage == STAGE_GENERATE_ATTACKS
-        st.stage += 1
-        (moves, move_length) = generate_pseudolegal_attacks(st.board)
-        score_moves!(moves)
-        st.moves = moves
-        st.move_length = move_length
-        return next_best!(st)
-    
-    elseif st.stage == STAGE_ATTACKS
-        next_best!(st.moves, st.cur_ind)
-
-    elseif st.stage == STAGE_KILLER_1
-        st.stage += 1
-        move = st.killers.first
-        if (move != st.tt_move) && is_quiet_move_possible(move, st.board)
-            return move
-        else
-            return next_best!(st)
-        end
-
-    elseif st.stage == STAGE_KILLER_2
-        st.stage += 1
-        move = st.killers.second
-        if (move != st.tt_move) && is_quiet_move_possible(move, st.board)
-            return move
-        else
-            return next_best!(st)
-        end
-
-    elseif st.stage == STAGE_GENERATE_QUIETS
-        st.stage += 1
-        (moves, move_length) = generate_pseudolegal_quiets(st.board)
-        st.moves = moves
-        st.move_length = move_length
-        st.cur_ind = 1
+"return a killer move if it is possible to play on the board, otherwise recurse"
+function return_killer_move!(st::MoveStager, move)
+    if (move != st.tt_move) && is_quiet_move_possible(move, st.board)
+        return move
+    else
         return next_best!(st)
     end
+end
 
+"generate pseudolegal quiet moves and store them inside move stager"
+function generate_quiets!(st::MoveStager)
+    (moves, move_length) = generate_pseudolegal_quiets(st.board)
+    st.moves = moves
+    st.move_length = move_length
+    st.cur_ind = 1
+end
+
+"generate pseudolegal capture moves and store them inside move stager"
+function generate_attacks!(st::MoveStager)
+    (moves, move_length) = generate_pseudolegal_attacks(st.board)
+    score_moves!(moves)
+    st.moves = moves
+    st.move_length = move_length
+end
+
+"return the next capture if it exists and has not already been played. otherwise recurse"
+function next_attack_move!(st::MoveStager)
     if st.cur_ind > st.move_length
-        if st.stage == STAGE_QUIETS
-            st.is_done = true
-            return NULLMOVE
-        else
-            clear_current_moves!(st.board.move_vector, st.move_length)
-            st.stage += 1
-            st.move_length = 0
+        clear_current_moves!(st.board.move_vector, st.move_length)
+        st.move_length = 0
+        st.stage += 1
+        return next_best!(st)
+
+    else
+        next_move = @inbounds st.moves[st.cur_ind]
+        st.cur_ind += 1
+
+        if is_move_equal(next_move, st.tt_move)
             return next_best!(st)
         end
+        return next_move
+    end
+end
+
+"return the next quiet move if it has not already been played, terminates once exhausted"
+function next_quiet_move!(st::MoveStager)
+    if st.cur_ind > st.move_length
+        st.is_done = true
+        return NULLMOVE
+       
     else
         next_move = @inbounds st.moves[st.cur_ind]
         st.cur_ind += 1
@@ -184,8 +180,41 @@ function next_best!(st::MoveStager)
     end
 end
 
+"lazily search for tt move/killers before move generation/scoring"
+function next_best!(st::MoveStager)
+    if st.stage == STAGE_TT
+        st.stage += 1
+        return st.tt_move
+    
+    elseif st.stage == STAGE_GENERATE_ATTACKS
+        st.stage += 1
+        generate_attacks!(st)
+        return next_best!(st)
+    
+    elseif st.stage == STAGE_ATTACKS
+        swap_next_move!(st.moves, st.cur_ind)
+        return next_attack_move!(st)
+
+    elseif st.stage == STAGE_KILLER_1
+        st.stage += 1
+        return_killer_move!(st, st.killers.first)
+
+    elseif st.stage == STAGE_KILLER_2
+        st.stage += 1
+        return_killer_move!(st, st.killers.second)
+
+    elseif st.stage == STAGE_GENERATE_QUIETS
+        st.stage += 1
+        generate_quiets!(st)
+        return next_best!(st)
+    
+    elseif st.stage == STAGE_QUIETS
+        return next_quiet_move!(st)
+    end
+end
+
 "iterates through scores and swaps next best score and move to top of list"
-function next_best!(moves, cur_ind)
+function swap_next_move!(moves, cur_ind)
     len = length(moves)
     if cur_ind < len
         cur_best_score = 0
