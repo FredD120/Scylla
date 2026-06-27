@@ -6,8 +6,8 @@
 "Retrieve piece square tables from file"
 function get_pst(type)
     h5open("$(dirname(@__DIR__))/src/PST/$(type).h5", "r") do fid
-        MG::SVector{64, Float32} = read(fid["MidGame"])
-        EG::SVector{64, Float32} = read(fid["EndGame"])
+        MG::SVector{64, Int32} = round.(Int32, read(fid["MidGame"]))
+        EG::SVector{64, Int32} = round.(Int32, read(fid["EndGame"]))
         return (MG, EG)
     end
 end
@@ -21,16 +21,16 @@ function PST()
     (knightMG, knightEG) = get_pst("knight")
     (pawnMG, pawnEG) = get_pst("pawn")
 
-    return (SVector{6, SVector{64, Float32}}([
+    return (SVector{6, SVector{64, Int32}}([
     kingMG, queenMG, rookMG, bishopMG, knightMG, pawnMG]),
-    SVector{6, SVector{64, Float32}}([
+    SVector{6, SVector{64, Int32}}([
     kingEG, queenEG, rookEG, bishopEG, knightEG, pawnEG]))
 end
 
 const MG_PSTs, EG_PSTs = PST()
 
 mutable struct PieceScore
-    midgame::Int32 
+    midgame::Int32
     endgame::Int32
 end
 
