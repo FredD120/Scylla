@@ -87,6 +87,8 @@ end
 "generic constructor for search data"
 SearchData() = SearchData(UInt64(0), UInt64(0))
 
+const NULL_SEARCHDATA = SearchData()
+
 "construct SearchData with default age zero"
 SearchData(z::BitBoard, d::UInt8, s::Int16, t::UInt8, m::Move) = SearchData(z, d, s, t, UInt8(0), m)
 
@@ -146,25 +148,25 @@ function correct_score(score, ply, sgn)::Int16
     return score
 end
 
-"relative effective depths of different node types"
+"relative effective depths (multiplied by 4) of different node types"
 function type_value(type::UInt8)
     if type == EXACT
-        return Float32(4)
+        return Int(8)
 
     elseif type == BETA
-        return Float32(2)
+        return Int(4)
 
     else
-        return Float32(0)
+        return Int(0)
     end
 end
 
 "calculate whether deep transposition table entry should be replaced"
 function replace_depth(current, new_depth, old_type, new_type)
     type_diff = type_value(old_type) - type_value(new_type)
-    age = Float32(get_age(current))
-    depth = Float32(get_depth(current))
-    return new_depth >= depth - age * Float32(0.25) + type_diff
+    age = Int(get_age(current))
+    depth = Int(get_depth(current))
+    return new_depth * 4 >= depth * 4 - age + type_diff
 end
 
 "update entry in transposition table. either greater depth or always replace. return true if successfull"
@@ -208,7 +210,7 @@ function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
         return deep, correct_score(get_score(deep), cur_ply, +1)
 
     # increase age of depth stored entry every time it fails to be retrieved
-    else
+    elseif deep != NULL_SEARCHDATA
         aged_bucket = Bucket(increment_age(deep), bucket.always)
         set_entry!(table, zobrist_hash, aged_bucket)
     end
