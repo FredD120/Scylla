@@ -1,6 +1,6 @@
 #=
 CURRENT CAPABILITIES
--> Evaluate positions based on piece value and piece square tables
+-> Piece square table evaluation (tuned with gradient descent)
 -> Minimax with alpha beta pruning tree search
 -> Iterative deepening
 -> Principle variation search
@@ -35,13 +35,13 @@ Evaluation
 TO-DO (general)
 -> UCI protocol
  - Better time estimation - use movestogo if provided
+-> Point-based system to estimate mid/end-game phase
 
 Known bugs
 -> Mate scores in transposition table are wrong (off by one?)
 
 Optimisations
 -> Use super-piece method to check legality of castling (through attacks)
--> Separate make/unmake create/destroy piece to avoid repeated work unmaking PST score and zhash
 -> Transposition table
     - Age out TT entry whenever its accessed but not used
     - Test accessing TT in quiescence search

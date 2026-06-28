@@ -524,7 +524,7 @@ end
         Scylla.make_move!(move,board)
        end
     end
-    @test board.zobrist_hash == board.history.vec[1].zobrist_hash
+    @test board.zobrist_hash == board.history[1].zobrist_hash
 
     Scylla.unmake_move!(board)
     Scylla.unmake_move!(board)

@@ -58,42 +58,15 @@ struct BoardHistory
     castling::UInt8
     enpassant::BitBoard
     zobrist_hash::BitBoard
+    pst::PieceScore
     move::Move
 end
 
-"pre-allocated array of board history data"
-mutable struct HistoryVec
-    vec::Vector{BoardHistory}
-    ind::UInt16
-    len::UInt16
-end
-
 "create array of historic states with default length, avoids allocating memory in tight loops"
-HistoryVec(len = TYPICAL_GAME_LENGTH) = HistoryVec(Vector{BoardHistory}(undef, len), UInt16(0), len)
-
-"extend push to add a new board history state to the history stack"
-function Base.push!(history::HistoryVec, state::BoardHistory)
-    history.ind += 1
-    @boundscheck if history.ind > history.len
-        history.len *= 2
-        new_vec = Vector{BoardHistory}(undef, history.len)
-
-        for (i, hist) in enumerate(history.vec)
-            new_vec[i] = hist
-        end
-        history.vec = new_vec
-    end
-    @inbounds history.vec[history.ind] = state
-end
-
-"extend pop to remove a board history state from the history stack and return it"
-function Base.pop!(history::HistoryVec)
-    @boundscheck if history.ind < 1
-        error("No move history to unmake")
-    end
-    state = @inbounds history.vec[history.ind]
-    history.ind -= 1
-    return state
+function history_vec(len = TYPICAL_GAME_LENGTH)
+    vec = BoardHistory[]
+    sizehint!(vec, len)
+    return vec
 end
 
 mutable struct BoardState
@@ -106,7 +79,7 @@ mutable struct BoardState
     enpassant_bb::BitBoard
     zobrist_hash::BitBoard
     pst_score::PieceScore
-    history::HistoryVec
+    history::Vector{BoardHistory}
     move_vector::MoveVec
 end
 
@@ -114,11 +87,11 @@ end
 function rollback_history!(board::BoardState)
     state = pop!(board.history)
 
-    # zobrist hash is reversed automatically when unmaking move
     board.zobrist_hash = state.zobrist_hash
     board.half_moves = state.half_moves
     board.castle = state.castling
     board.enpassant_bb = state.enpassant
+    board.pst_score = state.pst
 
     return state.move
 end
@@ -130,6 +103,7 @@ function update_history!(board::BoardState, move::Move)
     board.castle,
     board.enpassant_bb,
     board.zobrist_hash,
+    board.pst_score,
     move)
 
    push!(board.history, state)
@@ -139,8 +113,9 @@ end
 @inline function three_repetition(board::BoardState)
     count = 0
     history = board.history
-    for i in (history.ind - 1):-2:(history.ind - board.half_moves + 1)
-        if history.vec[i].zobrist_hash == board.zobrist_hash
+    len = length(history)
+    for i in (len - 1):-2:(len - board.half_moves + 1)
+        if history[i].zobrist_hash == board.zobrist_hash
             count += 1
             if count > 1
                 return true
@@ -304,7 +279,7 @@ function BoardState(FEN)
     pst_score = get_pst(pieces)
 
     BoardState(pieces, pc_unions(pieces), offset_board(pieces), colour, half_moves,
-    castling, enpassant, zobrist, pst_score, HistoryVec(), MoveVec())
+    castling, enpassant, zobrist, pst_score, history_vec(), MoveVec())
 end
 
 "default constructor for BoardState"

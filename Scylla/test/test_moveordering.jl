@@ -61,7 +61,7 @@ end
     end
 
     for i in eachindex(moves)
-        Scylla.next_best!(moves,i)
+        Scylla.swap_next_move!(moves,i)
         @test Scylla.score(moves[i]) == 4-i
     end
 end

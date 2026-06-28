@@ -4,7 +4,7 @@
 "utilises setzero to remove a piece from a position"
 @inline function destroy_piece!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setzero(board.pieces[piece_type], pos)
-    update_pst_score!(board.pst_score, colour, colourless_piecetype(piece_type), pos, -1)
+    board.pst_score = updated_pst_score(board.pst_score, colour, colourless_piecetype(piece_type), pos, -1)
     board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = 0
 
@@ -15,7 +15,7 @@ end
 "utilises setone to create a piece in a position"
 @inline function create_piece!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setone(board.pieces[piece_type], pos)
-    update_pst_score!(board.pst_score, colour, colourless_piecetype(piece_type), pos, +1)
+    board.pst_score = updated_pst_score(board.pst_score, colour, colourless_piecetype(piece_type), pos, +1)
     board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = piece_type
 
@@ -27,6 +27,30 @@ end
 @inline function move_piece!(board::BoardState, colour, piece_type, from, to)
     destroy_piece!(board, colour, piece_type, from)
     create_piece!(board, colour, piece_type, to)
+end
+
+"removes a piece from a position to unmake the piece's creation"
+@inline function unmake_create!(board::BoardState, colour, piece_type, pos)
+    board.pieces[piece_type] = setzero(board.pieces[piece_type], pos)
+    board.piece_positions[pos + 1] = 0
+
+    union_id = short_index(colour) + 1
+    board.piece_union[union_id] = setzero(board.piece_union[union_id], pos)
+end
+
+"places a piece at a position to unmake the piece's destruction"
+@inline function unmake_destroy!(board::BoardState, colour, piece_type, pos)
+    board.pieces[piece_type] = setone(board.pieces[piece_type], pos)
+    board.piece_positions[pos + 1] = piece_type
+
+    union_id = short_index(colour) + 1 
+    board.piece_union[union_id] = setone(board.piece_union[union_id], pos)
+end
+
+"utilises create and destroy to move single piece back to where it came from"
+@inline function unmake_move_piece!(board::BoardState, colour, piece_type, from, to)
+    unmake_create!(board, colour, piece_type, to)
+    unmake_destroy!(board, colour, piece_type, from)
 end
 
 "switch to opposite colour and update hash key"
@@ -178,42 +202,40 @@ end
 "unmake king- or queen-side castle for opponent"
 @inline function unmake_castle!(board::BoardState, opposite_colour, move_from, move_to, move_flag)
     colour_shift = long_index(opposite_colour)
-    move_piece!(board, opposite_colour, KING + colour_shift, move_to, move_from)
+    unmake_move_piece!(board, opposite_colour, KING + colour_shift, move_from, move_to)
     
     castle_lookup = (move_flag == QUEEN_CASTLE) + short_index(opposite_colour) * 2 + 1
     rook_from = ROOK_START_SQUARES[castle_lookup]
     rook_to = ROOK_CASTLE_SQUARES[castle_lookup]
-    move_piece!(board, opposite_colour, ROOK + colour_shift, rook_to, rook_from)
+    unmake_move_piece!(board, opposite_colour, ROOK + colour_shift, rook_from, rook_to)
 end
 
 "uses opponents colour to create a pawn and destroy promotion piece. uses own colour to undo capture"
 @inline function unmake_promotion!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
     promoted_type = promote_type(mv_flag) + long_index(opposite_colour)
-    create_piece!(board, opposite_colour, mv_pc_type, mv_from)
-    destroy_piece!(board, opposite_colour, promoted_type, mv_to)
+    unmake_destroy!(board, opposite_colour, mv_pc_type, mv_from)
+    unmake_create!(board, opposite_colour, promoted_type, mv_to)
 
     if is_capture(mv_cap_type)
-        create_piece!(board, board.colour, mv_cap_type, mv_to)
+        unmake_destroy!(board, board.colour, mv_cap_type, mv_to)
     end
 end
 
 "undo normal quiets and attacks, pawn double pushes and enpassant"
 @inline function unmake_normal_move!(board::BoardState, opposite_colour, mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag)
-    move_piece!(board, opposite_colour, mv_pc_type, mv_to, mv_from)
+    unmake_move_piece!(board, opposite_colour, mv_pc_type, mv_from, mv_to)
 
     if is_capture(mv_cap_type)
-        create_loc = mv_to
         if mv_flag == ENPASSANT
-            create_loc = enpassant_location(opposite_colour, create_loc)
+            mv_to = enpassant_location(opposite_colour, mv_to)
         end
-        create_piece!(board, board.colour, mv_cap_type, create_loc)
+        unmake_destroy!(board, board.colour, mv_cap_type, mv_to)
     end
 end
 
 "unmakes last move on move_history stack. restore halfmoves, EP squares and castle rights"
 @inline function unmake_move!(board::BoardState)
     move = rollback_history!(board)
-    zobrist = board.zobrist_hash
     mv_pc_type, mv_from, mv_to, mv_cap_type, mv_flag = unpack_move(move)
 
     if is_castle(mv_flag)
@@ -228,7 +250,6 @@ end
 
     board.colour = !board.colour
     update_piece_union!(board)
-    board.zobrist_hash = zobrist
 end
 
 "attempt to make a pseudolegal move and check if it worked. returns true if successful, false if not and rolls back illegal move"
