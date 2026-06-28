@@ -259,7 +259,11 @@ const NODESIZE = 8
 
 const EVALUATIONSHIFT = DEPTHSIZE
 const NODESHIFT = EVALUATIONSHIFT + EVALUATIONSIZE
-const MOVESHIFT = NODESHIFT + NODESIZE
+const AGESHIFT = NODESHIFT + NODESIZE
+const MOVESHIFT = AGESHIFT + DEPTHSIZE
+
+# mask out bits in a UInt64 from position AGESHIFT to MOVESHIFT
+const AGEMASK = reinterpret(UInt64, (~((1 << MOVESHIFT) - 1) | ((1 << AGESHIFT) - 1)))
 
 ### Heuristic Evaluation Features ###
 

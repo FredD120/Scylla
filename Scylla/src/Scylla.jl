@@ -43,7 +43,6 @@ Known bugs
 Optimisations
 -> Use super-piece method to check legality of castling (through attacks)
 -> Transposition table
-    - Age out TT entry whenever its accessed but not used
     - Test accessing TT in quiescence search
 
 TO THINK ABOUT

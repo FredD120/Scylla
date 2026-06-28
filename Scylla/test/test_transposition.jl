@@ -28,7 +28,7 @@ using Test
             Z1 = BitBoard(2^61 + 2^62 + 2^10) 
             Z2 = BitBoard(2^61 + 2^62 + 2^11) 
 
-            new_data = Scylla.PerftData(Z1,UInt8(5),UInt128(1))
+            new_data = Scylla.PerftData(Z1, UInt8(5), UInt128(1))
 
             Scylla.set_entry!(TT, new_data)
             TT_entry1 = Scylla.get_entry(TT,Z1)
@@ -40,4 +40,27 @@ using Test
             @test TT_entry2.zobrist_hash != Z2 
         end
     end
+end
+
+@testset "SearchData" begin
+    board = BoardState()
+    moves, _ = generate_legal_moves(board)
+
+    zobrist = board.zobrist_hash
+    depth = UInt8(1)
+    score = Int16(100)
+    type = Scylla.ALPHA
+    move = Scylla.strip_move(moves[1])
+
+    d = Scylla.SearchData(zobrist, depth, score, type, move)
+
+    @test Scylla.get_zobrist(d) == zobrist
+    @test Scylla.get_depth(d) == depth
+    @test Scylla.get_score(d) == score
+    @test Scylla.get_type(d) == type
+    @test Scylla.get_age(d) == UInt8(0)
+    @test Scylla.get_move(d) == move
+
+    new = Scylla.increment_age(d)
+    @test Scylla.get_age(new) == UInt8(1)
 end

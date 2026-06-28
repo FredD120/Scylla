@@ -69,7 +69,7 @@ zobrist_shift(zobrist_hash, shift) = zobrist_hash >> shift
 zobrist_mask(zobrist_hash, mask) = zobrist_hash & mask
 
 "set value of entry in TT"
-function set_entry!(table::TranspositionTable, data) 
+function set_entry!(table::TranspositionTable, data)
     @inbounds table.hash_table[zobrist_mask(data.zobrist_hash, table.key) + 1] = data
 end
 
@@ -87,12 +87,17 @@ end
 "generic constructor for search data"
 SearchData() = SearchData(UInt64(0), UInt64(0))
 
-function SearchData(zobrist::BitBoard, depth::UInt8, score::Int16, type::UInt8, move::Move)  
+"construct SearchData with default age zero"
+SearchData(z::BitBoard, d::UInt8, s::Int16, t::UInt8, m::Move) = SearchData(z, d, s, t, UInt8(0), m)
+
+"construct SearchData by packing move data into a UInt64 and combining with Zobrist hash"
+function SearchData(zobrist::BitBoard, depth::UInt8, score::Int16, type::UInt8, age::UInt8, move::Move)  
     score = UInt64(reinterpret(UInt16, score))
 
     data = UInt64(depth) |
     (score << EVALUATIONSHIFT) |
     (UInt64(type) << NODESHIFT) |
+    (UInt64(age) << AGESHIFT) |
     (UInt64(move.n & MOVEMASK) << MOVESHIFT)
     
     return SearchData(zobrist.n, data)
@@ -101,10 +106,21 @@ end
 get_zobrist(d::SearchData) = BitBoard(d.zobrist_hash)
 get_depth(d::SearchData) = UInt8(d.data & DEPTHMASK)
 get_type(d::SearchData) = UInt8((d.data >> NODESHIFT) & NODEMASK)
+get_age(d::SearchData) = UInt8((d.data >> AGESHIFT) & DEPTHMASK)
 get_move(d::SearchData) = Move(UInt32((d.data >> MOVESHIFT) & MOVEMASK))
 
+remove_age(d::UInt64) = UInt64(d & AGEMASK)
+set_age(d::UInt64, age::UInt8) = remove_age(d) | (UInt64(age) << AGESHIFT)
+
+"increase age of SearchData entry, but avoid UInt8 overflow"
+function increment_age(d::SearchData)
+    age = get_age(d)
+    new_age = age == typemax(UInt8) ? age : age + UInt8(1)
+    SearchData(d.zobrist_hash, set_age(d.data, new_age))
+end
+
 "reinterpret raw bits as a signed int after unpacking from unsigned int"
-function score(d::SearchData)
+function get_score(d::SearchData)
     score_bits = (d.data >> EVALUATIONSHIFT) & EVALUATIONMASK
     return reinterpret(Int16, UInt16(score_bits))
 end
@@ -130,6 +146,27 @@ function correct_score(score, ply, sgn)::Int16
     return score
 end
 
+"relative effective depths of different node types"
+function type_value(type::UInt8)
+    if type == EXACT
+        return Float32(4)
+
+    elseif type == BETA
+        return Float32(2)
+
+    else
+        return Float32(0)
+    end
+end
+
+"calculate whether deep transposition table entry should be replaced"
+function replace_depth(current, new_depth, old_type, new_type)
+    type_diff = type_value(old_type) - type_value(new_type)
+    age = Float32(get_age(current))
+    depth = Float32(get_depth(current))
+    return new_depth >= depth - age * Float32(0.25) + type_diff
+end
+
 "update entry in transposition table. either greater depth or always replace. return true if successfull"
 @inline function store!(table::TranspositionTable{Bucket}, zobrist_hash, depth, ply, score, node_type, best_move)::Bool
     ind = convert(UInt64, zobrist_mask(zobrist_hash, table.key)) + 1
@@ -137,18 +174,19 @@ end
     @inbounds current_entry = table.hash_table[ind]
     store_success = false
 
-    new_depth = current_entry.depth
+    new_deep = current_entry.depth
     new_always = current_entry.always
 
     #correct mate scores in TT
     score = correct_score(score, ply, -1)
     new_data = SearchData(zobrist_hash, depth, score, node_type, best_move)
 
-    if depth >= get_depth(current_entry.depth)
-        if get_type(current_entry.depth) == NONE
+    deep_type = get_type(current_entry.depth)
+    if replace_depth(current_entry.depth, depth, deep_type, node_type)
+        if deep_type == NONE
             store_success = true
-        end  
-        new_depth = new_data
+        end 
+        new_deep = new_data
     else
         if get_type(current_entry.always) == NONE
             store_success = true
@@ -156,18 +194,27 @@ end
         new_always = new_data
     end
 
-    @inbounds table.hash_table[ind] = Bucket(new_depth, new_always)
+    @inbounds table.hash_table[ind] = Bucket(new_deep, new_always)
     return store_success
 end
 
 "retrieve transposition table entry and corrected score, returning nothing if unsuccessful"
 function retrieve(table::TranspositionTable{Bucket}, zobrist_hash, cur_ply)
     bucket = get_entry(table, zobrist_hash)
-    #no point using TT if hash collision
-    if get_zobrist(bucket.depth) == zobrist_hash
-        return bucket.depth, correct_score(score(bucket.depth), cur_ply, +1)
-    elseif get_zobrist(bucket.always) == zobrist_hash
-        return bucket.always, correct_score(score(bucket.always), cur_ply, +1)
+    deep = bucket.depth
+
+    # if full hash doesn't match, position is wrong
+    if get_zobrist(deep) == zobrist_hash
+        return deep, correct_score(get_score(deep), cur_ply, +1)
+
+    # increase age of depth stored entry every time it fails to be retrieved
+    else
+        aged_bucket = Bucket(increment_age(deep), bucket.always)
+        set_entry!(table, zobrist_hash, aged_bucket)
+    end
+
+    if get_zobrist(bucket.always) == zobrist_hash
+        return bucket.always, correct_score(get_score(bucket.always), cur_ply, +1)
     else
         return nothing, nothing
     end
