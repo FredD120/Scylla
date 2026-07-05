@@ -293,11 +293,6 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     logger.q_nodes += 1
     logger.seldepth = max(logger.seldepth, ply)
 
-    # still need to check for draws in qsearch
-    if draw_state(engine.board)
-        return DRAW_SCORE
-    end
-
     is_check = in_check(engine.board)
     # not in check, continue quiescence
     if !is_check

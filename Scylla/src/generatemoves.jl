@@ -435,11 +435,21 @@ end
     end
 end
 
+"check bitboard of locations between king start and king castle position, return false if any are under attack"
+function is_castle_attacked(board::BoardState, castle_squares)
+    for pos in castle_squares
+        if is_square_attacked(board, !board.colour, pos)
+            return true
+        end
+    end
+    return false
+end
+
 "castling must be legal to be generated, but correctness requirement on all-attacked-sqaures is lower"
 @inline function get_pseudolegal_castle_moves!(::MoveMode, board::BoardState, all_pcs)
     for castle_id in BitBoard(self_castle_rights(board))
         if CASTLE_BLOCKS[castle_id + 1] & all_pcs == 0
-            if CASTLE_ATTACKS[castle_id + 1] & enemy_attacks(board, all_pcs) == 0
+            if !is_castle_attacked(board, CASTLE_ATTACKS[castle_id + 1])
                 append!(board.move_vector, CASTLE_MOVES[castle_id + 1])
             end
         end
@@ -752,47 +762,40 @@ function generate_pseudolegal_quiets(board::BoardState)
     return generate_pseudolegal_moves(board, QUIETSONLY)
 end
 
-"scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
-@inline function in_check(board::BoardState, colour = board.colour)    
-    king_pos = locate_king(board, colour)
-
-    if king_pos == 64
-        print_board(board.piece_positions)
-
-        for _ in 1:5
-            move = rollback_history!(board)
-            println(long_move(move))
-            println("Moving: ", pc_type(move))
-            println("Capturing: ", cap_type(move))
-        end
-    end
-
-    knight_moves = pseudolegal_knight_moves(king_pos)
-    if (knight_moves & colour_piece(board, !colour, KNIGHT)) > 0
+"return true if a square, pos, is under attack by pieces of a certain colour"
+@inline function is_square_attacked(board::BoardState, colour, pos)
+    knight_moves = pseudolegal_knight_moves(pos)
+    if (knight_moves & colour_piece(board, colour, KNIGHT)) > 0
         return true
     end
 
-    king_moves = pseudolegal_king_moves(king_pos)
-    if (king_moves & colour_piece(board, !colour, KING)) > 0
+    king_moves = pseudolegal_king_moves(pos)
+    if (king_moves & colour_piece(board, colour, KING)) > 0
         return true
     end
 
-    queen_bb = colour_piece(board, !colour, QUEEN)
+    queen_bb = colour_piece(board, colour, QUEEN)
     all_pcs = all_pieces(board)
 
-    rook_moves = pseudolegal_rook_moves(king_pos, all_pcs)
-    if (rook_moves & (colour_piece(board, !colour, ROOK) | queen_bb)) > 0
+    rook_moves = pseudolegal_rook_moves(pos, all_pcs)
+    if (rook_moves & (colour_piece(board, colour, ROOK) | queen_bb)) > 0
         return true
     end
 
-    bishop_moves = pseudolegal_bishop_moves(king_pos, all_pcs)
-    if (bishop_moves & (colour_piece(board, !colour, BISHOP) | queen_bb)) > 0
+    bishop_moves = pseudolegal_bishop_moves(pos, all_pcs)
+    if (bishop_moves & (colour_piece(board, colour, BISHOP) | queen_bb)) > 0
         return true
     end
 
-    pawn_attackers = pseudolegal_pawn_moves(BITBOARD_ONE << king_pos, colour)
-    if (pawn_attackers & colour_piece(board, !colour, PAWN)) > 0
+    pawn_attackers = pseudolegal_pawn_moves(BITBOARD_ONE << pos, !colour)
+    if (pawn_attackers & colour_piece(board, colour, PAWN)) > 0
         return true
     end
     return false
+end
+
+"scan all enemy pieces from 'colour' king's perspective to determine whether king is under attack"
+@inline function in_check(board::BoardState, colour = board.colour)   
+    king_pos = locate_king(board, colour)
+    return is_square_attacked(board, !colour, king_pos)
 end

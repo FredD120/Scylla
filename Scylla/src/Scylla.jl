@@ -42,8 +42,6 @@ Known bugs
 
 Optimisations
 -> Use super-piece method to check legality of castling (through attacks)
--> Transposition table
-    - Test accessing TT in quiescence search
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
