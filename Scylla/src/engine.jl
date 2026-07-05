@@ -220,16 +220,16 @@ const DRAW_SCORE = Int16(0)
 end
 
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"
-@inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, is_principal, depth, ply)
+@inline function retrieve_from_table(engine::EngineState{<:TranspositionTable}, α, β, depth, ply)
     transposition_data, transposition_score = retrieve(engine.table, engine.board.zobrist_hash, ply)
     if !isnothing(transposition_data)
         # don't try to cutoff if depth of TT entry is too low
-        # don't cutoff on PV, it can lead to repetition blindness
-        if !is_principal && get_depth(transposition_data) >= depth
+        # don't cutoff if exact node score is inside window, leads to repetition blindness
+        if get_depth(transposition_data) >= depth
             data_type = get_type(transposition_data)
-            if (data_type == EXACT) ||
+            if (data_type == EXACT && (transposition_score >= β || transposition_score < α)) ||
                (data_type == BETA && transposition_score >= β) ||
-               (data_type == ALPHA && transposition_score <= α)
+               (data_type == ALPHA && transposition_score < α)
                 return get_move(transposition_data), transposition_score, true
             end
         end
@@ -240,7 +240,7 @@ end
     return NULLMOVE, α, false
 end
 
-@inline retrieve_from_table(::EngineState{Nothing}, α, _, _, _, _) = (NULLMOVE, α, false)
+@inline retrieve_from_table(::EngineState{Nothing}, α, _, _, _) = (NULLMOVE, α, false)
 
 "store position with depth, score and best move in transposition table, logging if successful"
 @inline function store_in_table!(engine::EngineState{<:TranspositionTable}, depth, ply, score, node_type, move)
@@ -403,7 +403,7 @@ function minimax(engine::EngineState, player::Int8, α, β, depth, ply, is_princ
         return DRAW_SCORE
     end
 
-    best_move, score, return_early = retrieve_from_table(engine, α, β, is_principal, depth, ply)
+    best_move, score, return_early = retrieve_from_table(engine, α, β, depth, ply)
     if return_early
         set_pv!(engine.info, ply, best_move)
         return score

@@ -27,7 +27,6 @@ Move Ordering
 -> LMR (+ history?)
 
 Evaluation
--> Texel tuned PSTs
 -> King safety
 -> Pawn structure
 -> NNUE
@@ -38,10 +37,8 @@ TO-DO (general)
 -> Point-based system to estimate mid/end-game phase
 
 Known bugs
--> Mate scores in transposition table are wrong (off by one?)
-
-Optimisations
--> Use super-piece method to check legality of castling (through attacks)
+-> Mate scores in transposition table are wrong 
+   - over-optimistic? thinks opponent will take shorter route to mate
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
