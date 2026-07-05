@@ -10,6 +10,7 @@ BitBoard_full() = BitBoard(typemax(UInt64))
 
 const BITBOARD_EMPTY = BitBoard()
 const BITBOARD_FULL = BitBoard_full()
+const BITBOARD_ONE = BitBoard(UInt64(1))
 
 "Define start of iterator through locations in a bitboard"
 function Base.iterate(bb::BitBoard) 

@@ -171,7 +171,7 @@ end
 @inline function enpassant_cleanup!(board::BoardState, move_flag, move_to)
     if move_flag == DOUBLE_PUSH
         location = enpassant_location(board.colour, move_to)
-        update_enpassant!(board, BitBoard(1) << location)
+        update_enpassant!(board, BITBOARD_ONE << location)
     elseif board.enpassant_bb > 0
         update_enpassant!(board, BitBoard())
     end

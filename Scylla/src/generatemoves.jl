@@ -91,7 +91,7 @@ end
     bishop_attackers = (bishop_moves & (enemy_piece(board, BISHOP) | enemy_queen_bb))
     attackers |= bishop_attackers
 
-    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << location, board.colour)
+    pawn_attackers = pseudolegal_pawn_moves(BITBOARD_ONE << location, board.colour)
     attackers |= pawn_attackers & enemy_piece(board, PAWN)
 
     return attackers
@@ -557,7 +557,7 @@ end
 "Check legality of en-passant before adding it to move list"
 @inline function push_enpassant!(board::BoardState, from, to, shift, checks, all_pcs, kingpos)
     enpassant_capture = to + shift
-    if checks & (BitBoard(1) << enpassant_capture) > 0
+    if checks & (BITBOARD_ONE << enpassant_capture) > 0
         if enpassant_edge_case(board, from, enpassant_capture, kingpos, all_pcs)
             append_enpassant!(ALLMOVES, board, from, to, true)
         end
@@ -790,7 +790,7 @@ end
         return true
     end
 
-    pawn_attackers = pseudolegal_pawn_moves(BitBoard(1) << king_pos, colour)
+    pawn_attackers = pseudolegal_pawn_moves(BITBOARD_ONE << king_pos, colour)
     if (pawn_attackers & colour_piece(board, !colour, PAWN)) > 0
         return true
     end

@@ -311,7 +311,7 @@ function offset_board(piece_vec::AbstractArray{BitBoard})
     position = zeros(UInt8, 64)
     for (piece_id, piece) in enumerate(piece_vec)
         for i in 0:63
-            if piece & BitBoard(1) << i > 0
+            if piece & BITBOARD_ONE << i > 0
                 position[i + 1] = piece_id
             end
         end
@@ -380,19 +380,19 @@ function is_quiet_move_possible(move, board::BoardState)
 
     if is_piecetype(mv_pc_type, ROOK)
         moves = pseudolegal_rook_moves(mv_from, all_pieces(board))
-        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+        if (BITBOARD_ONE << mv_to) & moves == BITBOARD_EMPTY
             return false
         end
 
     elseif is_piecetype(mv_pc_type, BISHOP)
         moves = pseudolegal_bishop_moves(mv_from, all_pieces(board))
-        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+        if (BITBOARD_ONE << mv_to) & moves == BITBOARD_EMPTY
             return false
         end
 
     elseif is_piecetype(mv_pc_type, QUEEN)
         moves = pseudolegal_queen_moves(mv_from, all_pieces(board))
-        if (BitBoard(1) << mv_to) & moves == BITBOARD_EMPTY
+        if (BITBOARD_ONE << mv_to) & moves == BITBOARD_EMPTY
             return false
         end
     end
