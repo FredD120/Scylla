@@ -297,13 +297,8 @@ const MVV_LVA = SVector{30, UInt8}([
 "quantise game phase into a byte"
 const QUANTISATION_SHIFT::Int32 =  8
 const QUANTISATION::Int32 = 1 << QUANTISATION_SHIFT
-"number of pieces left when we are fully in endgame"
-const MIN_PIECES::Int32 = 8
-"number of pieces left when endgame begins"
-const MAX_PIECES::Int32 = 24
-const GRADIENT::Int32 = QUANTISATION / (MAX_PIECES - MIN_PIECES)
-const INTERCEPT::Int32 = -MIN_PIECES * GRADIENT
-
+"total value of pieces left when game begins (Q = 4, R = 2, N = B = 1)"
+const MAX_PIECE_VALUE::Int32 = 24
 
 ### CLI Features ###
 

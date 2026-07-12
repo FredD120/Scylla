@@ -2,17 +2,22 @@ using Scylla
 using Test
 
 @testset "Phase" begin
-    @test Scylla.phase(32) == Scylla.QUANTISATION
-    @test Scylla.phase(0) == 0
+    board_start = Scylla.BoardState()
+    board_end = Scylla.BoardState("K7/PPPPPPPP/8/8/8/8/ppp5/k7 w - - 0 1")
+    board_over = Scylla.BoardState("K7/QQQQQQQQ/8/8/8/8/pppqqqqq/k7 w - - 0 1")
 
-    @test Scylla.endgame_phase(Scylla.phase(32)) == 0
-    @test Scylla.endgame_phase(Scylla.phase(0)) == Scylla.QUANTISATION
+    @test Scylla.phase(board_start) == Scylla.QUANTISATION
+    @test Scylla.phase(board_end) == 0
+    @test Scylla.phase(board_over) == Scylla.QUANTISATION
+
+    @test Scylla.endgame_phase(Scylla.QUANTISATION) == 0
+    @test Scylla.endgame_phase(0) == Scylla.QUANTISATION
 end
 
 @testset "PST Weighting" begin 
     eFEN = "4k3/8/8/8/8/8/8/R3K3 w Qkq - 0 1"
     board = Scylla.BoardState(eFEN)
-    phase = Scylla.phase(Scylla.count_pieces(board))
+    phase = Scylla.phase(board)
     eg_phase = Scylla.endgame_phase(phase)
 
     @test board.pst_score.midgame > 0
@@ -55,11 +60,11 @@ end
     end
 
     @testset "Central Pawns" begin
-        eFEN = "4k3/pppppppp/8/8/PP4PP/8/2PPPP2/4K3 w KQkq - 0 1"
+        eFEN = "r2qk2r/pppppppp/8/8/PP4PP/8/2PPPP2/R2QK2R w KQkq - 0 1"
         board = Scylla.BoardState(eFEN)
         ev1 = Scylla.evaluate(board)
 
-        eFEN = "4k3/pppppppp/8/8/2PPPP2/8/PP4PP/4K3 w KQkq - 0 1"
+        eFEN = "r2qk2r/pppppppp/8/8/2PPPP2/8/PP4PP/R2QK2R w KQkq - 0 1"
         board = Scylla.BoardState(eFEN)
         ev2 = Scylla.evaluate(board)
 

@@ -210,9 +210,29 @@ const DRAW_SCORE = Int16(0)
 "Constant evaluation of being checkmated (favour quicker mates)"
 @inline evaluate_loss(ply) = -INF + Int16(ply)
 
+"count up the value of all major pieces (Q = 4, R = 2, N = B = 1)"
+function material_remaining(pieces::MVector{12, BitBoard})
+    # TODO: incrementally update?
+    queen_count = count_ones(pieces[QUEEN]) + count_ones(pieces[QUEEN + BLACK_OFFSET])
+    rook_count = count_ones(pieces[ROOK]) + count_ones(pieces[ROOK + BLACK_OFFSET])
+    bishop_count = count_ones(pieces[BISHOP]) + count_ones(pieces[BISHOP + BLACK_OFFSET])
+    knight_count = count_ones(pieces[KNIGHT]) + count_ones(pieces[KNIGHT + BLACK_OFFSET])
+
+    return queen_count * 4 + rook_count * 2 + bishop_count + knight_count
+end
+
+"phase starts at the max in the early game and linearly interpolates to zero in the endgame"
+function phase(board::BoardState)
+    piece_value = material_remaining(board.pieces)
+    raw_phase = ceil(Int32, QUANTISATION * piece_value / MAX_PIECE_VALUE)
+    return clamp(raw_phase, Int32(0), QUANTISATION)
+end
+
+endgame_phase(phase) = QUANTISATION - phase
+
 "Returns score of current position from whites perspective"
 @inline function evaluate(board::BoardState)::Int16
-    weight = phase(count_pieces(board))
+    weight = phase(board)
     score = board.pst_score.midgame * weight +
             board.pst_score.endgame * endgame_phase(weight)
     

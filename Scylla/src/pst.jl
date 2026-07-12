@@ -61,7 +61,3 @@ function get_pst(pieces::AbstractArray{BitBoard})
     end
     return score
 end
-
-"phase starts at the max in the early game and linearly interpolates to zero in the endgame"
-phase(pieces) = clamp(pieces * GRADIENT + INTERCEPT, Int32(0), QUANTISATION)
-endgame_phase(phase) = QUANTISATION - phase
