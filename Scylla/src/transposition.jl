@@ -151,10 +151,10 @@ end
 "relative effective depths (multiplied by 4) of different node types"
 function type_value(type::UInt8)
     if type == EXACT
-        return Int(8)
+        return Int(4)
 
     elseif type == BETA
-        return Int(4)
+        return Int(2)
 
     else
         return Int(0)

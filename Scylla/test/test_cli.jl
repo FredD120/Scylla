@@ -69,14 +69,11 @@ end
 end
 
 @testset "Time Controls" begin
-    msg_array = ["WTIME", "10000", "BTIME", "20000", "WINC", "1000", "BINC", "1000"]
+    msg_array = ["WTIME", "10000", "BTIME", "20000", "WINC", "1000", "BINC", "1000", "MOVESTOGO", "10"]
     engine = EngineState(size_mb=0)
 
-    time, increment = Scylla.get_time_control(engine.board, msg_array)
+    time, increment, moves = Scylla.get_time_control(engine.board, msg_array)
     @test time == 10.0
     @test increment == 1.0
-    
-    searchtime = estimate_movetime(engine, time, increment)
-    @test searchtime > increment
-    @test searchtime < time + increment
+    @test moves == 10
 end

@@ -43,32 +43,39 @@ function listen(st::CLI_state)
     put!(st.listen, "QUIT")
 end
 
-"parse time-control info from CLI, return as time + increment in seconds"
+"parse time-control info from CLI, return as time, increment in seconds and moves to go"
 function get_time_control(board::BoardState, msg_caps)
     match_colour = board.colour ? "W" : "B"
 
     time_ind = get_msg_index(msg_caps, match_colour * "TIME")
     inc_ind = get_msg_index(msg_caps, match_colour * "INC")
+    moves_ind = get_msg_index(msg_caps, "MOVESTOGO")
 
     time = if is_valid(time_ind, msg_caps)
-        parse(Float64, msg_caps[time_ind + 1])
+        parse(Float64, msg_caps[time_ind + 1]) / 1000
     else
-        DEFAULTTIME * 1000
+        DEFAULTTIME
     end
 
     increment = if is_valid(inc_ind, msg_caps)
-        parse(Float64, msg_caps[inc_ind + 1])
+        parse(Float64, msg_caps[inc_ind + 1]) / 1000
     else
         0.0
     end
 
-    return (time, increment) ./ 1000
+    moves = if is_valid(moves_ind, msg_caps)
+        parse(Int64, msg_caps[moves_ind + 1])
+    else
+        ESTIMATE_MOVES_REMAINING
+    end
+
+    return (time, increment, moves)
 end
 
 "estimate the optimal time to spend on the current move given time remaining and increment"
-function estimate_movetime(::EngineState, time, increment)
-    ESTIMATE_MOVES_REMAINING::Int8 = 25
-    return (time / ESTIMATE_MOVES_REMAINING) + increment
+function estimate_movetime(board::BoardState, msg_caps)
+    time, increment, moves_to_go = get_time_control(board, msg_caps)
+    return (time - GUI_SAFETY_FACTOR) / moves_to_go + increment
 end
 
 "send quit message to engine if there is a channel to do so"
@@ -170,13 +177,12 @@ function set_control!(engine::EngineState, msg_in)
         ind = get_msg_index(msg_caps, "MOVETIME")
         if is_valid(ind, msg_caps)
             new_time = parse(Float64, msg_in[ind + 1]) / 1000
-            actual_time = max(new_time - GUI_SAFETY_FACTOR, GUI_SAFETY_FACTOR)
+            actual_time = max(new_time - GUI_SAFETY_FACTOR, 0.0)
             engine.config.control = TimeControl(actual_time)
         end
     
     elseif "WTIME" in msg_caps || "BTIME" in msg_caps
-        time, increment = get_time_control(engine.board, msg_caps)
-        newtime = estimate_movetime(engine, time, increment)
+        newtime = estimate_movetime(engine.board, msg_caps)
         engine.config.control = TimeControl(newtime)
 
     elseif "DEPTH" in msg_caps

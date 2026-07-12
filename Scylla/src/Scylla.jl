@@ -32,13 +32,7 @@ Evaluation
 -> NNUE
 
 TO-DO (general)
--> UCI protocol
- - Better time estimation - use movestogo if provided
 -> Point-based system to estimate mid/end-game phase
-
-Known bugs
--> Mate scores in transposition table are wrong 
-   - over-optimistic? thinks opponent will take shorter route to mate
 
 TO THINK ABOUT
 # What to do about unforcable draws like KNkb
