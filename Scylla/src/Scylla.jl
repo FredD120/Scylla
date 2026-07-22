@@ -17,7 +17,6 @@ TO-DO (engine)
 Pruning
 -> Null move pruning
 -> SEE in quiescence
--> TT in quiescence
 -> Aspiration windows
 -> Razoring
 
@@ -30,13 +29,6 @@ Evaluation
 -> King safety
 -> Pawn structure
 -> NNUE
-
-TO-DO (general)
--> Point-based system to estimate mid/end-game phase
-
-TO THINK ABOUT
-# What to do about unforcable draws like KNkb
-# Do we need to check for FIDE draws like KNk, KBk
 =#
 
 module Scylla

@@ -318,7 +318,7 @@ const UCI_OK_MESSAGE = string(
 
 # fraction of a second to give time to send info back to GUI
 const GUI_SAFETY_FACTOR = 0.01
-const ESTIMATE_MOVES_REMAINING = 30
+const ESTIMATE_MOVES_REMAINING = 25
 
 "fetch all info from a Channel and print to StdOut"
 function print_channel(info::Channel{String})
