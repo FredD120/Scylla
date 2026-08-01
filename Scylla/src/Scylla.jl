@@ -26,8 +26,6 @@ Move Ordering
 -> LMR (+ history?)
 
 Evaluation
--> King safety
--> Pawn structure
 -> NNUE
 =#
 
@@ -57,8 +55,7 @@ export BitBoard, BoardState, print_board, setzero, setone,
        generate_legal_moves, generate_pseudolegal_moves,
        best_move, Move, perft,
        Logger, print_search_log,
-       run_cli, assign_tt!, reset_engine!,
+       run_cli, reset_engine!,
        Control, TimeControl, DepthControl, NodesControl,
-       estimate_movetime,
-       EngineState, Config
+       estimate_movetime, EngineState
 end #module
