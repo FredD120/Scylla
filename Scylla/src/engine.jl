@@ -230,13 +230,10 @@ end
 
 endgame_phase(phase) = QUANTISATION - phase
 
-"Returns score of current position from whites perspective"
+"Returns score of current position from whites perspective (TODO: check this is true for NNUE)"
 @inline function evaluate(board::BoardState)::Int16
-    weight = phase(board)
-    score = board.pst_score.midgame * weight +
-            board.pst_score.endgame * endgame_phase(weight)
-    
-    return Int16(score >> QUANTISATION_SHIFT)
+    score::Float32 = forward(board.network, board.colour)
+    return round(Int16, score)
 end
 
 "retrieve information from transposition table and tell main engine whether to cut and return precalculated score"

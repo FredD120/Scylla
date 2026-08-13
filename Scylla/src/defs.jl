@@ -291,14 +291,10 @@ const MVV_LVA = SVector{30, UInt8}([
     53, 43, 33, 33, 13,
     55, 45, 35, 35, 15])
 
+### NNUE ###
 
-### PST Features ###
-
-"quantise game phase into a byte"
-const QUANTISATION_SHIFT::Int32 =  8
-const QUANTISATION::Int32 = 1 << QUANTISATION_SHIFT
-"total value of pieces left when game begins (Q = 4, R = 2, N = B = 1)"
-const MAX_PIECE_VALUE::Int32 = 24
+const HIDDEN_NODES = 256
+const NNUE_NAME = "Model1"
 
 ### CLI Features ###
 

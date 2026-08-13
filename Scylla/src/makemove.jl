@@ -4,7 +4,7 @@
 "utilises setzero to remove a piece from a position"
 @inline function destroy_piece!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setzero(board.pieces[piece_type], pos)
-    board.pst_score = updated_pst_score(board.pst_score, colour, colourless_piecetype(piece_type), pos, -1)
+    sub_accumulate_piece!(board.network, piece_type, pos)
     board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = 0
 
@@ -15,7 +15,7 @@ end
 "utilises setone to create a piece in a position"
 @inline function create_piece!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setone(board.pieces[piece_type], pos)
-    board.pst_score = updated_pst_score(board.pst_score, colour, colourless_piecetype(piece_type), pos, +1)
+    add_accumulate_piece!(board.network, piece_type, pos)
     board.zobrist_hash ⊻= zobrist_piece(piece_type, pos)
     board.piece_positions[pos + 1] = piece_type
 
@@ -33,6 +33,7 @@ end
 @inline function unmake_create!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setzero(board.pieces[piece_type], pos)
     board.piece_positions[pos + 1] = 0
+    sub_accumulate_piece!(board.network, piece_type, pos)
 
     union_id = short_index(colour) + 1
     board.piece_union[union_id] = setzero(board.piece_union[union_id], pos)
@@ -42,6 +43,7 @@ end
 @inline function unmake_destroy!(board::BoardState, colour, piece_type, pos)
     board.pieces[piece_type] = setone(board.pieces[piece_type], pos)
     board.piece_positions[pos + 1] = piece_type
+    add_accumulate_piece!(board.network, piece_type, pos)
 
     union_id = short_index(colour) + 1 
     board.piece_union[union_id] = setone(board.piece_union[union_id], pos)

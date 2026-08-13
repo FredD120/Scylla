@@ -40,9 +40,6 @@ end
 "return a view into the current moves in move vec"
 current_moves(m::MoveVec, move_length) = @view m.moves[m.ind - move_length + 1:m.ind]
 
-"index into PST based on side-to-move"
-side_index(colour::Bool, ind) = ifelse(colour, ind, 8 * rank(ind) + file(ind))
-
 "offset for index into piece array based on side-to-move"
 long_index(colour::Bool) = ifelse(colour, UInt8(0), BLACK_OFFSET)
 
@@ -58,7 +55,6 @@ struct BoardHistory
     castling::UInt8
     enpassant::BitBoard
     zobrist_hash::BitBoard
-    pst::PieceScore
     move::Move
 end
 
@@ -78,7 +74,7 @@ mutable struct BoardState
     castle::UInt8
     enpassant_bb::BitBoard
     zobrist_hash::BitBoard
-    pst_score::PieceScore
+    network::Network
     history::Vector{BoardHistory}
     move_vector::MoveVec
 end
@@ -91,7 +87,6 @@ function rollback_history!(board::BoardState)
     board.half_moves = state.half_moves
     board.castle = state.castling
     board.enpassant_bb = state.enpassant
-    board.pst_score = state.pst
 
     return state.move
 end
@@ -103,7 +98,6 @@ function update_history!(board::BoardState, move::Move)
     board.castle,
     board.enpassant_bb,
     board.zobrist_hash,
-    board.pst_score,
     move)
 
    push!(board.history, state)
@@ -276,10 +270,10 @@ function BoardState(FEN)
     end
 
     zobrist = generate_hash(pieces, colour, castling, enpassant)
-    pst_score = get_pst(pieces)
+    network = initialise_network(pieces)
 
     BoardState(pieces, pc_unions(pieces), offset_board(pieces), colour, half_moves,
-    castling, enpassant, zobrist, pst_score, history_vec(), MoveVec())
+    castling, enpassant, zobrist, network, history_vec(), MoveVec())
 end
 
 "default constructor for BoardState"
@@ -346,7 +340,6 @@ function is_quiet_move_possible(move, board::BoardState)
         return false
     end
 
-    # need to make move types have colour and only PST access is colourless
     if positions[mv_from + 1] != mv_pc_type
         return false
     end

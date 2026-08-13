@@ -24,9 +24,6 @@ Move Ordering
 -> Promotion - queen good, underpromote bad
 -> SEE
 -> LMR (+ history?)
-
-Evaluation
--> NNUE
 =#
 
 module Scylla
@@ -37,8 +34,8 @@ using Random
 
 include("bitboard.jl")
 include("defs.jl")
-include("pst.jl")
 include("move.jl")
+include("nnue.jl")
 include("board.jl")
 include("magics.jl")
 include("generatemoves.jl")

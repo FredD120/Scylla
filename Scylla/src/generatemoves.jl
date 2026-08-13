@@ -217,7 +217,7 @@ end
 end
 
 "filter pseudolegal moves for legality for rook"
-@inline function legal_rook_moves(loc,all_pcs, rookpins, info::LegalInfo)
+@inline function legal_rook_moves(loc, all_pcs, rookpins, info::LegalInfo)
     poss_moves = pseudolegal_rook_moves(loc, all_pcs)
     #Filter out rook moves that don't block/capture if in check/pinned
     legal_moves = poss_moves & (info.attackers | info.evasion_mask) & rookpins
