@@ -294,7 +294,7 @@ const MVV_LVA = SVector{30, UInt8}([
 ### NNUE ###
 
 const HIDDEN_NODES = 256
-const NNUE_NAME = "Model1"
+const NNUE_NAME = "Model2"
 
 ### CLI Features ###
 

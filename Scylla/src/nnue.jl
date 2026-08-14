@@ -12,8 +12,10 @@
 
 struct Network
     accumulator_weights::Matrix{Float32}
-    output_weights::Vector{Float32}
-    output_bias::Float32
+    us_output_weights::Vector{Float32}
+    us_output_bias::Float32
+    them_output_weights::Vector{Float32}
+    them_output_bias::Float32
     accumulator_white::Vector{Float32}
     accumulator_black::Vector{Float32}
 end
@@ -59,18 +61,23 @@ end
 function load_network()
     path = joinpath(dirname(@__DIR__), "src", "NNUE", "$(NNUE_NAME).h5")
     h5open(path, "r") do fid
-        accum_weights::Matrix{Float32} = read(fid["accum_weights"])
-        accum_bias::Vector{Float32}    = vec(read(fid["accum_bias"]))
-        out_weights::Vector{Float32}   = vec(read(fid["out_weights"]))
-        out_bias::Float32              = Float32(read(fid["out_bias"])[1])
+        accum_weights::Matrix{Float32}    = read(fid["accum_weights"])
+        accum_bias::Vector{Float32}       = vec(read(fid["accum_bias"]))
+        us_out_weights::Vector{Float32}   = vec(read(fid["us_out_weights"]))
+        us_out_bias::Float32              = Float32(read(fid["us_out_bias"])[1])
+        them_out_weights::Vector{Float32} = vec(read(fid["them_out_weights"]))
+        them_out_bias::Float32            = Float32(read(fid["them_out_bias"])[1])
 
         @assert size(accum_weights) == (HIDDEN_NODES, 768)
         @assert length(accum_bias) == HIDDEN_NODES
-        @assert length(out_weights) == HIDDEN_NODES
+        @assert length(us_out_weights) == HIDDEN_NODES
+        @assert length(them_out_weights) == HIDDEN_NODES
         return Network(
                 accum_weights,
-                out_weights,
-                out_bias,
+                us_out_weights,
+                us_out_bias,
+                them_out_weights,
+                them_out_bias,
                 copy(accum_bias),
                 copy(accum_bias),
         )
@@ -88,16 +95,23 @@ function initialise_network(piece_vec)
     return nn
 end
 
-"forward pass of efficiently updated neural network - assumes filled accumulator"
-function forward(nn::Network, side_to_move)
-    out = if side_to_move
-        mapreduce(+, nn.accumulator_white, nn.output_weights) do a, w
-            return SCReLU(a) * w
-        end
-    else
-        mapreduce(+, nn.accumulator_black, nn.output_weights) do a, w
-            return SCReLU(a) * w
-        end
+"apply activation to accumulator then pass through output layer of network"
+function activate_output(accumulator, weights, bias)
+    out = mapreduce(+, accumulator, weights) do a, w
+        return SCReLU(a) * w
     end
-    return out + nn.output_bias 
+    return out + bias
+end
+
+"forward pass of efficiently updated neural network - assumes filled accumulators"
+function forward(nn::Network, side_to_move)
+    if side_to_move
+        us = activate_output(nn.accumulator_white, nn.us_output_weights, nn.us_output_bias)
+        them = activate_output(nn.accumulator_black, nn.them_output_weights, nn.them_output_bias)
+        return us + them
+    else
+        us = activate_output(nn.accumulator_black, nn.us_output_weights, nn.us_output_bias)
+        them = activate_output(nn.accumulator_white, nn.them_output_weights, nn.them_output_bias)
+        return us + them
+    end
 end

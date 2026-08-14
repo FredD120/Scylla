@@ -314,7 +314,7 @@ function quiescence(engine::EngineState, player::Int8, α, β, ply, logger::Logg
     # not in check, continue quiescence
     if !is_check
         # stand-pat evaluation - makes null move assumption
-        best_score = player * evaluate(engine.board)
+        best_score = evaluate(engine.board)
         # either player can choose not to continue trading
         if best_score > α
             if best_score >= β
