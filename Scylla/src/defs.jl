@@ -296,6 +296,14 @@ const MVV_LVA = SVector{30, UInt8}([
 const HIDDEN_NODES = 256
 const NNUE_NAME = "Model2"
 
+# quantisation for accumulator
+const QUANT_SHIFT_A = 7
+const QUANTISATION_A = Int16(1) << QUANT_SHIFT_A
+
+# quantisation for output
+const QUANT_SHIFT_B = 6
+const QUANTISATION_B = Int16(1) << QUANT_SHIFT_B
+
 ### CLI Features ###
 
 const NAME = "Scylla"
