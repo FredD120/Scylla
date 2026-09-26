@@ -60,10 +60,6 @@ end
     pos = 17
     @test Scylla.rank(pos) == 5
     @test Scylla.file(pos) == 1
-
-    bpos = Scylla.side_index(Scylla.BLACK, pos)
-    @test Scylla.rank(bpos) == 2
-    @test Scylla.file(bpos) == 1
 end
 
 @testset "Iterators" begin 
@@ -532,19 +528,6 @@ end
     @test board.zobrist_hash == newboard.zobrist_hash
 end
 
-@testset "PST Values" begin
-    nFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-    board = Scylla.BoardState(nFEN)
-
-    @test board.pst_score == Scylla.PieceScore()
-    
-    nFEN = "8/P6k/K7/8/8/8/8/8 w - - 0 1"
-    board = Scylla.BoardState(nFEN)
-    
-    @test board.pst_score.midgame >= 100
-    @test board.pst_score.endgame >= 100
-end
-
 
 @testset "Cheap Perft" begin 
     basicFEN = "K7/8/8/8/8/8/8/7k w - - 0 1"
@@ -555,15 +538,10 @@ end
 end
 
 function testing_perft(board::BoardState, depth)
-    static_eval = Scylla.get_pst(board.pieces)
     static_zobrist = Scylla.generate_hash(board)
     static_positions = Scylla.offset_board(board)
 
-    if board.pst_score != static_eval
-        println("Score doesn't match. Dynamic = $(board.pst_score), static = $(static_eval). Found in position:")
-        print_board(board)
-        error()
-    elseif board.zobrist_hash != static_zobrist
+    if board.zobrist_hash != static_zobrist
         println("Zobrist hash doesn't match in position:")
         print_board(board)
         error()

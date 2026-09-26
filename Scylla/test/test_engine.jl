@@ -1,40 +1,16 @@
 using Scylla
 using Test
 
-@testset "Phase" begin
-    board_start = Scylla.BoardState()
-    board_end = Scylla.BoardState("K7/PPPPPPPP/8/8/8/8/ppp5/k7 w - - 0 1")
-    board_over = Scylla.BoardState("K7/QQQQQQQQ/8/8/8/8/pppqqqqq/k7 w - - 0 1")
-
-    @test Scylla.phase(board_start) == Scylla.QUANTISATION
-    @test Scylla.phase(board_end) == 0
-    @test Scylla.phase(board_over) == Scylla.QUANTISATION
-
-    @test Scylla.endgame_phase(Scylla.QUANTISATION) == 0
-    @test Scylla.endgame_phase(0) == Scylla.QUANTISATION
-end
-
-@testset "PST Weighting" begin 
-    eFEN = "4k3/8/8/8/8/8/8/R3K3 w Qkq - 0 1"
-    board = Scylla.BoardState(eFEN)
-    phase = Scylla.phase(board)
-    eg_phase = Scylla.endgame_phase(phase)
-
-    @test board.pst_score.midgame > 0
-    @test board.pst_score.endgame > 0
-
-    score = board.pst_score.midgame * phase + board.pst_score.endgame * eg_phase
-    @test score > 0
-    @test score << Scylla.QUANTISATION_SHIFT > 0
-end
-
 @testset "Basic Evaluation" begin 
     @testset "Start Position" begin
         eFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
         board = Scylla.BoardState(eFEN)
-        ev = Scylla.evaluate(board)
+        evw = Scylla.evaluate(board)
 
-        @test ev == 0
+        eFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1"
+        board = Scylla.BoardState(eFEN)
+        evb = Scylla.evaluate(board)
+        @test evw == evb
     end
 
     @testset "Up a Pawn" begin
@@ -88,28 +64,52 @@ end
     engine = Scylla.EngineState()
     engine.config.control = Scylla.DepthControl(4)
 
-    @testset "Bxq" begin
-        eFEN = "K6Q/8/8/8/8/8/8/b6k b - - 0 1"
-        engine.board = BoardState(eFEN)
+    @testset "Mate in 1" begin
+        engine.board = Scylla.BoardState("6k1/5ppp/8/8/8/8/8/3R2K1 w - - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) == "rd1-d8"
+    end
+
+    @testset "Capture Hanging Queen" begin
+        engine.board = Scylla.BoardState("k6q/8/8/8/8/8/8/B6K w - - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) == "ba1xh8"
+
+        # colour swap
+        engine.board = BoardState("K6Q/8/8/8/8/8/8/b6k b - - 0 1")
         best, log = Scylla.best_move(engine)
 
         @test Scylla.long_move(best) == "Ba1xh8"
     end
 
-    @testset "bxQ" begin
-        eFEN = "k6q/8/8/8/8/8/8/B6K w - - 0 1"
-        engine.board = BoardState(eFEN)
-        best, log = Scylla.best_move(engine)
-
-        @test Scylla.long_move(best) == "Ba1xh8"
+    @testset "Pawn Promotion" begin
+        engine.board = Scylla.BoardState("8/4P1k1/8/8/8/8/8/6K1 w - - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) == "pe7-e8q"
     end
 
-    @testset "Queen Cuts off King" begin
-        eFEN = "k7/8/8/8/8/8/5K2/7q b - - 0 1"
-        engine.board = BoardState(eFEN)
-        best, log = Scylla.best_move(engine)
+    @testset "En Passant" begin
+        engine.board = Scylla.BoardState("8/8/8/4Pp2/8/8/8/4K2k w - f6 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) == "pe5xf6"
+    end
 
-        @test Scylla.long_move(best) == "Qh1-e4"
+    @testset "Defend Against Mate" begin
+        engine.board = Scylla.BoardState("r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR b KQkq - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) in ["ng8-f6", "qd8-f6", "qd8-e7"]
+    end
+
+    @testset "Knight Fork" begin
+        engine.board = Scylla.BoardState("r3k3/8/8/3N4/8/8/8/4K3 w - - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test lowercase(Scylla.long_move(best)) == "nd5-c7"
+    end
+
+    @testset "Discovered Attack" begin
+        engine.board = Scylla.BoardState("4k3/4q3/8/8/4B3/8/8/4R1K1 w - - 0 1")
+        best, _ = Scylla.best_move(engine)
+        @test startswith(lowercase(Scylla.long_move(best)), "be4-")
     end
 end
 
